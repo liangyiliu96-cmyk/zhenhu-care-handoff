@@ -1,0 +1,9 @@
+{
+  "name": "@zhenhu/knowledge-orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@zhenhu/clinical-contracts": "0.1.0"
+  }
+}

@@ -1,0 +1,31 @@
+# Dependencies and package-manager files
+node_modules/
+.pnpm-store/
+
+# Build, coverage, and test artifacts
+dist/
+build/
+coverage/
+output/
+.playwright-cli/
+playwright-report/
+test-results/
+.cache/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Reference projects (read-only, not under version control)
+参考借鉴项目/
+
+# PoC runtime data (not version-controlled)
+poc/data/

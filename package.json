@@ -1,0 +1,21 @@
+{
+  "name": "zhenhu-care-handoff",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zhenhu discharge handoff and chronic care coordination platform",
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  },
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "poc:serve": "node poc/api/server.mjs",
+    "poc:test": "node --test poc/tests/*.test.mjs",
+    "poc:verify-embedding": "node poc/tools/verify-embedding.mjs",
+    "contracts:test": "node --test tests/contracts/*.test.mjs"
+  }
+}

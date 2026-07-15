@@ -1,0 +1,35 @@
+[
+  {
+    "documentId": "drug-label-amoxicillin-clavulanate",
+    "title": "阿莫西林/克拉维酸钾药品说明书（模拟）",
+    "version": "2025.01",
+    "status": "published",
+    "owner": "药学部（模拟）",
+    "effectiveFrom": "2025-01-01",
+    "effectiveUntil": "2027-01-01",
+    "chunks": [{ "chunkId": "chunk-2-4", "location": "禁忌与慎用 · 2.4", "text": "对青霉素类药物有过敏史者，应由具备处方责任的医师评估。" }]
+  },
+  {
+    "documentId": "poc-followup-sop",
+    "title": "院内随访 SOP 样例（模拟）",
+    "version": "0.1",
+    "status": "published",
+    "owner": "护理部（模拟）",
+    "effectiveFrom": "2026-01-01",
+    "effectiveUntil": "2027-01-01",
+    "chunks": [
+      { "chunkId": "chunk-2-4", "location": "2.4 · 居家监测信息", "text": "交接信息应包含约定的居家监测记录方式。" },
+      { "chunkId": "chunk-3-2", "location": "3.2 · 出院后随访准备", "text": "复查事项和计划时间应在交接草稿中明确记录。" }
+    ]
+  },
+  {
+    "documentId": "poc-handoff-sop",
+    "title": "院内交接 SOP 样例（模拟）",
+    "version": "0.1",
+    "status": "published",
+    "owner": "医务处（模拟）",
+    "effectiveFrom": "2026-01-01",
+    "effectiveUntil": "2027-01-01",
+    "chunks": [{ "chunkId": "chunk-1-3", "location": "1.3 · 冲突信息处理", "text": "来源信息冲突时，应并列展示并由经治医生完成核实。" }]
+  }
+]

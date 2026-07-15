@@ -1,0 +1,28 @@
+sequenceDiagram
+    actor Doctor as 经治医生
+    participant API as /api/v1
+    participant WF as PocWorkflow
+    participant Risk as RiskItem
+
+    Note over WF: runAnalysis 新增 dischargeTo 调整
+    Doctor->>API: POST /demo/reset {scenario:"data_conflict"}
+    API->>WF: runAnalysis("doctor", {dataConflict:true})
+    WF->>WF: risks = riskItems()  // 4项基础风险
+    WF->>WF: adjustSeverityByDischargeTo(risks, snapshot)
+    Note over WF: risk-renal-01 (medium→high) 因 dischargeTo=居家
+    WF->>WF: risks.push(conflictRisk())  // 第5项
+    WF-->>API: risks[5]
+
+    Note over Doctor,WF: P0-3 escalate 流程
+    Doctor->>API: POST /risks/risk-dose-01/review {action:"escalate", reason:"需上级审核"}
+    API->>WF: reviewRisk("doctor", "risk-dose-01", "escalate", "需上级审核")
+    WF->>Risk: status = "escalated"
+    WF->>Risk: decision = {action:"escalate", reason, actor, decidedAt}
+    WF-->>API: overview (无状态转移)
+
+    Note over Doctor,WF: createTaskDraft 忽略 escalated
+    Doctor->>API: POST /task-drafts
+    API->>WF: createTaskDraft("doctor")
+    WF->>WF: basedOnRiskIds = risks.filter(r => r.status === "confirmed")
+    Note over WF: escalated 项被排除
+    WF-->>API: taskDraft
