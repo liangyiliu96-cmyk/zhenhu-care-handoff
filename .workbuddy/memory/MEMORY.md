@@ -1,26 +1,58 @@
 # 项目长期记忆
 
 ## 仓库结构约定
-- **双轨隔离仓库**: `poc/`(可运行 PoC) + 正式工程骨架(`apps/ services/ packages/ tests/`)。
-- **隔离红线**: 正式代码不得 `import` 任何 `poc/` 实现；仅可迁移已验证的契约/状态机/测试场景到 `packages/`。
-- **共享临床契约**: `packages/clinical-contracts/src/index.mjs`（`@zhenhu/clinical-contracts` v0.1.0）——病例状态机(§3.4)与知识版本状态机(§4.4)的唯一事实来源。workflow.mjs 通过 `assertCaseTransition` 依赖它。
+- **双轨隔离仓库**: `poc/`(冻结,44/44测试) + 正式工程(`apps/ services/ packages/ tests/`)。
+- **隔离红线**: 正式代码不得 `import` 任何 `poc/` 实现。唯一允许的跨目录引用: `from zhenhu.contracts import ...`(来自 `packages/clinical-contracts-py/`)。
+- **共享临床契约**: JS 版 `packages/clinical-contracts/src/index.mjs`(v0.1.0,POC用) + Python 版 `packages/clinical-contracts-py/src/zhenhu/contracts/`(v0.2.0,正式工程用,Pydantic v2+Enum)。
+- **namespace package**: 正式工程使用 `zhenhu.*` 命名空间(zhenhu.contracts / zhenhu.workflow), 各包通过 pyproject.toml 声明依赖。
+
+## 正式工程技术栈(架构 v0.2 冻结)
+- **后端**: FastAPI (Python 3.12+) + SQLAlchemy 2.0 async + Pydantic v2 + Celery + Redis
+- **数据库**: MySQL 8.0(业务数据,三库隔离 zhenhu_workflow/zhenhu_knowledge/zhenhu_fhir) + Milvus Lite(向量检索,HNSW索引)
+- **前端**: Vite + React 18 + MUI v6 + Tailwind + Zustand + TanStack Query v5 + React Hook Form + Zod
+- **部署**: Docker Compose(阶段0,5容器: MySQL+Milvus+Redis+FastAPI+Celery+React) → K8s(阶段2)
+- **LLM管线**: LangChain + sentence-transformers 原生加载(不用子进程)
+
+## 服务拆分(4服务+1包)
+| 服务 | 目录 | 职责 | 状态 |
+|---|---|---|---|
+| workflow-engine | `services/workflow-engine/` | 病例状态机/Agent编排/审核流 | ✅ 58测试,3端点 |
+| knowledge-orchestrator | `services/knowledge-orchestrator/` | 知识导入/混合检索/后处理/反向阻断 | ❌ 待建 |
+| fhir-adapter | `services/fhir-adapter/` | 医院数据映射/Patient Compartment/Consent | ❌ 待建 |
+| api-gateway | `services/api-gateway/` | 前端网关/路由/鉴权 | ❌ 待建 |
+| clinical-contracts | `packages/clinical-contracts-py/` | Pydantic状态机/角色权限 | ✅ 已移植 |
 
 ## 测试命令
-- `npm run poc:test` → `node --test poc/tests/*.test.mjs`（当前 39/39）
+- `npm run poc:test` → `node --test poc/tests/*.test.mjs`（当前 44/44）
 - `npm run contracts:test` → `node --test tests/contracts/*.test.mjs`（当前 7/7）
-- `npm run poc:serve` → `node poc/api/server.mjs`（默认端口 4173）
+- `cd services/workflow-engine && python -m pytest -v`（当前 58/58）
+- 全部: 109 项测试全绿
 
-## PoC 运行注意
-- 首次语义检索会下载 `Xenova/paraphrase-multilingual-MiniLM-L12-v2`（384 维）模型；核心工作流端点不需要模型，可离线验证。
-- `demo/reset` 只重置病例工作流，**不重置知识库**；要恢复知识预置样例用 `POST /knowledge/runtime/reset`（需 knowledge_admin 角色）。
-- 已过期/撤回/被替代的知识为终态，不可恢复为 published；需通过 resetRuntime 回到预置样例。
-- `resetRuntime` 的 `rmSync` 在 WorkBuddy 沙箱内会被删除守卫拦截，已加 try/catch 回退 `persistState()`。
+## 关键架构文档
+- `docs/requirements/AI出院交接与慢病随访协同平台_需求规格说明书_v0.2.md` — 需求基线(16条增强,冻结)
+- `docs/architecture/00-系统架构总览.md` — v0.2(FastAPI+MySQL/Milvus+前端MUI)
+- `docs/architecture/01-数据模型与存储方案.md` — 4服务17表+ER图+MySQL三库隔离
+- `docs/architecture/03-接口契约与API设计.md` — 3服务23端点+11错误码+UnifiedResponse
+- `docs/requirements/需求与PoC对齐反馈报告_v0.1.md` — 双向对齐追溯基线
+- `docs/requirements/需求增强建议_来自参考项目_v0.1.md` — 6参考项目18条建议
 
-## 状态机要点（§3.4 / §4.4）
-- 病例: draft→analysing→review_pending→confirmed|rejected→task_draft→simulated_published→closed；任意非终态→failed/cancelled；knowledge_changed 为阻断态(经 reconcile→review_pending 恢复)。
-- 知识反向阻断: 已发布知识 expired/withdrawn/superseded 时，引用它的 review_pending/task_draft 病例→knowledge_changed 并阻断发布。
-- 护士/个案管理师可 `supplementTask` 补充指派给自己的任务执行信息（§3.4）。
+## PoC 运行注意(已冻结,仅维护)
+- 首次语义检索会下载 `Xenova/paraphrase-multilingual-MiniLM-L12-v2`模型。
+- `demo/reset` 只重置病例工作流,不重置知识库。
+- `resetRuntime` 的 `rmSync` 在沙箱内被拦截,已加 try/catch 回退 `persistState()`。
+- PoC 新增能力: escalate升级/dose_discrepancy第4风险项/dischargeTo严重度调整/source_type溯源标签。
 
-## 需求文档
-- `docs/requirements/` 下需求规格 v0.2 + 证据基线 v0.1（四级证据 A/B/C/D）。
-- PoC 仅验证技术流程，不证明临床有效性。
+## Git 基线(按时间)
+```
+1fe19fb  01数据模型 + 03接口契约
+fed28fa  clinical-contracts Python移植 + workflow-engine骨架 (58/58)
+e63a5b9  架构总览 v0.2 — FastAPI+MySQL/Milvus+前端完整方案
+75d4b40  架构总览 v0.1 — Node.js 初始版
+c597fc4  项目初始化
+```
+
+## 文档编号体系
+- `docs/requirements/`: 需求层(需求规格/证据基线/对齐报告/增强建议)
+- `docs/architecture/`: 架构层(00总览/01数据模型/03接口契约/04-07待补)
+- `poc/docs/architecture/`: PoC架构(00-04,已冻结)
+- `poc/docs/testing/`: PoC测试(04-e2e/05-验证结果)
