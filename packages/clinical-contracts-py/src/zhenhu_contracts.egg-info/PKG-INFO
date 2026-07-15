@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: zhenhu-contracts
+Version: 0.2.0
+Summary: 臻护 AI 协同平台 — 共享临床契约：病例/知识/入库任务状态机与角色权限
+Requires-Python: >=3.12
+Requires-Dist: pydantic>=2.0

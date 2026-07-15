@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: zhenhu-workflow
+Version: 0.2.0
+Summary: 臻护 AI 协同平台 — 病例协同工作流引擎：状态机 + Agent 编排 + 审核流
+Requires-Python: >=3.12
+Requires-Dist: fastapi>=0.109
+Requires-Dist: uvicorn[standard]
+Requires-Dist: sqlalchemy>=2.0
+Requires-Dist: pydantic>=2.5
+Requires-Dist: zhenhu-contracts
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: httpx>=0.27; extra == "dev"
+Requires-Dist: aiosqlite>=0.20; extra == "dev"

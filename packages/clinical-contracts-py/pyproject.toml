@@ -1,0 +1,15 @@
+[project]
+name = "zhenhu-contracts"
+version = "0.2.0"
+description = "臻护 AI 协同平台 — 共享临床契约：病例/知识/入库任务状态机与角色权限"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.0",
+]
+
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
