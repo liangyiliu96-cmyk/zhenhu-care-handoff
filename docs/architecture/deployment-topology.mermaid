@@ -10,31 +10,33 @@ flowchart TB
     end
 
     subgraph gateway["网关层"]
-      gw["api-gateway\nFastify :3000"]
+      gw["api-gateway\nFastAPI :8000"]
     end
 
     subgraph services["服务层"]
-      we["workflow-engine\n:3001"]
-      ko["knowledge-orchestrator\n:3002"]
-      fa["fhir-adapter\n:3003"]
+      we["workflow-engine\nFastAPI :8001"]
+      ko["knowledge-orchestrator\nFastAPI :8002"]
+      fa["fhir-adapter\nFastAPI :8003"]
     end
 
     subgraph data["数据层"]
-      pg[("PostgreSQL 16\n+ pgvector\n:5432")]
+      mysql[("MySQL 8.0\n:3306")]
+      milvus[("Milvus Lite\n:19530")]
       redis[("Redis 7\n:6379")]
+    end
+
+    subgraph async["异步层"]
+      celery["Celery Workers"]
     end
   end
 
   wb --> gw
-  gw --> we
-  gw --> ko
-  gw --> fa
-  we --> ko
-  we --> fa
-  we --> pg
-  we --> redis
-  ko --> pg
-  ko --> redis
-  fa --> pg
+  gw --> we & ko & fa
+  we --> ko & fa
+  we --> mysql & redis
+  ko --> mysql & milvus & redis
+  ko --> celery
+  celery --> mysql & milvus
+  fa --> mysql
   fa -.-> his
   gw -.-> idp
