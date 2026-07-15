@@ -1,0 +1,25 @@
+erDiagram
+  %% === workflow-engine (MySQL: zhenhu_workflow) ===
+  CASE ||--o{ RISK_ITEM : contains
+  CASE ||--o{ TASK_DRAFT : produces
+  CASE ||--o{ AUDIT_EVENT : records
+  RISK_ITEM ||--o| REVIEW_DECISION : receives
+
+  %% === knowledge-orchestrator (MySQL: zhenhu_knowledge + Milvus Lite) ===
+  KNOWLEDGE_DOCUMENT ||--o{ KNOWLEDGE_CHUNK : splits_into
+  KNOWLEDGE_DOCUMENT ||--o{ KNOWLEDGE_INGESTION_JOB : imported_by
+  KNOWLEDGE_DOCUMENT ||--o{ KNOWLEDGE_LIFECYCLE_EVENT : tracks
+  KNOWLEDGE_CHUNK ||--o{ KNOWLEDGE_CITATION : sourced_from
+
+  %% === fhir-adapter (MySQL: zhenhu_fhir) ===
+  PATIENT ||--o{ ENCOUNTER : has
+  PATIENT ||--o{ CONDITION : diagnosed
+  PATIENT ||--o{ OBSERVATION : measured
+  PATIENT ||--o{ MEDICATION_REQUEST : prescribed
+  PATIENT ||--o{ CARE_PLAN : managed_by
+  PATIENT ||--o{ CONSENT : authorized_by
+  PATIENT ||--o{ FHIR_AUDIT_EVENT : audited
+
+  %% === 跨服务逻辑引用（非 FK） ===
+  CASE }o--|| PATIENT : refs_by_patient_ref
+  RISK_ITEM }o--o{ KNOWLEDGE_CITATION : cites_via_document_id

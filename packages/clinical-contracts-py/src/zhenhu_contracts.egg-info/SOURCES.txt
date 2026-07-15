@@ -1,5 +1,4 @@
 pyproject.toml
-src/zhenhu/__init__.py
 src/zhenhu/contracts/__init__.py
 src/zhenhu_contracts.egg-info/PKG-INFO
 src/zhenhu_contracts.egg-info/SOURCES.txt
