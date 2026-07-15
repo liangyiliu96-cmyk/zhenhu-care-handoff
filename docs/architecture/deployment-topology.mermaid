@@ -1,0 +1,40 @@
+flowchart TB
+  subgraph external["外部系统（阶段 0 模拟 / 阶段 1 真实）"]
+    his["HIS/EMR/LIS"]
+    idp["医院 IDP（CAS/OIDC）"]
+  end
+
+  subgraph zhenhu["臻护 AI 协同平台"]
+    subgraph frontend["前端层"]
+      wb["clinician-workbench\nReact SPA :5173"]
+    end
+
+    subgraph gateway["网关层"]
+      gw["api-gateway\nFastify :3000"]
+    end
+
+    subgraph services["服务层"]
+      we["workflow-engine\n:3001"]
+      ko["knowledge-orchestrator\n:3002"]
+      fa["fhir-adapter\n:3003"]
+    end
+
+    subgraph data["数据层"]
+      pg[("PostgreSQL 16\n+ pgvector\n:5432")]
+      redis[("Redis 7\n:6379")]
+    end
+  end
+
+  wb --> gw
+  gw --> we
+  gw --> ko
+  gw --> fa
+  we --> ko
+  we --> fa
+  we --> pg
+  we --> redis
+  ko --> pg
+  ko --> redis
+  fa --> pg
+  fa -.-> his
+  gw -.-> idp

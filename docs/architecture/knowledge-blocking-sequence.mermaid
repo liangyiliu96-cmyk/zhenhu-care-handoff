@@ -1,0 +1,13 @@
+sequenceDiagram
+  actor KA as 知识管理员
+  participant KO as knowledge-orchestrator
+  participant WE as workflow-engine
+  participant DB as PostgreSQL
+
+  KA->>KO: POST /knowledge/:id/withdraw
+  KO->>DB: 版本→withdrawn；激活上一可用版本
+  KO->>WE: POST /hooks/knowledge-changed {documentId, version, affectedCaseIds}
+  WE->>DB: 查询引用该版本且在办病例
+  WE->>WE: 批量转移 review_pending/task_draft→knowledge_changed
+  WE->>DB: 清空草稿+任务；写入阻断事件
+  WE-->>KO: {blockedCount: N}

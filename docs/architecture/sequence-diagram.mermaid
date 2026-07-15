@@ -1,0 +1,25 @@
+sequenceDiagram
+  actor D as 经治医生
+  participant GW as api-gateway
+  participant WE as workflow-engine
+  participant FA as fhir-adapter
+  participant KO as knowledge-orchestrator
+  participant DB as PostgreSQL
+
+  D->>GW: POST /cases/:id/analyse
+  GW->>GW: JWT 鉴权 + 角色校验(doctor)
+  GW->>WE: forward
+  WE->>WE: 状态机断言 draft→analysing
+  WE->>FA: GET /patients/:id/snapshot
+  FA->>DB: 读取映射配置
+  FA-->>WE: 结构化 FHIR 快照 + 字段溯源
+  WE->>WE: 确定性规则校验（§3.1 优先级1-2）
+  WE->>KO: POST /search {query, filters}
+  KO->>DB: 向量检索 + 全文检索 + 重排序
+  KO-->>WE: 检索结果 + chunk_id + 坐标
+  WE->>WE: 五 Agent 并行/串行分析（§5）
+  WE->>WE: 自检去重 + 严重度调整(dischargeTo)
+  WE->>DB: 保存风险项 + 输入快照 + 检索记录
+  WE->>WE: 状态转移 analysing→review_pending
+  WE-->>GW: 风险项列表 + 引用
+  GW-->>D: 展示风险项（可溯源）

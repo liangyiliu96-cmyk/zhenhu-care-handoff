@@ -1,0 +1,27 @@
+sequenceDiagram
+  actor KA as 知识管理员
+  participant GW as api-gateway
+  participant KO as knowledge-orchestrator
+  participant R as Redis
+  participant DB as PostgreSQL
+
+  KA->>GW: POST /knowledge/import (multipart)
+  GW->>GW: 鉴权(knowledge_admin)
+  GW->>KO: forward
+  KO->>KO: 文件类型/MIME/大小/摘要校验
+  KO->>DB: 保存原件(objectStore)
+  KO->>DB: 写入入库任务(queued)
+  KO->>R: 入队(Stream) 解析任务
+  KO-->>GW: {jobId, status:"queued"}
+
+  Note over KO,R: 异步处理
+  R-->>KO: 消费解析任务
+  KO->>KO: 解析→分块（保留坐标+类型标记）
+  KO->>KO: 后处理管道（关键词+标签+有效期提取）
+  KO->>DB: 写入分块+向量索引
+  KO->>DB: 任务→review_pending
+  KO->>DB: 失败→failed→可重试(queued)
+
+  KA->>GW: POST /knowledge/:id/publish
+  KO->>DB: 版本状态 review_pending→published
+  KO->>R: 失效相关缓存
