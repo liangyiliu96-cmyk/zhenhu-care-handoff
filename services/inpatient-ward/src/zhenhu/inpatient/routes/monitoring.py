@@ -21,7 +21,7 @@ async def report_vital_signs(patient_id: str, vital_data: VitalSignsRequest):
     
     P1修复: 写入state后触发graph重新评估，实现真正的持续监测→自动出院。
     """
-    from .state_store import get_state, update_state
+    from .state_store import get_state, set_state, update_state
     from ..agent.loop import get_patient_loop
 
     vital_dict = vital_data.model_dump(exclude_none=True)
@@ -39,6 +39,23 @@ async def report_vital_signs(patient_id: str, vital_data: VitalSignsRequest):
     updated_state = get_state(patient_id)
     result = await loop.plan_turn(updated_state)
 
+    # graph重评估后检查是否自动出院
+    if result.get("discharge_decision") == "approved":
+        discharge_state = get_state(patient_id)
+        discharge_state["discharge_decision"] = "approved"
+        set_state(patient_id, discharge_state)
+        discharge_result = await loop.plan_turn(discharge_state)
+        set_state(patient_id, discharge_result)
+
+        return UnifiedResponse(data={
+            "patient_id": patient_id,
+            "vitals_count": len(vital_signs),
+            "phase": discharge_result.get("phase"),
+            "auto_discharge": True,
+            "discharge_decision": discharge_result.get("discharge_decision"),
+            "handoff_items": discharge_result.get("handoff_items", []),
+        })
+
     return UnifiedResponse(data={
         "patient_id": patient_id,
         "vitals_count": len(vital_signs),
@@ -51,7 +68,7 @@ async def report_vital_signs(patient_id: str, vital_data: VitalSignsRequest):
 @router.post("/monitoring/{patient_id}/labs")
 async def report_lab_results(patient_id: str, lab_data: LabResultsRequest):
     """上报检验结果并触发Agent检验审阅。"""
-    from .state_store import get_state, update_state
+    from .state_store import get_state, set_state, update_state
     from ..agent.loop import get_patient_loop
 
     lab_dict = lab_data.model_dump(exclude_none=True)
@@ -62,6 +79,23 @@ async def report_lab_results(patient_id: str, lab_data: LabResultsRequest):
 
     loop = get_patient_loop(patient_id)
     result = await loop.plan_turn(get_state(patient_id))
+
+    # graph重评估后检查是否自动出院
+    if result.get("discharge_decision") == "approved":
+        discharge_state = get_state(patient_id)
+        discharge_state["discharge_decision"] = "approved"
+        set_state(patient_id, discharge_state)
+        discharge_result = await loop.plan_turn(discharge_state)
+        set_state(patient_id, discharge_result)
+
+        return UnifiedResponse(data={
+            "patient_id": patient_id,
+            "lab_count": len(lab_results),
+            "phase": discharge_result.get("phase"),
+            "auto_discharge": True,
+            "discharge_decision": discharge_result.get("discharge_decision"),
+            "handoff_items": discharge_result.get("handoff_items", []),
+        })
 
     return UnifiedResponse(data={
         "patient_id": patient_id,
