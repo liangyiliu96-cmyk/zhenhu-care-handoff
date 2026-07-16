@@ -17,7 +17,9 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GzipMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 # 合并迁入修正A: 使用共享 contracts 中间件, 不再引用本地 middleware.py
 from zhenhu.contracts.middleware import RequestIdMiddleware, setup_error_handlers
@@ -33,6 +35,7 @@ VERSION = "0.3.0"
 
 # 结构化日志配置
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 # 阶段5: DeepSeek LLM 接入（API key 通过环境变量 DEEPSEEK_API_KEY 传入；不可用时回退 RuleBasedProvider）
 deepseek_key = os.environ.get("DEEPSEEK_API_KEY", "")
@@ -50,7 +53,15 @@ else:
 
 # 合并迁入修正: SQLite 数据库引擎(移除 app.config.settings 依赖)
 ASYNC_DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./zhenhu_inpatient.db")
-async_engine = create_async_engine(ASYNC_DATABASE_URL, echo=False)
+async_engine = create_async_engine(
+    ASYNC_DATABASE_URL,
+    echo=False,
+    pool_size=int(os.environ.get("DB_POOL_SIZE", "5")),
+    max_overflow=int(os.environ.get("DB_MAX_OVERFLOW", "10")),
+    pool_recycle=int(os.environ.get("DB_POOL_RECYCLE", "3600")),  # 1小时回收
+    pool_pre_ping=True,  # 连接前验证
+    pool_timeout=30,  # 等待连接超时30秒
+)
 async_session_factory = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -62,12 +73,24 @@ async def get_session() -> AsyncSession:  # 阶段J审计修复: 委托 contract
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """应用生命周期管理：启动时初始化数据库表。"""
+    """应用生命周期：启动建表 → 关闭释放连接。"""
     from .models import Base
 
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # startup: 输出路由表
+    for route in app.routes:
+        if hasattr(route, "methods") and hasattr(route, "path"):
+            logger.info("Route: %s %s", route.methods, route.path)
+
+    logger.info("inpatient-ward started")
     yield
+
+    # 优雅关闭
+    logger.info("inpatient-ward shutting down...")
+    await async_engine.dispose()
+    logger.info("inpatient-ward stopped")
 
 
 app = FastAPI(
@@ -86,11 +109,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Gzip 压缩中间件
+app.add_middleware(GzipMiddleware, minimum_size=1000)
+
 # 臻护请求 ID 中间件（透传/注入 X-Request-ID）
 app.add_middleware(RequestIdMiddleware)
 
 # 臻护统一错误处理
 setup_error_handlers(app)
+
+# TrustedHost 中间件（生产环境用，开发环境可通过环境变量关闭）
+allowed_hosts = os.environ.get("ALLOWED_HOSTS", "*")
+if allowed_hosts != "*":
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=allowed_hosts.split(","),
+    )
 
 # 注册路由
 app.include_router(admission_router)
