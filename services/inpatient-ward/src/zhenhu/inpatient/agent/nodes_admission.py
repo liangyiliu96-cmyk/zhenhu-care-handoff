@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Callable
 
 from .harness import normalize_template
+from .metrics import record
 from zhenhu.contracts.agent import get_ai_provider
 
 logger = logging.getLogger("zhenhu.inpatient")
@@ -338,6 +339,7 @@ async def node_admission(state: dict) -> dict:
             assessments_dict = None
             clinical_alerts = []
 
+        record("admission")
         return {
             "phase": "admission",
             "patient_id": patient_id,
@@ -351,6 +353,7 @@ async def node_admission(state: dict) -> dict:
             "clinical_alerts": clinical_alerts,
         }
     except Exception:
+        record("admission", error=True)
         return {
             "phase": "admission",
             "patient_id": state.get("patient_id", "unknown"),
@@ -402,6 +405,7 @@ async def node_triage(state: dict) -> dict:
         result["mdt_mode"] = "async-review"
         result["mdt_reason"] = f"风险分层为高危(匹配风险因子数={risk_count}): {', '.join(matched[:3])}"
     
+    record("triage")
     return result
 
 
@@ -524,6 +528,7 @@ async def node_medication_reconciliation(state: dict) -> dict:
     except Exception:
         pass  # LLM失败不影响规则库结果
 
+    record("medication_reconciliation")
     return {
         "phase": "medication_reconciliation",
         "medication_findings": findings,

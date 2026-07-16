@@ -7,6 +7,7 @@ import json
 import logging
 
 from .harness import validate_handoff_items, fallback_to_template
+from .metrics import record
 from zhenhu.contracts.agent import get_ai_provider
 
 logger = logging.getLogger("zhenhu.inpatient")
@@ -69,6 +70,7 @@ async def node_discharge(state: dict) -> dict:
             result["discharge_decision"] = "bridge_failed"
             result["bridge_error"] = bridge_result.get("status", "unknown")
 
+    record("discharge")
     return result
 
 
@@ -125,6 +127,7 @@ async def node_handoff(state: dict) -> dict:
     if errors:
         items = fallback_to_template(template)["handoff_items"]
 
+    record("handoff")
     return {
         "handoff_items": items,
         "phase": "handoff",
@@ -171,6 +174,7 @@ async def node_doctor_review(state: dict) -> dict:
         reviewed.append(item)
 
     all_accepted = all(it.get("review_action") == "accept" for it in reviewed)
+    record("doctor_review")
     return {
         "handoff_items": reviewed,
         "phase": "review",
@@ -219,4 +223,5 @@ async def node_patient_confirm(state: dict) -> dict:
             item["feedback"] = "已理解"
             item["comprehension"] = "likely_understood"
     
+    record("patient_confirm")
     return {"handoff_items": items, "phase": "confirm"}

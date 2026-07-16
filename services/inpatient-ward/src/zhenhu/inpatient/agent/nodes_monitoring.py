@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 
 from .nodes_admission import _check_discharge_criteria
+from .metrics import record
 from zhenhu.contracts.agent import get_ai_provider
 
 logger = logging.getLogger("zhenhu.inpatient")
@@ -37,6 +38,7 @@ async def node_monitoring(state: dict) -> dict:
     if criteria_result.get("all_met", False):
         result["discharge_decision"] = "approved"
     
+    record("monitoring")
     return result
 
 
@@ -96,6 +98,7 @@ async def node_daily_round(state: dict) -> dict:
         "timestamp": "daily-round-mock",
     }
 
+    record("daily_round")
     return {
         "phase": "daily_round",
         "document_chain": chain + ["daily_round_note"],
@@ -170,6 +173,7 @@ async def node_medication_adjust(state: dict) -> dict:
             "requires_doctor_confirm": True,
         })
     
+    record("medication_adjust")
     return {
         "phase": "medication_adjust",
         "medication_alerts": alerts,
@@ -214,6 +218,7 @@ async def node_lab_review(state: dict) -> dict:
         except Exception:
             pass  # LLM失败→仅标记reviewed，不阻断
     
+    record("lab_review")
     return {
         "phase": "lab_review",
         "reviewed_labs": reviewed + new_labs,
@@ -288,6 +293,7 @@ async def node_transfer(state: dict) -> dict:
             transfer_target = target
             transfer_reason = reason_base
 
+    record("transfer")
     return {
         "phase": "transfer",
         "transfer_needed": transfer_needed,

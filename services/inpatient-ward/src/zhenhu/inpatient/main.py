@@ -108,3 +108,13 @@ async def health_check() -> dict:
         "version": VERSION,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# ── Prometheus metrics 端点 ──
+from zhenhu.inpatient.agent.metrics import get_metrics
+
+
+@app.get("/metrics", tags=["system"])
+async def metrics():
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(get_metrics())
