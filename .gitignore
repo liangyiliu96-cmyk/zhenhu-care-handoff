@@ -27,6 +27,9 @@ Thumbs.db
 .vscode/
 *.swp
 
+# IDE artifacts
+.workbuddy/
+
 # Reference projects (read-only, not under version control)
 参考借鉴项目/
 

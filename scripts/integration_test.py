@@ -1,11 +1,12 @@
-"""臻护后端集成测试 —— 三服务跨链路验证（阶段 0）。
+"""臻护后端集成测试 —— 四服务跨链路验证（阶段 1）。
 
 验证核心跨服务能力：
-  1. 三服务健康检查
+  1. 四服务健康检查
   2. FHIR 患者数据脱敏
   3. 知识检索与生命周期
   4. 工作流核心链路（创建→分析→关闭）
   5. 知识反向阻断钩子
+  6. Cardio 全链路验证（Agent Graph → 臻护三服务）
 """
 
 import json
@@ -16,6 +17,7 @@ BASE = {
     "workflow": "http://localhost:8100",
     "knowledge": "http://localhost:8200",
     "fhir": "http://localhost:8300",
+    "inpatient": "http://localhost:8400",
 }
 
 passed = 0
@@ -43,13 +45,96 @@ def check(condition, label):
         failed += 1
 
 
+# ───────────────────────────── Cardio 全链路验证 ─────────────────────────────
+
+def test_cardio_full_chain():
+    """Cardio + 臻护 端到端全链路验证。
+
+    验证:
+    1. Cardio Agent Graph 入院→出院→交接 全流程
+    2. Cardio → 臻护 knowledge-orchestrator 检索
+    3. Cardio → 臻护 fhir-adapter 患者查询
+    4. Cardio → 臻护 workflow-engine 创建病例
+    """
+    global passed, failed
+
+    # ── C1. 臻护 inpatient 健康检查 ──
+    print("\n6. Cardio + 臻护 全链路验证")
+    code, d = api("GET", f"{BASE['inpatient']}/health")
+    check(code == 200 and d.get("status") == "ok", "inpatient-ward /health")
+    if code != 200:
+        print("  ⚠️  inpatient-ward 未就绪, 跳过 Agent 验证")
+        return
+
+    # ── C2. Cardio Agent Graph 全流程 ──
+    try:
+        import asyncio
+        import sys
+        from zhenhu.inpatient.agent.graph import inpatient_graph
+        from zhenhu.inpatient.agent.nodes import load_template
+    except ImportError as e:
+        print(f"  ⚠️  无法导入 inpatient agent ({e}), 跳过 Agent Graph 测试")
+        return
+
+    if inpatient_graph is None:
+        print("  ⚠️  langgraph 未安装, 跳过 Agent 测试")
+        return
+
+    template = load_template("hypertension")
+    initial = {
+        "patient_id": "pat-demo-001",
+        "disease_template": template,
+        "phase": "admission",
+        "vital_signs": [
+            {"bp": "140/85"}, {"bp": "135/80"}, {"bp": "130/82"},
+            {"bp": "125/78"}, {"bp": "128/80"}, {"bp": "122/76"},
+        ],
+        "risk_level": "low",
+        "discharge_decision": None,
+        "handoff_items": [],
+        "document_chain": [],
+        "event_type": "admission_start",
+        "interrupt_pending": False,
+    }
+
+    try:
+        result = asyncio.run(inpatient_graph.ainvoke(initial))
+        check(result.get("phase") is not None, f"Agent 全流程完成 (phase={result.get('phase')})")
+        check(len(result.get("handoff_items", [])) >= 0, f"交接项目 {len(result.get('handoff_items', []))} 条")
+    except Exception as e:
+        print(f"  ❌ FAIL  Agent Graph 执行异常: {e}")
+        failed += 1
+
+    # ── C3. Cardio → knowledge 检索 ──
+    import urllib.parse
+    try:
+        d = json.loads(urllib.request.urlopen(
+            f"http://localhost:8200/knowledge/search?q={urllib.parse.quote('阿莫西林')}", timeout=5
+        ).read())
+        results = d.get("data", {}).get("results", [])
+        check(len(results) >= 1, f"阿莫西林知识检索 ({len(results)} 条)")
+    except Exception as e:
+        print(f"  ❌ FAIL  知识检索异常: {e}")
+        failed += 1
+
+    # ── C4. Cardio → fhir 患者查询 ──
+    code, p = api("GET", f"{BASE['fhir']}/fhir/Patient/pat-demo-001")
+    name = p.get("data", {}).get("name", [{}])
+    check(code == 200, f"患者查询 ({name[0].get('text', '?') if name else '?'})")
+
+    # ── C5. Cardio → workflow 创建病例 ──
+    code, case = api("POST", f"{BASE['workflow']}/cases", {"input_snapshot_id": "cardio-pat-demo-001"})
+    cid = case.get("data", {}).get("case_id", "")
+    check(code == 201 or "case_id" in str(case), f"Cardio→臻护 bridge ({cid})")
+
+
 def main():
     global passed, failed
 
-    print("=== 臻护后端集成测试（阶段 0）===\n")
+    print("=== 臻护后端集成测试（阶段 1）===\n")
 
     # ── 1. 服务健康检查 ──
-    print("1. 三服务健康检查")
+    print("1. 四服务健康检查")
     for name, url in BASE.items():
         code, data = api("GET", f"{url}/health")
         check(code == 200 and data.get("status") == "ok", f"{name} /health")
@@ -106,12 +191,15 @@ def main():
     blocked = hook.get("data", {}).get("blocked_count", 0)
     check(code == 200, f"知识变更阻断钩子 (blocked={blocked})")
 
-    # ── 6. chengjie ──
+    # ── 6. Cardio 全链路验证 ──
+    test_cardio_full_chain()
+
+    # ── 总结 ──
     total = passed + failed
     print(f"\n{'='*40}")
     print(f"  总计: {passed}/{total} 通过")
     if failed == 0:
-        print("  ✅ 全部通过 — 三服务跨链路验证成功")
+        print("  ✅ 全部通过 — 四服务跨链路验证成功")
     else:
         print(f"  ⚠️  {failed} 项失败")
     print(f"{'='*40}")

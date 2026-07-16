@@ -1,7 +1,10 @@
-# 服务目录
+# 臻护微服务层
 
-未来独立部署的正式 API、工作流、检索或适配器服务放在此目录。当前目录不含正式服务代码；PoC 服务已隔离在 `poc/api/`。
+| 服务 | 端口 | 测试 | 端点 | 说明 |
+|------|------|------|------|------|
+| workflow-engine | 8100 | 89 | 11 | 出院后病例状态机+审核+草稿 |
+| knowledge-orchestrator | 8200 | 47 | 7 | 知识导入/混合检索/反向阻断 |
+| fhir-adapter | 8300 | 41 | 5 | 医院数据映射/Patient Compartment |
+| inpatient-ward | 8400 | 46 | 6 | 住院全流程(11节点Agent+7病种) |
 
-当前已落地：
-
-- `knowledge-orchestrator/`：正式知识服务的端口边界与授权入口骨架。
+每个服务独立 pyproject.toml, 共享 zhenhu.contracts 包。
