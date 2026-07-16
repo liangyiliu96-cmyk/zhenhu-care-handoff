@@ -1,80 +1,56 @@
 #!/bin/bash
-# 臻护后端一键启动 — 阶段 0 本地开发
-# 用法: bash start.sh        启动三服务
-#       bash start.sh test   启动后运行集成测试
+# 臻护平台一键启动 —— 4服务后台启动 + 健康检查
+# 用法: SKIP_BRIDGE=true bash start.sh
 
 set -e
+PYTHON=C:/Users/Windows/.workbuddy/binaries/python/versions/3.13.12/python.exe
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-cd "$ROOT"
 
-echo "=== 臻护后端启动 ==="
+echo "=== 臻护平台启动 ==="
 
-# 跨服务 URL 配置
-export KNOWLEDGE_URL=http://localhost:8200
-export FHIR_URL=http://localhost:8300
+# 环境变量默认值
+export SKIP_BRIDGE="${SKIP_BRIDGE:-true}"
+export DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-}"
 
-# 安装依赖（仅首次需要）
-pip install -e packages/clinical-contracts-py -q 2>/dev/null || true
-pip install -e services/workflow-engine -q 2>/dev/null || true
-pip install -e services/knowledge-orchestrator -q 2>/dev/null || true
-pip install -e services/fhir-adapter -q 2>/dev/null || true
-pip install -e services/inpatient-ward -q 2>/dev/null || true  # 合并迁入: 住院协同服务
+echo "SKIP_BRIDGE=$SKIP_BRIDGE (跳过外部HTTP服务)"
+echo "DEEPSEEK_API_KEY=$([ -n "$DEEPSEEK_API_KEY" ] && echo '已设置' || echo '未设置(使用规则引擎)')"
 
-# 清理上次运行的数据库文件
-rm -f /tmp/zhenhu-*.db 2>/dev/null
-
+# 1. workflow-engine (8100)
 echo ""
-echo "启动服务..."
-echo "  workflow-engine       → http://localhost:8100"
-echo "  knowledge-orchestrator → http://localhost:8200"
-echo "  fhir-adapter           → http://localhost:8300"
-echo "  inpatient-ward         → http://localhost:8400  # 合并迁入"
+echo "[1/4] 启动 workflow-engine (8100)..."
+cd "$ROOT/services/workflow-engine"
+$PYTHON -m uvicorn zhenhu.workflow.main:app --host 0.0.0.0 --port 8100 &
+sleep 2
+
+# 2. knowledge-orchestrator (8200)
+echo "[2/4] 启动 knowledge-orchestrator (8200)..."
+cd "$ROOT/services/knowledge-orchestrator"
+$PYTHON -m uvicorn zhenhu.knowledge.main:app --host 0.0.0.0 --port 8200 &
+sleep 2
+
+# 3. fhir-adapter (8300)
+echo "[3/4] 启动 fhir-adapter (8300)..."
+cd "$ROOT/services/fhir-adapter"
+$PYTHON -m uvicorn zhenhu.fhir.main:app --host 0.0.0.0 --port 8300 &
+sleep 2
+
+# 4. inpatient-ward (8400)
+echo "[4/4] 启动 inpatient-ward (8400)..."
+cd "$ROOT/services/inpatient-ward"
+$PYTHON -m uvicorn zhenhu.inpatient.main:app --host 0.0.0.0 --port 8400 &
+sleep 3
+
+# 健康检查
 echo ""
-
-# 并行启动三个服务
-uvicorn zhenhu.workflow.main:app --host 0.0.0.0 --port 8100 --log-level warning &
-PID1=$!
-
-# knowledge-orchestrator 需要知道 workflow-engine 的位置（跨服务 hook）
-WORKFLOW_ENGINE_URL=http://localhost:8100/hooks/knowledge-changed \
-  uvicorn zhenhu.knowledge.main:app --host 0.0.0.0 --port 8200 --log-level warning &
-PID2=$!
-
-uvicorn zhenhu.fhir.main:app --host 0.0.0.0 --port 8300 --log-level warning &
-PID3=$!
-
-# 合并迁入: 启动住院协同服务
-uvicorn zhenhu.inpatient.main:app --host 0.0.0.0 --port 8400 --log-level warning &
-PID4=$!
-
-# 等待全部就绪
-echo "等待服务就绪..."
-for i in 1 2 3 4 5; do
-  if curl -s http://localhost:8100/health >/dev/null 2>&1 && \
-     curl -s http://localhost:8200/health >/dev/null 2>&1 && \
-     curl -s http://localhost:8300/health >/dev/null 2>&1 && \
-     curl -s http://localhost:8400/health >/dev/null 2>&1; then
-    echo "✅ 三个服务全部就绪"
-    break
-  fi
-  sleep 2
+echo "=== 健康检查 ==="
+for port in 8100 8200 8300 8400; do
+    status=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$port/health" 2>/dev/null || echo "DOWN")
+    echo "  :$port -> $status"
 done
 
 echo ""
-echo "端点速查:"
-echo "  curl http://localhost:8100/health"
-echo "  curl http://localhost:8200/health"
-echo "  curl http://localhost:8300/health"
-echo "  curl http://localhost:8400/health  # 合并迁入"
-echo ""
-echo "按 Ctrl+C 停止所有服务"
-
-# 运行集成测试
-if [ "$1" = "test" ]; then
-  echo ""
-  echo "=== 运行集成测试 ==="
-  python "$ROOT/scripts/integration_test.py"
-fi
-
-# 等待任一进程退出
-wait
+echo "=== 臻护平台已启动 ==="
+echo "  inpatient-ward  API: http://localhost:8400"
+echo "  API文档(Swagger): http://localhost:8400/docs"
+echo "  Metrics:          http://localhost:8400/metrics"
+echo "  停止:             kill %1 %2 %3 %4"

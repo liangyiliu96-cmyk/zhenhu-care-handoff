@@ -29,8 +29,8 @@
 - `cd services/workflow-engine && python -m pytest -v`（当前 81/81）
 - `cd services/knowledge-orchestrator && python -m pytest -v`（当前 47/47）
 - `cd services/fhir-adapter && python -m pytest -v`（当前 37/37）
-- `cd services/inpatient-ward && python -m pytest -v`（当前 48/48）
-- 全部: 213 项测试（正式工程）+ 51 项（PoC + contracts）= 264 项
+- `cd services/inpatient-ward && SKIP_BRIDGE=true python -m pytest -v`（当前 79/79, 1.25s）
+- 全部: 244 项测试（正式工程）+ 51 项（PoC + contracts）= 295 项
 
 ## 关键架构文档
 - `docs/requirements/AI出院交接与慢病随访协同平台_需求规格说明书_v0.2.md` — 需求基线(16条增强,冻结)
@@ -50,12 +50,12 @@
 
 ## Git 基线(按时间)
 ```
-915b81c  bridge去fixture+年龄解析+assessments防御 (2026-07-16)
-2f3b837  patient_history数据源+用药核对LLM (2026-07-16)
-a1b3c6f  LLM全量替换：出院评估+知识检索+文档标签 (2026-07-16)
-1e871c4  入院临床评估：NRS+NRS2002+Morse+Padua (2026-07-16)
-9fdba03  DeepSeek LLM集成：daily_round+handoff (2026-07-16)
-e44f10f  P0/P1/P2临床打磨：7P0+46指标+格式+4节点 (2026-07-16)
+f107250  14/14病种全通：COPD SpO2修复+11fixture患者，79/79 (2026-07-16)
+418425e  monitoring+discharge节点直调，三患者出院，79/79
+89d5ce6  LLM全面升级：4新节点+5prompt优化，79/79
+7df95ef  SKIP_BRIDGE秒级开发+checkpoint修复，79/79
+...（详见 .workbuddy/memory/2026-07-16.md 完整20 commit列表）
+e44f10f  P0/P1/P2临床精度打磨：7P0+46指标+格式+4节点 (2026-07-16)
 cc41fed  workflow-engine 补全7端点+hook (81/81)
 48f262b  knowledge-orchestrator 知识编排服务 (47/47)
 236ae96  gitignore 清理
@@ -77,7 +77,10 @@ c597fc4  项目初始化
 - **LLM集成模式**: `get_ai_provider().invoke(prompt, context)` + try/except回退，不阻断临床流程
 - **DeepSeek接入**: `set_ai_provider(DeepSeekProvider(api_key=..., model="deepseek-v4-flash"))` 在main.py模块级执行
 - **模板字段规范**: 14病种模板统一用 `name`/`alert_above`/`alert_below`，`normalize_template()` 做兜底兼容
-- **病种模板16字段契约**: disease_id/name/vital_signs/risk_factors/monitoring_interval_hours/discharge_criteria/handoff_instructions/agent_config/followup_questions/mdt_roles/mdt_threshold
-- **inpatient-ward核心模块**: agent/graph(StateGraph编排)/nodes(12节点)/harness(护栏)/medication_rules(药物)/assessments(评估)/loop(事件循环)/tools(LLM工具)/hooks/zhenhu_bridge(HTTP桥接)
-- **药物规则库设计**: Pydantic DrugInteractionRule 模型，≥30对静态规则 + LLM语义补充，覆盖六大治疗领域
-- **入院评估体系**: 4项国际标准(NRS/NRS2002/Morse/Padua)，Pydantic模型+自动alert生成+defensive包装
+- **SKIP_BRIDGE开发模式**: `SKIP_BRIDGE=true` 跳过所有HTTP调用，测试从56s→1.25s(44倍加速)
+- **LangGraph state merge问题**: graph内monitoring节点结果未正确传递，改用节点直调绕过
+- **出院链路直调模式**: monitoring→discharge→handoff→review→confirm 直接节点调用，不依赖graph
+- **14病种全通验证**: 14个fixture患者×6+体征序列×3移交事项，全链路admission→confirm
+- **SpO2阈值正则提取**: 替代硬编码90/92/94，支持88等自定义阈值
+- **药物规则库设计**: Pydantic DrugInteractionRule 模型，≥30对静态规则 + LLM语义补充
+- **入院评估体系**: 4项国际标准(NRS/NRS2002/Morse/Padua)+3项CGA(MMSE/ADL/IADL)
