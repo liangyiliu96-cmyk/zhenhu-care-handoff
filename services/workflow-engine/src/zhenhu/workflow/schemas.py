@@ -116,6 +116,67 @@ class AnalyseResponse(BaseModel):
 
 
 # ============================================================================
+# 任务草稿
+# ============================================================================
+
+
+class TaskDraftResponse(BaseModel):
+    """任务草稿响应体。"""
+
+    draft_id: str = Field(..., description="任务草稿 ID")
+    case_id: str = Field(..., description="所属病例 ID")
+    status: str = Field(..., description="草稿状态")
+    sop_version: str | None = Field(default=None, description="SOP 版本")
+    tasks_json: str | None = Field(default=None, description="任务列表 JSON")
+    created_at: datetime = Field(..., description="创建时间")
+
+    model_config = {"from_attributes": True}
+
+
+class SupplementRequest(BaseModel):
+    """补充任务执行信息请求体。
+
+    Attributes:
+        result: 执行结果描述。
+        note: 补充说明（可选）。
+    """
+
+    result: str = Field(..., min_length=1, description="执行结果描述")
+    note: str = Field(default="", description="补充说明")
+
+
+class SupplementResponse(BaseModel):
+    """补充任务执行信息响应体。"""
+
+    task_id: str = Field(..., description="任务 ID")
+    status: str = Field(..., description="任务状态")
+    execution_result: str = Field(..., description="执行结果")
+    execution_note: str = Field(default="", description="执行说明")
+
+
+class KnowledgeChangedHookRequest(BaseModel):
+    """知识变更钩子请求体。
+
+    Attributes:
+        document_id: 发生变更的知识文档 ID。
+    """
+
+    document_id: str = Field(..., min_length=1, description="知识文档 ID")
+
+
+class KnowledgeChangedHookResponse(BaseModel):
+    """知识变更钩子响应体。"""
+
+    blocked_count: int = Field(..., description="受影响的病例数量")
+
+
+class SimulatedPublishResponse(BaseModel):
+    """模拟发布响应体。"""
+
+    state: str = Field(..., description="发布后的病例状态")
+
+
+# ============================================================================
 # 审计
 # ============================================================================
 

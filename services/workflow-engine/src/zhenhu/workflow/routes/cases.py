@@ -3,20 +3,34 @@
 POST /cases                 — 创建病例
 POST /cases/{case_id}/analyse    — 发起分析
 POST /cases/{case_id}/risks/{risk_id}/review — 审核风险项
+POST /cases/{case_id}/task-drafts   — 生成任务草稿
+POST /cases/{case_id}/task-drafts/{draft_id}/simulated-publish — 模拟发布
+POST /cases/{case_id}/tasks/{task_id}/supplement — 补充任务执行信息
+POST /cases/{case_id}/close    — 关闭病例协同
+POST /cases/{case_id}/cancel   — 取消病例协同
+POST /cases/{case_id}/reconcile — 重新核实（知识变更后）
 """
 
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from zhenhu.workflow.models import Case, RiskItem, get_session, _utcnow
+from zhenhu.workflow.models import Case, RiskItem, TaskDraft, get_session
 from zhenhu.workflow.schemas import (
     AnalyseResponse,
     CaseCreate,
     CaseResponse,
-    RiskItemResponse,
+    KnowledgeChangedHookRequest,
+    KnowledgeChangedHookResponse,
     ReviewRequest,
+    RiskItemResponse,
+    SimulatedPublishResponse,
+    SupplementRequest,
+    SupplementResponse,
+    TaskDraftResponse,
     UnifiedResponse,
 )
 from zhenhu.workflow.state_machine import CaseStateMachine, StateMachineError
@@ -268,3 +282,264 @@ async def review_risk(
     await session.commit()
     resp = CaseResponse.model_validate(case)
     return UnifiedResponse(request_id=request_id, data=resp, error=None)
+
+
+# ============================================================================
+# 新增端点（完整协同链路）
+# ============================================================================
+
+
+@router.post("/{case_id}/task-drafts")
+async def create_task_draft(
+    case_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[TaskDraftResponse]:
+    """生成任务草稿。
+
+    仅在 confirmed 或 rejected 状态下允许。
+    收集所有已确认风险项，生成 3 条模拟协同任务。
+    状态转移：confirmed | rejected → task_draft。
+    """
+    request_id = get_request_id(request)
+    sm = CaseStateMachine(session)
+
+    case = await sm.get_case_by_id(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"Case not found: {case_id}")
+
+    try:
+        result = await sm.create_task_draft(case=case, actor="doctor")
+
+        await session.commit()
+
+        # 构造响应（TaskDraftResponse 需要 TaskDraft ORM 对象）
+        draft = await sm.get_task_draft_by_id(result["draft_id"])
+        resp = TaskDraftResponse.model_validate(draft)
+        return UnifiedResponse(request_id=request_id, data=resp, error=None)
+
+    except StateMachineError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": exc.code,
+                "message": str(exc),
+                "details": exc.details,
+            },
+        ) from exc
+
+
+@router.post("/{case_id}/task-drafts/{draft_id}/simulated-publish")
+async def simulated_publish(
+    case_id: str,
+    draft_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[SimulatedPublishResponse]:
+    """模拟发布任务草稿。
+
+    仅在 task_draft 状态下允许。
+    先检查是否 knowledge_changed 阻断，再发布。
+    状态转移：task_draft → simulated_published。
+    """
+    request_id = get_request_id(request)
+    sm = CaseStateMachine(session)
+
+    case = await sm.get_case_by_id(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"Case not found: {case_id}")
+
+    try:
+        result = await sm.publish_simulated(
+            case=case, draft_id=draft_id, actor="doctor"
+        )
+
+        await session.commit()
+
+        data = SimulatedPublishResponse(state=result["state"])
+        return UnifiedResponse(request_id=request_id, data=data, error=None)
+
+    except StateMachineError as exc:
+        status_code = 409
+        detail = {
+            "code": exc.code,
+            "message": str(exc),
+            "details": exc.details,
+        }
+        raise HTTPException(status_code=status_code, detail=detail) from exc
+
+
+@router.post("/{case_id}/tasks/{task_id}/supplement")
+async def supplement_task(
+    case_id: str,
+    task_id: str,
+    body: SupplementRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[SupplementResponse]:
+    """补充任务执行信息。
+
+    仅在 task_draft 或 simulated_published 状态下允许。
+    需要操作人角色与任务指派的 assignee_role 匹配。
+    """
+    request_id = get_request_id(request)
+    sm = CaseStateMachine(session)
+
+    case = await sm.get_case_by_id(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"Case not found: {case_id}")
+
+    # 从 header 读取角色（默认 nurse 方便测试）
+    actor = request.headers.get("X-User-Role", "nurse")
+
+    try:
+        result = await sm.supplement_task(
+            case=case,
+            task_id=task_id,
+            actor=actor,
+            result=body.result,
+            note=body.note,
+        )
+
+        await session.commit()
+
+        data = SupplementResponse(
+            task_id=result["task_id"],
+            status=result["status"],
+            execution_result=result["execution_result"],
+            execution_note=result["execution_note"],
+        )
+        return UnifiedResponse(request_id=request_id, data=data, error=None)
+
+    except StateMachineError as exc:
+        status_code = 403 if exc.code == "FORBIDDEN" else 409
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "code": exc.code,
+                "message": str(exc),
+                "details": exc.details,
+            },
+        ) from exc
+
+
+@router.post("/{case_id}/close")
+async def close_case(
+    case_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[CaseResponse]:
+    """关闭病例协同。
+
+    仅在 simulated_published 状态下允许。
+    状态转移：simulated_published → closed。
+    """
+    request_id = get_request_id(request)
+    sm = CaseStateMachine(session)
+
+    case = await sm.get_case_by_id(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"Case not found: {case_id}")
+
+    try:
+        await sm.close_case(case=case, actor="doctor")
+
+        await session.commit()
+
+        resp = CaseResponse.model_validate(case)
+        return UnifiedResponse(request_id=request_id, data=resp, error=None)
+
+    except StateMachineError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": exc.code,
+                "message": str(exc),
+                "details": exc.details,
+            },
+        ) from exc
+
+
+@router.post("/{case_id}/cancel")
+async def cancel_case(
+    case_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[CaseResponse]:
+    """取消病例协同。
+
+    任意非终态（!closed && !cancelled）下允许。
+    状态转移：当前状态 → cancelled。
+    """
+    request_id = get_request_id(request)
+    sm = CaseStateMachine(session)
+
+    case = await sm.get_case_by_id(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"Case not found: {case_id}")
+
+    try:
+        await sm.cancel_case(case=case, actor="doctor")
+
+        await session.commit()
+
+        resp = CaseResponse.model_validate(case)
+        return UnifiedResponse(request_id=request_id, data=resp, error=None)
+
+    except StateMachineError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": exc.code,
+                "message": str(exc),
+                "details": exc.details,
+            },
+        ) from exc
+
+
+@router.post("/{case_id}/reconcile")
+async def reconcile_case(
+    case_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[CaseResponse]:
+    """重新核实（知识变更后重新分析）。
+
+    仅在 knowledge_changed 状态下允许。
+    清除旧风险项，重新执行分析生成新风险项。
+    状态转移：knowledge_changed → review_pending。
+    """
+    request_id = get_request_id(request)
+    sm = CaseStateMachine(session)
+
+    case = await sm.get_case_by_id(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"Case not found: {case_id}")
+
+    try:
+        # 1. 删除旧风险项
+        old_risks = await sm.get_risks_by_case_id(case_id)
+        for risk in old_risks:
+            await session.delete(risk)
+        await session.flush()
+
+        # 2. 重新执行分析：生成新风险项
+        new_risks = await _analyse_and_generate_risks(session, sm, case)
+
+        # 3. 状态转移：knowledge_changed → review_pending
+        await sm.reconcile_case(case=case, actor="doctor")
+
+        await session.commit()
+
+        resp = CaseResponse.model_validate(case)
+        return UnifiedResponse(request_id=request_id, data=resp, error=None)
+
+    except StateMachineError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": exc.code,
+                "message": str(exc),
+                "details": exc.details,
+            },
+        ) from exc

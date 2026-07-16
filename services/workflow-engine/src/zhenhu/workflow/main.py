@@ -14,7 +14,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from zhenhu.workflow.routes import cases_router
+from zhenhu.workflow.routes import cases_router, hooks_router
 
 VERSION = "0.2.0"
 
@@ -46,6 +46,7 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(cases_router)
+app.include_router(hooks_router)
 
 
 @app.middleware("http")
