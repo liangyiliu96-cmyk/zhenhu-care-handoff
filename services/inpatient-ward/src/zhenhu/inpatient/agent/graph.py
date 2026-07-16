@@ -50,6 +50,8 @@ class InpatientState(TypedDict):
     consecutive_abnormal_count: int  # P0-2: 连续异常计数
     allergy_status: str | None  # P0-7: 过敏史采集状态
     discharge_criteria_check: dict | None  # P0-1: 出院标准检查结果
+    clinical_assessments: dict | None   # M4-M7入院评估结果
+    clinical_alerts: list[str]          # 评估产生的临床警报
 
 
 def after_monitoring(state: InpatientState) -> str:

@@ -255,6 +255,47 @@ async def node_admission(state: dict) -> dict:
         except (ImportError, Exception):
             allergies = patient_data.get("allergies", [])
 
+        # M4-M7: 入院标准临床评估
+        from .assessments import (
+            PainAssessment, NutritionScreening, FallRiskAssessment,
+            DVTRiskAssessment, AdmissionAssessments,
+        )
+        # 从 patient_data/patient_history 中提取评估所需数据
+        age = patient_data.get("age", 0)
+        bmi = patient_data.get("bmi", 0)
+        has_fall_history = patient_history.get("fall_history", False) if patient_history else False
+        has_previous_vte = patient_history.get("previous_vte", False) if patient_history else False
+        has_cancer = "cancer" in patient_history.get("comorbidities", []) if patient_history else False
+        has_heart_failure = "heart_failure" in patient_history.get("comorbidities", []) if patient_history else False
+
+        assessments = AdmissionAssessments(
+            pain=PainAssessment(
+                score=patient_data.get("pain_score", 0),
+                location=patient_data.get("pain_location"),
+            ),
+            nutrition=NutritionScreening(
+                age_bonus=1 if age >= 70 else 0,
+                disease_severity=2 if has_cancer or has_heart_failure else 1,
+                nutrition_impairment=1 if bmi < 18.5 else 0,
+            ),
+            fall_risk=FallRiskAssessment(
+                fall_history=has_fall_history,
+                age_ge_70=age >= 70,
+                reduced_mobility=patient_data.get("reduced_mobility", False),
+            ),
+            dvt_risk=DVTRiskAssessment(
+                patient_type=patient_data.get("patient_type", "medical"),
+                active_cancer=has_cancer,
+                previous_vte=has_previous_vte,
+                age_ge_70=age >= 70,
+                reduced_mobility=patient_data.get("reduced_mobility", False),
+                obesity_bmi_ge_30=bmi >= 30,
+            ),
+            allergies=allergies,
+        )
+
+        clinical_alerts = assessments.alerts
+
         return {
             "phase": "admission",
             "patient_id": patient_id,
@@ -264,6 +305,8 @@ async def node_admission(state: dict) -> dict:
             "document_chain": state.get("document_chain", []) + ["intake_note"],
             "allergies": allergies,
             "allergy_status": "collected" if allergies else "none_recorded",
+            "clinical_assessments": assessments.model_dump(),
+            "clinical_alerts": clinical_alerts,
         }
     except Exception:
         return {
@@ -274,6 +317,8 @@ async def node_admission(state: dict) -> dict:
             "error": "admission_failed",
             "allergies": [],
             "allergy_status": "not_collected",
+            "clinical_assessments": None,
+            "clinical_alerts": [],
         }
 
 

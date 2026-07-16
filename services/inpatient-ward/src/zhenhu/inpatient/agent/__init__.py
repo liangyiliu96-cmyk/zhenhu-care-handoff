@@ -6,6 +6,7 @@ P0-3: 导出 medication_rules 药物相互作用规则模块。
 """
 
 from . import medication_rules  # noqa: F401
+from . import assessments  # noqa: F401
 
 try:
     from .graph import inpatient_graph, InpatientState  # noqa: F401
