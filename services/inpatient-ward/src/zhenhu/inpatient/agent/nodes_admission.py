@@ -166,7 +166,10 @@ def _evaluate_criterion(cond_key: str, vital_signs: list[dict], state: dict) -> 
                 return False
         return True
     if "spo2" in cond_key:
-        threshold = 90 if "90" in cond_key else 92 if "92" in cond_key else 94
+        # 从条件键名中提取SpO2阈值（匹配 88/90/92/94 等数字）
+        import re
+        thr_match = re.search(r'(\d{2,3})', cond_key)
+        threshold = int(thr_match.group(1)) if thr_match else 94
         for v in recent:
             spo2 = v.get("spo2", 0)
             if isinstance(spo2, (int, float)) and spo2 < threshold:
