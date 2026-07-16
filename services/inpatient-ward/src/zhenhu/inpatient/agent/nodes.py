@@ -240,9 +240,42 @@ async def node_admission(state: dict) -> dict:
                 fhir_patient = result.scalar_one_or_none()
                 if fhir_patient:
                     patient_data = {"name": fhir_patient.name, "gender": fhir_patient.gender}
+                    # 扩展查询: 获取年龄/BMI/合并症
+                    if hasattr(fhir_patient, 'birth_date') and fhir_patient.birth_date:
+                        try:
+                            from datetime import date
+                            today = date.today()
+                            age = today.year - fhir_patient.birth_date.year
+                            if today.month < fhir_patient.birth_date.month or \
+                               (today.month == fhir_patient.birth_date.month and today.day < fhir_patient.birth_date.day):
+                                age -= 1
+                            patient_data["age"] = age
+                        except Exception:
+                            pass
+                    
+                    # 尝试获取BMI（如果有Observation资源）
+                    patient_data["bmi"] = patient_data.get("bmi", 0)
         except (ImportError, Exception):
             from ..hooks.zhenhu_bridge import bridge_patient_summary
             patient_data = await bridge_patient_summary(patient_id)
+
+        # 扩展: 查询 FHIR Condition 获取合并症 + 本地病史表
+        try:
+            from zhenhu.fhir.models import Condition as FhirCondition
+            async with fhir_session_factory() as session:
+                result = await session.execute(
+                    sa_select(FhirCondition).where(FhirCondition.patient_id == patient_id)
+                )
+                conditions = result.scalars().all()
+                comorbidities = []
+                for c in conditions:
+                    code = getattr(c, 'code', '')
+                    if code:
+                        comorbidities.append(code.lower().replace(' ', '_'))
+                patient_history["comorbidities"] = comorbidities
+                patient_history["prior_hospitalization"] = len(conditions) > 0
+        except (ImportError, Exception):
+            patient_history = {"comorbidities": [], "prior_hospitalization": False}
 
         # P0-7: 过敏史强制采集
         allergies = []
@@ -315,6 +348,8 @@ async def node_admission(state: dict) -> dict:
             "phase": "admission",
             "patient_id": state.get("patient_id", "unknown"),
             "disease_template": {},
+            "patient_data": {},
+            "patient_history": {},
             "document_chain": ["intake_note"],
             "error": "admission_failed",
             "allergies": [],
@@ -848,6 +883,41 @@ async def node_medication_reconciliation(state: dict) -> dict:
         }
         for r in interactions
     ]
+
+    # LLM 语义级补充: 检测规则库未覆盖的药物组合
+    try:
+        provider = get_ai_provider()
+        llm_prompt = (
+            f"检查以下药物列表是否存在潜在的药物相互作用或禁忌。"
+            f"出院药物: {json.dumps(all_med_names, ensure_ascii=False)}。"
+            f"院前用药: {json.dumps([m.get('name', '') for m in pre_admission_meds], ensure_ascii=False)}。"
+            f"患者过敏史: {json.dumps(allergies, ensure_ascii=False)}。"
+            f"返回JSON: {{\"additional_conflicts\": [...], \"warnings\": [...]}}。"
+            f"仅返回规则库可能遗漏的临床重要相互作用。"
+        )
+        llm_ctx = {
+            "disease_template": template,
+            "allergies": allergies,
+            "rule_based_conflicts": findings.get("conflicts", []),
+        }
+        llm_result = await provider.invoke(llm_prompt, context=llm_ctx)
+        if llm_result and llm_result.get("source_type") != "source_none":
+            extra_conflicts = llm_result.get("additional_conflicts", [])
+            for ec in extra_conflicts:
+                if isinstance(ec, dict) and ec.get("drug_pair"):
+                    findings["conflicts"].append({
+                        "drug_pair": ec["drug_pair"],
+                        "severity": ec.get("severity", "moderate"),
+                        "mechanism": ec.get("mechanism", "LLM语义检测"),
+                        "consequence": ec.get("consequence", ""),
+                        "recommendation": ec.get("recommendation", ""),
+                        "evidence": "LLM",
+                    })
+            warnings = llm_result.get("warnings", [])
+            if warnings:
+                findings["llm_warnings"] = warnings
+    except Exception:
+        pass  # LLM失败不影响规则库结果
 
     # 过敏禁忌检查
     allergies = state.get("allergies", [])
