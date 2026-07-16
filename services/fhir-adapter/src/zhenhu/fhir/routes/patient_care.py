@@ -181,3 +181,105 @@ async def patient_care_view(
         education=education,
     )
     return UnifiedResponse(request_id=request_id, data=response_data, error=None)
+
+
+@router.get("/{patient_id}/summary")
+async def patient_summary(
+    patient_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[dict]:
+    """聚合视图: 住院状态 + FHIR患者 + 知识教育材料（阶段K: 新增）。
+
+    Args:
+        patient_id: 患者业务 ID。
+
+    Returns:
+        UnifiedResponse[dict]: 包含 patient, care_plans, education 三部分的聚合摘要。
+
+    Raises:
+        HTTPException 404: 患者不存在。
+    """
+    request_id = _get_request_id(request)
+
+    # 1. 查患者信息
+    result = await session.execute(
+        select(Patient).where(Patient.patient_id == patient_id)
+    )
+    patient = result.scalar_one_or_none()
+
+    if patient is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "PATIENT_NOT_FOUND",
+                "message": f"患者不存在: {patient_id}",
+                "details": {"patient_id": patient_id},
+            },
+        )
+
+    # 查就诊记录（最近一次）
+    enc_result = await session.execute(
+        select(Encounter)
+        .where(Encounter.patient_id == patient_id)
+        .order_by(Encounter.end_date.desc())
+        .limit(1)
+    )
+    encounter = enc_result.scalar_one_or_none()
+
+    patient_info: dict = {
+        "name": patient.name,
+        "gender": patient.gender,
+        "age": _calc_age(patient.birth_date),
+        "discharge_to": encounter.discharge_to if encounter else None,
+        "is_inpatient": encounter is not None and encounter.encounter_type == "inpatient" and encounter.end_date is None,
+    }
+
+    # 2. 查 CarePlan 列表
+    cp_result = await session.execute(
+        select(CarePlan).where(CarePlan.patient_id == patient_id)
+    )
+    care_plans = cp_result.scalars().all()
+
+    care_plan_list: list[dict] = []
+    for cp in care_plans:
+        cp_title = cp.title or (
+            "出院随访计划" if cp.category == "discharge" else "慢病随访计划"
+        )
+        care_plan_list.append({
+            "title": cp_title,
+            "category": cp.category,
+            "status": cp.status,
+            "period": {
+                "start": cp.period_start.isoformat() if cp.period_start else None,
+                "end": cp.period_end.isoformat() if cp.period_end else None,
+            },
+        })
+
+    # 3. 调 knowledge-orchestrator 获取教育材料（可选: HTTP）
+    education: list[dict] = []
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(
+                f"{KNOWLEDGE_URL}/knowledge/search",
+                params={"q": "出院注意事项"},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                items = data.get("data", data) if isinstance(data, dict) else data
+                if isinstance(items, dict) and "results" in items:
+                    items = items["results"]
+                if isinstance(items, list):
+                    education = items[:3]
+    except Exception:
+        pass
+
+    return UnifiedResponse(
+        request_id=request_id,
+        data={
+            "patient": patient_info,
+            "care_plans": care_plan_list,
+            "education": education,
+        },
+        error=None,
+    )

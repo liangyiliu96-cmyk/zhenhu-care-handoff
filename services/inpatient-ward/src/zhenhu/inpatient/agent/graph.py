@@ -119,6 +119,7 @@ def build_inpatient_graph():
         node_handoff,
         node_lab_review,
         node_medication_adjust,
+        node_medication_reconciliation,
         node_monitoring,
         node_patient_confirm,
         node_transfer,
@@ -126,6 +127,7 @@ def build_inpatient_graph():
     )
 
     builder.add_node("admission", node_admission)
+    builder.add_node("medication_reconciliation", node_medication_reconciliation)
     builder.add_node("triage", node_triage)
     builder.add_node("monitoring", node_monitoring)
     builder.add_node("discharge", node_discharge)
@@ -140,7 +142,8 @@ def build_inpatient_graph():
 
     # 自动模式链路
     builder.set_entry_point("admission")
-    builder.add_edge("admission", "triage")
+    builder.add_edge("admission", "medication_reconciliation")
+    builder.add_edge("medication_reconciliation", "triage")
     builder.add_edge("triage", "monitoring")
 
     builder.add_conditional_edges(

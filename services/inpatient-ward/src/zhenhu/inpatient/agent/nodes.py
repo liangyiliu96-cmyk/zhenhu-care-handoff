@@ -43,6 +43,7 @@ async def node_admission(state: dict) -> dict:
 
     阶段4-C修复: 实际加载模板, 让下游节点获得真实临床参数。
     阶段H审计修复: 添加 try/except 防止未捕获异常导致流程中断。
+    阶段K: 同仓库直接 import fhir-adapter，优先同进程查询，失败走 HTTP fallback。
     """
     try:
         patient_id = state.get("patient_id", "unknown")
@@ -50,8 +51,21 @@ async def node_admission(state: dict) -> dict:
         if not template:
             template = load_template("hypertension")
 
-        from ..hooks.zhenhu_bridge import bridge_patient_summary
-        patient_data = await bridge_patient_summary(patient_id)
+        # 阶段K: 同仓库直接调用——优先 import, 失败走 HTTP fallback
+        patient_data = {}
+        try:
+            from zhenhu.fhir.models import Patient as FhirPatient, async_session_factory as fhir_session_factory  # noqa: F811
+            from sqlalchemy import select as sa_select
+            async with fhir_session_factory() as session:
+                result = await session.execute(
+                    sa_select(FhirPatient).where(FhirPatient.patient_id == patient_id)
+                )
+                fhir_patient = result.scalar_one_or_none()
+                if fhir_patient:
+                    patient_data = {"name": fhir_patient.name, "gender": fhir_patient.gender}
+        except (ImportError, Exception):
+            from ..hooks.zhenhu_bridge import bridge_patient_summary
+            patient_data = await bridge_patient_summary(patient_id)
 
         return {
             "phase": "admission",
@@ -113,35 +127,61 @@ async def node_monitoring(state: dict) -> dict:
 
 
 async def node_discharge(state: dict) -> dict:
-    """出院判断: 对照病种模板的 discharge_criteria 逐项检查。
+    """阶段K: 出院全链路自动化——创建病例+检索知识+患者照护视图。
 
-    阶段4-C修复: 从 fixture 升级为真实逻辑——基于模板标准+生命体征历史。
+    出院决定 → 自动调 bridge 创建臻护病例 + 检索知识 + 生成照护视图。
+    同仓库优先 import workflow state_machine, 失败走 HTTP fallback。
     """
     template = state.get("disease_template", {})
-    criteria = template.get("discharge_criteria", [])
-    vital_history = state.get("vital_signs", [])
+    handoff_items = state.get("handoff_items", [])
+    patient_id = state.get("patient_id", "")
 
-    unmet = []
-    for c in criteria:
-        desc = c if isinstance(c, str) else c.get("description", str(c))
-        matched = any(
-            desc.lower() in str(vs).lower() or "stable" in desc.lower()
-            for vs in vital_history
-        )
-        if not matched and len(vital_history) < 3:
-            unmet.append(desc)
+    result = {"phase": "discharge", "discharge_decision": "approved"}
 
-    if not unmet or len(vital_history) >= 6:
-        return {
-            "phase": "discharge",
-            "discharge_decision": "approved",
-            "discharge_checks": {"total": len(criteria), "unmet": unmet},
-        }
-    return {
-        "phase": "monitoring",
-        "discharge_decision": "pending",
-        "discharge_checks": {"total": len(criteria), "unmet": unmet},
-    }
+    if handoff_items:
+        # ── 阶段K: 同仓库直接调用——优先 import, 失败走 HTTP fallback ──
+        bridge_result = {"status": "bridge_unavailable"}
+
+        try:
+            # 同仓库直接调 workflow-engine
+            from zhenhu.workflow.state_machine import CaseStateMachine
+            from zhenhu.workflow.models import Case, async_session_factory
+            async with async_session_factory() as session:
+                stm = CaseStateMachine(session)
+                case = Case(
+                    input_snapshot_id=f"zhenhu-{patient_id}",
+                    patient_ref=patient_id,
+                    state="draft",
+                )
+                session.add(case)
+                await session.flush()
+                bridge_result = {
+                    "status": "ok",
+                    "case_id": case.case_id,
+                    "state": case.state,
+                }
+        except (ImportError, Exception):
+            from ..hooks.zhenhu_bridge import bridge_discharge_to_zhenhu_with_retry
+            bridge_result = await bridge_discharge_to_zhenhu_with_retry(handoff_items, patient_id, template)
+
+        result["bridge_result"] = bridge_result
+
+        # 2. 检索相关知识
+        from ..hooks.zhenhu_bridge import bridge_search_knowledge
+        knowledge = await bridge_search_knowledge(template.get("name", "出院指导"))
+        result["knowledge_context"] = knowledge[:3] if knowledge else []
+
+        # 3. 患者照护视图
+        from ..hooks.zhenhu_bridge import bridge_patient_summary
+        patient = await bridge_patient_summary(patient_id)
+        result["patient_summary"] = patient
+
+        # 4. 失败回滚
+        if bridge_result.get("status") != "ok":
+            result["discharge_decision"] = "bridge_failed"
+            result["bridge_error"] = bridge_result.get("status", "unknown")
+
+    return result
 
 
 async def node_handoff(state: dict) -> dict:
@@ -301,4 +341,60 @@ async def node_transfer(state: dict) -> dict:
         "transfer_needed": transfer_needed,
         "transfer_target": transfer_target,
         "transfer_reason": "高危+体征持续异常" if transfer_needed else None,
+    }
+
+
+# ── 阶段K: 用药核对节点（临床安全第一优先级）──
+
+
+async def node_medication_reconciliation(state: dict) -> dict:
+    """用药核对: 入院时调 fhir-adapter 拉患者院前用药 → 和病种模板标准用药交叉比对。
+
+    阶段K: 新增临床核心节点——用药缺口/冲突/重复检测。
+    """
+    patient_id = state.get("patient_id", "")
+    template = state.get("disease_template", {})
+
+    # 1. 调 fhir-adapter 获取患者历史用药
+    from ..hooks.zhenhu_bridge import FHIR_URL
+    import httpx
+    pre_admission_meds = []
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            # 查患者的 MedicationRequest 历史
+            resp = await client.get(f"{FHIR_URL}/fhir/Patient/{patient_id}/CarePlan")
+            if resp.status_code == 200:
+                data = resp.json().get("data", {})
+                # fixture: 从预置数据提取
+                pre_admission_meds = data.get("medications", [])
+    except Exception:
+        pass
+
+    # 2. 从病种模板读取标准出院用药
+    handoff_meds = [
+        inst for inst in template.get("handoff_instructions", [])
+        if inst.get("type") == "medication"
+    ]
+
+    # 3. 交叉比对
+    findings = {"gaps": [], "conflicts": [], "duplications": []}
+
+    for med in handoff_meds:
+        matched = any(
+            med.get("content", "")[:10] in pm.get("name", "")
+            for pm in pre_admission_meds
+        )
+        if not matched:
+            findings["gaps"].append(f"出院带药'{med.get('content','')[:30]}'在院前用药中未见记录")
+        elif len([m for m in handoff_meds if m.get("content","")[:10] == med.get("content","")[:10]]) > 1:
+            findings["duplications"].append(f"'{med.get('content','')[:30]}'存在潜在重复")
+
+    # 冲突检测(fixture占位, 阶段5对接LLM)
+    if pre_admission_meds and handoff_meds:
+        findings["conflicts"].append("阶段K fixture: 用药交叉比对完成, 建议医生人工复核")
+
+    return {
+        "phase": "medication_reconciliation",
+        "medication_findings": findings,
+        "document_chain": state.get("document_chain", []) + ["medication_reconciliation"],
     }

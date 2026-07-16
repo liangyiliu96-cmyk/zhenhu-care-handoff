@@ -370,6 +370,23 @@ def build_contract_snapshot() -> dict:
 
 
 # ============================================================================
+# 服务间通信配置（阶段K: 统一管理）
+# ============================================================================
+
+import os
+
+
+class ServiceConfig:
+    """4 服务统一配置——环境变量驱动，默认 localhost 开发。"""
+
+    WORKFLOW_URL: str = os.environ.get("WORKFLOW_ENGINE_URL", "http://localhost:8100")
+    KNOWLEDGE_URL: str = os.environ.get("KNOWLEDGE_URL", "http://localhost:8200")
+    FHIR_URL: str = os.environ.get("FHIR_URL", "http://localhost:8300")
+    INPATIENT_URL: str = os.environ.get("INPATIENT_URL", "http://localhost:8400")
+    DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+
+
+# ============================================================================
 # 公开 API
 # ============================================================================
 
@@ -448,4 +465,6 @@ __all__ = [
     # 数据库会话（阶段J审计修复）
     "create_engine_and_session",
     "get_session",
+    # 服务配置（阶段K: 统一管理）
+    "ServiceConfig",
 ]

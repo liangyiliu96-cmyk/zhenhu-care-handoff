@@ -1,6 +1,7 @@
 """臻护桥接 —— 出院→workflow-engine / RAG→knowledge-orchestrator / 患者摘要→fhir-adapter。合并迁入。
 
 阶段5 fixture占位。阶段6(桥接)对接臻护PoC验证。
+阶段K: URL 常量统一从 zhenhu.contracts.ServiceConfig 导入。
 """
 
 import os
@@ -8,10 +9,12 @@ import asyncio
 
 import httpx
 
-# 合并迁入修正C: 保持 localhost 默认值, 同仓库服务间通过 HTTP bridge 通信
-WORKFLOW_URL = os.environ.get("WORKFLOW_ENGINE_URL", "http://localhost:8100")
-KNOWLEDGE_URL = os.environ.get("KNOWLEDGE_URL", "http://localhost:8200")
-FHIR_URL = os.environ.get("FHIR_URL", "http://localhost:8300")
+# 阶段K: 统一从 contracts 导入, 环境变量驱动的服务地址
+from zhenhu.contracts import ServiceConfig
+
+WORKFLOW_URL = ServiceConfig.WORKFLOW_URL
+KNOWLEDGE_URL = ServiceConfig.KNOWLEDGE_URL
+FHIR_URL = ServiceConfig.FHIR_URL
 
 
 async def bridge_discharge_to_zhenhu(handoff_items: list[dict], patient_id: str, template: dict | None = None) -> dict:

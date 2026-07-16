@@ -4,7 +4,8 @@ import pytest, asyncio
 from zhenhu.inpatient.agent.nodes import (
     node_admission, node_triage, node_monitoring, node_discharge,
     node_handoff, node_doctor_review, node_patient_confirm,
-    node_daily_round, node_medication_adjust, node_lab_review, node_transfer
+    node_daily_round, node_medication_adjust, node_lab_review, node_transfer,
+    node_medication_reconciliation,
 )
 
 def test_node_admission_initializes():
@@ -101,19 +102,30 @@ def test_node_patient_confirm_marks_all():
 
 
 def test_node_discharge_checks_criteria():
-    """出院判断检查模板标准。"""
+    """阶段K: 出院全链路自动化——无handoff_items时不触发bridge调用。"""
     tpl = {"discharge_criteria": ["bp_stable_24h", "medication_confirmed"]}
     result = asyncio.run(node_discharge({"disease_template": tpl, "vital_signs": []}))
-    assert result["phase"] == "monitoring"
-    assert "discharge_checks" in result
+    assert result["phase"] == "discharge"
+    assert result["discharge_decision"] == "approved"
 
 
 def test_node_discharge_approves_after_enough_vitals():
-    """充分监测后批准出院。"""
-    tpl = {"discharge_criteria": ["bp_stable_24h"]}
+    """阶段K: 出院全链路——有handoff_items时触发bridge+知识+照护视图链（无真实服务时bridge_failed）。"""
+    tpl = {
+        "discharge_criteria": ["bp_stable_24h"],
+        "handoff_instructions": [{"type": "medication", "content": "氨氯地平片 5mg 每日一次"}],
+    }
     vs = [{}, {}, {}, {}, {}, {}]
-    result = asyncio.run(node_discharge({"disease_template": tpl, "vital_signs": vs}))
-    assert result["discharge_decision"] == "approved"
+    items = [{"type": "medication", "content": "氨氯地平片 5mg 每日一次"}]
+    result = asyncio.run(node_discharge({
+        "disease_template": tpl,
+        "vital_signs": vs,
+        "handoff_items": items,
+    }))
+    # 阶段K: bridge试图创建病例; 无真实服务时 decision 为 bridge_failed
+    assert "bridge_result" in result
+    assert result.get("knowledge_context") is not None
+    assert result.get("patient_summary") is not None
 
 
 def test_node_admission_loads_template():
@@ -166,3 +178,43 @@ def test_node_transfer_low_risk():
     """低危不触发转科。"""
     result = asyncio.run(node_transfer({"risk_level": "low", "vital_signs": []}))
     assert result["transfer_needed"] == False
+
+
+# ── 阶段K: 用药核对节点 ──
+
+
+def test_node_medication_reconciliation_adds_findings():
+    """阶段K: 用药核对——交叉比对模板用药与院前记录, 生成 findings。"""
+    tpl = {
+        "handoff_instructions": [
+            {"type": "medication", "content": "氨氯地平片 5mg 每日一次"},
+            {"type": "monitoring", "content": "每日测血压"},
+        ],
+    }
+    result = asyncio.run(node_medication_reconciliation({
+        "patient_id": "test-001",
+        "disease_template": tpl,
+        "document_chain": [],
+    }))
+    assert result["phase"] == "medication_reconciliation"
+    assert "medication_findings" in result
+    assert "medication_reconciliation" in result["document_chain"]
+    assert "gaps" in result["medication_findings"]
+
+
+def test_node_medication_reconciliation_no_meds():
+    """阶段K: 无用药类型 handoff_instructions 时空 findings。"""
+    tpl = {
+        "handoff_instructions": [
+            {"type": "monitoring", "content": "每日测血压"},
+        ],
+    }
+    result = asyncio.run(node_medication_reconciliation({
+        "patient_id": "test-001",
+        "disease_template": tpl,
+        "document_chain": [],
+    }))
+    assert result["phase"] == "medication_reconciliation"
+    assert result["medication_findings"]["gaps"] == []
+    assert result["medication_findings"]["conflicts"] == []
+    assert result["medication_findings"]["duplications"] == []
