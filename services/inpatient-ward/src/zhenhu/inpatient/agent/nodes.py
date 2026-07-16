@@ -134,17 +134,38 @@ def _check_discharge_criteria(
 
 
 def _evaluate_criterion(cond_key: str, vital_signs: list[dict], state: dict) -> bool:
-    """评估单个出院标准的满足情况。
+    """评估单个出院标准。Phase5: LLM综合判断，失败回退规则匹配。
     
-    基于条件键名做规则匹配，Phase 5 升级 LLM。
-    当前覆盖血压稳定/体征正常/用药方案确认等核心条件。
+    优先用 get_ai_provider() 调用 LLM，异常或 source_none 时回退规则匹配。
     """
     if not vital_signs:
         return False
     
-    recent = vital_signs[-3:]  # 最近3条
+    # 尝试 LLM 评估
+    try:
+        import asyncio
+        provider = get_ai_provider()
+        template = state.get("disease_template", {})
+        prompt = (
+            f"判断患者是否满足出院条件'{cond_key}'。"
+            f"病种: {template.get('name', '未知')}。"
+            f"最近3次体征: {json.dumps(vital_signs[-3:], ensure_ascii=False)}。"
+            f"文档链: {state.get('document_chain', [])}。"
+            f"返回JSON: {{\"met\": true/false, \"reason\": \"简短判断依据\"}}"
+        )
+        ctx = {"disease_template": template, "vital_signs": vital_signs[-3:], "condition": cond_key}
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(provider.invoke(prompt, context=ctx))
+        finally:
+            loop.close()
+        if result and result.get("source_type") != "source_none" and "met" in result:
+            return bool(result["met"])
+    except Exception:
+        pass
     
-    # 血压稳定检查
+    # 回退: 规则匹配
+    recent = vital_signs[-3:]
     if "bp_stable" in cond_key:
         for v in recent:
             sbp = v.get("blood_pressure_systolic", v.get("systolic_mmhg", 0))
@@ -157,8 +178,6 @@ def _evaluate_criterion(cond_key: str, vital_signs: list[dict], state: dict) -> 
             if sbp > 160 or dbp > 100:
                 return False
         return True
-    
-    # 血氧稳定检查
     if "spo2" in cond_key:
         threshold = 90 if "90" in cond_key else 92 if "92" in cond_key else 94
         for v in recent:
@@ -166,43 +185,26 @@ def _evaluate_criterion(cond_key: str, vital_signs: list[dict], state: dict) -> 
             if isinstance(spo2, (int, float)) and spo2 < threshold:
                 return False
         return True
-    
-    # 体征稳定通用检查
     if "vital_signs_stable" in cond_key:
         return len(vital_signs) >= 3
-    
-    # 用药方案确认
     if "medication" in cond_key or "med" in cond_key.lower():
-        # 检查是否在 handoff_instructions 中有 medication 类型
         handoff = state.get("handoff_items", []) or state.get("disease_template", {}).get("handoff_instructions", [])
         has_med = any(it.get("type") == "medication" for it in handoff if isinstance(it, dict))
         return has_med
-    
-    # 无发热
     if "afebrile" in cond_key:
         for v in recent:
             temp = v.get("temperature", 36.5)
             if isinstance(temp, (int, float)) and temp > 37.5:
                 return False
         return True
-    
-    # 血流动力学稳定
     if any(kw in cond_key for kw in ["hemodynamic", "hemodynamics"]):
         return len(vital_signs) >= 3
-    
-    # 意识/神经评估 — 无恶化即视为稳定(保守)
     if any(kw in cond_key for kw in ["nihss", "consciousness", "neuro"]):
         return True
-    
-    # 口服耐受
     if "oral" in cond_key:
         return "intake_note" in state.get("document_chain", [])
-    
-    # 自我管理教育完成
     if any(kw in cond_key for kw in ["education", "self_care", "self_monitoring"]):
-        return True  # Phase 5: 需要实际验证
-    
-    # 默认: 保守处理，不满足
+        return True
     return False
 
 

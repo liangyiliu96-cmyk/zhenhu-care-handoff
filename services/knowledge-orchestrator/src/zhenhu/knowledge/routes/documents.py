@@ -8,6 +8,7 @@ POST /knowledge/documents/{id}/transition — 状态转移
 from __future__ import annotations
 
 import hashlib
+import json as _json
 import math
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
@@ -162,6 +163,7 @@ async def import_document(
 
     # 分块
     chunks = _chunk_text(body.content)
+    new_chunks = []
     for i, chunk_text in enumerate(chunks):
         chunk = KnowledgeChunk(
             document_id=document.document_id,
@@ -170,20 +172,30 @@ async def import_document(
             chunking_version="0.2.0",
         )
         session.add(chunk)
+        new_chunks.append(chunk)
 
-    # 阶段M Agent升级: AI 分块后处理（关键词/标签/有效期），失败降级到手工规则
+    # 阶段5: LLM 自动提取标签（失败回退默认标签）
     audit = AgentAuditHook()
     audit.on_node_enter("import", {"source_format": body.source_format})
     try:
         provider = get_ai_provider()
-        postprocess = await provider.invoke(
-            prompt="分块后处理",
-            context={"chunks": chunks, "disease_tags": ["心血管", "呼吸", "代谢"]}
+        tag_result = await provider.invoke(
+            "从以下文本提取3-5个医学关键词和1-2个疾病分类标签。返回JSON: {keywords:[...], disease_tags:[...]}",
+            context={"chunks": [{"id": c.chunk_id, "text": (c.text or "")[:500]} for c in new_chunks]},
         )
-        # 用 AI 返回的标签更新分块元数据（当前 fixture, 阶段5 替换真实后处理）
+        if tag_result and tag_result.get("source_type") != "source_none":
+            keywords = tag_result.get("keywords", [])
+            disease_tags = tag_result.get("disease_tags", ["综合"])
+        else:
+            keywords, disease_tags = [], ["综合"]
     except Exception:
-        pass  # 降级到手工标签
-    audit.on_node_exit("import", {"chunk_count": len(chunks)})
+        keywords, disease_tags = [], ["综合"]
+
+    # 用 AI 返回的标签更新分块元数据
+    for chunk in new_chunks:
+        chunk.tags = _json.dumps(disease_tags[:2], ensure_ascii=False) if disease_tags else "[]"
+        chunk.keywords = _json.dumps(keywords[:5], ensure_ascii=False) if keywords else "[]"
+    audit.on_node_exit("import", {"chunk_count": len(new_chunks)})
 
     # 记录入库任务
     job = KnowledgeIngestionJob(
