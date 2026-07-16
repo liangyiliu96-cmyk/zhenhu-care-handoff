@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import time
 import asyncio
+import json
 
 T = TypeVar("T")
 
@@ -187,8 +188,85 @@ class RuleBasedProvider:
             yield {k: v}
 
 
-# 全局默认 Provider — 阶段 M 升级为规则引擎
+# 全局默认 Provider — 阶段 M2 默认规则引擎（接真实 LLM 后自动替换）
 _default_provider: AIProvider = RuleBasedProvider()
+
+
+class DeepSeekProvider:
+    """DeepSeek V4 提供者 — 对接 deepseek-v4-flash / v4-pro 模型。
+
+    OpenAI 兼容 API: POST https://api.deepseek.com/chat/completions
+    用法: set_ai_provider(DeepSeekProvider(api_key="sk-xxx", model="deepseek-v4-flash"))
+    """
+
+    BASE_URL = "https://api.deepseek.com/chat/completions"
+
+    def __init__(
+        self,
+        api_key: str = "",
+        model: str = "deepseek-v4-flash",
+        temperature: float = 0.3,
+        max_tokens: int = 2048,
+    ):
+        self.api_key = api_key
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+
+    async def invoke(self, prompt: str, context: dict | None = None) -> dict:
+        """调用 DeepSeek API，返回结构化 JSON 结果。
+
+        阶段 M2: 临床场景注入 system prompt 引导模型输出 JSON Schema。
+        """
+        import httpx
+
+        ctx = context or {}
+        template = ctx.get("disease_template", {})
+
+        # 构造系统提示词（引导 JSON 输出）
+        system_msg = (
+            "你是臻护临床 AI 助手。请根据输入生成结构化 JSON 输出。"
+            "输出必须包含 source_type 字段（source_knowledge/source_ehr/source_none）。"
+        )
+
+        user_msg = f"提示: {prompt}\n上下文: {json.dumps(ctx, ensure_ascii=False, default=str)[:2000]}"
+
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg},
+            ],
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "response_format": {"type": "json_object"},
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    self.BASE_URL,
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    content = data["choices"][0]["message"]["content"]
+                    result = json.loads(content)
+                    if "source_type" not in result:
+                        result["source_type"] = "source_knowledge"
+                    return result
+                return {"error": f"API {resp.status_code}", "source_type": "source_none"}
+        except Exception as e:
+            return {"error": str(e)[:200], "source_type": "source_none"}
+
+    async def stream(self, prompt: str, context: dict | None = None):
+        result = await self.invoke(prompt, context)
+        for k, v in result.items():
+            yield {k: v}
 
 def get_ai_provider() -> AIProvider:
     return _default_provider

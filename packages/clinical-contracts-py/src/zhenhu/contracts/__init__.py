@@ -398,7 +398,7 @@ from zhenhu.contracts.agent import (  # noqa: E402
     CircuitBreakerOpenError,
     AgentAuditHook,
     AIProvider,
-    FixtureAIProvider, RuleBasedProvider,
+    FixtureAIProvider, RuleBasedProvider, DeepSeekProvider,
     get_ai_provider,
     set_ai_provider,
 )
