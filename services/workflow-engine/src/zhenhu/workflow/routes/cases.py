@@ -63,6 +63,8 @@ _KEYWORD_CATEGORY_MAP: dict[str, str] = {
     "过敏": "medication_allergy",
     "检验": "followup_window",
     "随访": "followup_window",
+    "医嘱": "missing_field",
+    "交接": "missing_field",
 }
 
 
@@ -86,7 +88,7 @@ _MOCK_RISKS: list[dict] = [
         "summary": "最近肌酐采集时间为出院前 36 小时；随访草稿未包含复查时间。请核实是否需要补充院后监测安排。",
         "evidence_snippet": "肌酐采集时间：出院前 36 小时",
         "citation_excerpt": "复查事项和计划时间应在交接草稿中明确记录。",
-        "citation_document_id": "poc-followup-sop",
+        "citation_document_id": "zhenhu-handoff-sop",
     },
     {
         "category": "missing_field",
@@ -96,7 +98,7 @@ _MOCK_RISKS: list[dict] = [
         "summary": "交接单草稿未包含居家自测记录方式。该项仅提示信息完整性，不替代临床判断。",
         "evidence_snippet": "居家血压记录字段为空",
         "citation_excerpt": "交接信息应包含约定的居家监测记录方式。",
-        "citation_document_id": "poc-followup-sop",
+        "citation_document_id": "zhenhu-handoff-sop",
     },
 ]
 
@@ -125,9 +127,15 @@ async def _fetch_knowledge_for_keyword(
             if results:
                 first = results[0]
                 return keyword, {
-                    "citation_excerpt": (first.get("text", "") or "")[:200],
+                    "citation_excerpt": (
+                        first.get("citation", {}).get("excerpt", "")
+                        or (first.get("text", "") or "")[:200]
+                    )[:200],
                     "citation_document_id": first.get("document_id", ""),
-                    "evidence_snippet": (first.get("text", "") or "")[:100],
+                    "evidence_snippet": (
+                        first.get("citation", {}).get("excerpt", "")
+                        or (first.get("text", "") or "")[:100]
+                    )[:100],
                 }
     except Exception:
         # 搜索失败时保留原有 mock evidence，不阻断分析流程
