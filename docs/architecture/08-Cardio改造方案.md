@@ -1,4 +1,4 @@
-# 08-Cardio改造方案 v0.2
+# 08-Cardio改造方案 v0.3
 
 > **作者**: 高见远(臻护架构师)  
 > **日期**: 2026-07-16  
@@ -83,6 +83,25 @@ for vs in template["vital_signs"]:
 | RAG检索 | 双向统一 | Agent节点→`GET knowledge-orchestrator/search` |
 | FHIR映射 | Cardio→臻护 | `handoff_context` → `CarePlan.activity[]` + `MedicationRequest[]` |
 | 审计事件 | Cardio→臻护 | `agent_events` → `audit_events`(统一格式) |
+
+### 2.6 字段与接口对齐臻护
+
+数据库表字段对齐臻护 `models.py` 风格:
+- 命名: snake_case, `id` 主键 + `XX_id` 唯一业务键
+- 时间戳: `created_at` + `updated_at`
+
+出院时输出脱敏患者摘要,对接患者端 `GET /patient/{id}/care-view` 模式(patient_care.py):
+
+```python
+summary = PatientSummary(
+    patient_info={"name": masked_name, "age": age, "discharge_to": dest},
+    care_plan=handoff_items,
+    education=_search_knowledge("出院指导")[:3],
+)
+return UnifiedResponse(request_id=rid, data=summary, error=None)
+```
+
+API 响应统一 `UnifiedResponse[Data]` 格式,复用 `contracts/middleware.py` 自动注入 `request_id`,异常→`error` 包装。
 
 ---
 
@@ -199,18 +218,68 @@ async def check_discharge_criteria(template: dict, vital_history: list) -> bool:
     """对照病种模板检查出院条件。"""
 ```
 
+### 5.4 AgentLoop 事件驱动架构
+
+住院协同核心采用 RAGFlow `AgentLoop[InpatientEvent]` push-based 泛型事件循环:
+
+```python
+loop = AgentLoop[InpatientEvent](AgentLoopConfig(
+    GenInput=route_event,      # 策略注入: 入院→admission/体征→monitoring/出院→discharge
+    PrepareAgent=load_agent,
+))
+# 外部事件(HIS/护士站)通过 Push 送入
+loop.Push(InpatientEvent(type="vital_sign", patient_id="P001", data={...}))
+loop.Push(InpatientEvent(type="doctor_review_response", patient_id="P001", ...))
+```
+
+**planTurn 双分支**(对应 agent_loop_agent.go:127-139):
+- **新 Turn (GEN)**: `runner.Run(ctx, messages)` 首次推理
+- **中断恢复 (RESUME)**: `runner.Resume(ctx, checkpointID)` 注入审核意见+新体征
+
+事件类型→节点路由(对齐 §2.1):
+
+| InpatientEvent.type | 分支 | Agent 节点 |
+|---|---|---|
+| `admission` | GEN | admission → triage |
+| `vital_sign` | GEN | monitoring |
+| `discharge_signal` | GEN | discharge → handoff |
+| `doctor_review_response` | RESUME | doctor_review |
+
+### 5.5 Agent Harness 安全护栏
+
+基于 RAGFlow harness 层(agent_loop_agent.go)做 Agent 行为管控:
+
+**输出校验**: handoff_items 经 Pydantic schema 强制校验:
+```python
+class HandoffItem(BaseModel):
+    type: Literal["medication", "monitoring", "followup"]
+    content: str
+    priority: Literal["high", "medium", "low"]
+    source: str | None
+validated = [HandoffItem(**item) for item in raw_output]
+```
+
+**幻觉检测**: `search_knowledge()` score<0.6 → `source="source_none"`; 0.6≤score<0.8 → `source_low_confidence`(对齐 §5.1 低分过滤)
+
+**回退策略**: RAG 检索失败(无结果或全部低分)→使用病种模板内置 defaults(临床审核):
+```python
+if not reliable_results:
+    return fallback_to_template_defaults(template["handoff_instructions"])
+```
+
 ---
 
-## 6. 实施步骤(6阶段)
+## 6. 实施步骤(7阶段)
 
 | # | 阶段 | 内容 | 验收标准 |
 |---|------|------|---------|
 | 1 | 归档 | `legacy/` 移入原前后端,Cardio不再演进 | git archive + 原路径只读 |
-| 2 | 结构清洗 | namespace + 中间件 + 合并services/collaboration | 0 import 错误,测试保持152+ |
+| 2 | 结构清洗 | namespace + 中间件 + 合并 + 字段对齐臻护(§2.6) | 0 import 错误,Models snake_case 对齐 |
 | 3 | 去硬编码 | bp→vital_sign + 3套病种JSON模板 | 模板加载切换病种,全量测试适配 |
-| 4 | Agent | LangGraph 7节点 + 知识检索工具 + HumanInterrupt | graph.py独立调试,各节点→orchestrator链路通 |
-| 5 | 桥接 | 出院→workflow-engine + handoff→FHIR CarePlan | 集成测试:Cardio出院→臻护收到病例 |
-| 6 | 回归 | 全量测试 + 新增Agent集成用例≥10 | pytest全绿,隔离红线无poC/引用 |
+| 4 | Agent | LangGraph 7节点 + 知识检索 + HumanInterrupt + AgentLoop事件循环(§5.4) | graph.py+loop 调通,各节点→orchestrator链路通 |
+| 5 | Harness | 安全护栏: Pydantic输出校验 + 幻觉检测(§5.5) + 模板回退 | handoff schema 校验,source_none 标记,fallback 可用 |
+| 6 | 桥接 | 出院→workflow-engine + handoff→FHIR CarePlan + 患者端脱敏摘要(§2.6) | 出院→臻护收到病例+患者端可获得摘要 |
+| 7 | 回归 | 全量测试 + 新增Agent集成≥10 + harness护栏≥5 | pytest全绿,隔离红线无poC/引用 |
 
 ---
 
@@ -224,4 +293,4 @@ async def check_discharge_criteria(template: dict, vital_history: list) -> bool:
 | Cardio数据库 | 先SQLite(memory) | 改造期独立运行,与臻护分离;迁移后改MySQL |
 | 与臻护仓库关系 | 先独立改造,后迁移 | 不污染臻护commit历史 |
 
-> 全文约 950 字(含表格/Mermaid)。实际改造顺序以臻护集成窗口为准。
+> 全文约 1180 字(含表格/Mermaid)。实际改造顺序以臻护集成窗口为准。
