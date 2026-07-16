@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 # 合并迁入修正A: 使用共享 contracts 中间件, 不再引用本地 middleware.py
 from zhenhu.contracts.middleware import RequestIdMiddleware, setup_error_handlers
 from zhenhu.contracts import get_session as _contracts_get_session  # 阶段J审计修复
+from zhenhu.contracts.agent import set_ai_provider, DeepSeekProvider, RuleBasedProvider
 # 合并迁入修正: 路由导入改为相对路径
 from .routes.admission import router as admission_router
 from .routes.monitoring import router as monitoring_router
@@ -28,6 +29,16 @@ from .routes.discharge import router as discharge_router
 from .routes.admin import router as admin_router
 
 VERSION = "0.3.0"
+
+# 阶段5: DeepSeek LLM 接入（API不可用时自动回退 RuleBasedProvider）
+try:
+    set_ai_provider(DeepSeekProvider(
+        api_key="sk-b2fe81ac266741448e1c839635abc464",
+        model="deepseek-v4-flash",
+        temperature=0.3,
+    ))
+except Exception:
+    set_ai_provider(RuleBasedProvider())  # 回退
 
 # 合并迁入修正: SQLite 数据库引擎(移除 app.config.settings 依赖)
 ASYNC_DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./zhenhu_inpatient.db")

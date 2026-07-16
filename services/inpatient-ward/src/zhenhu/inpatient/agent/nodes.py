@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Callable
 
 from .harness import validate_handoff_items, fallback_to_template, normalize_template
+from zhenhu.contracts.agent import get_ai_provider
 
 # 合并迁入修正B: 不依赖 app.domain.templates, 直接加载 disease_templates/
 _TEMPLATE_DIR = Path(os.path.join(os.path.dirname(__file__), "..", "disease_templates")).resolve()
@@ -396,23 +397,58 @@ async def node_discharge(state: dict) -> dict:
 
 
 async def node_handoff(state: dict) -> dict:
-    """交接生成: 基于病种模板的handoff_instructions生成三事项。
-
-    阶段4 fixture: 逐条生成, 阶段5增加RAG增强。
+    """交接生成: 基于病种模板 + LLM个性化增强。
+    
+    Phase5: 模板指令作为base，LLM根据患者体征/化验/风险生成个性化补充。
+    失败回退→仅使用模板默认值。
     """
     template = state.get("disease_template", {})
     instructions = template.get("handoff_instructions", [])
+    patient_data = state.get("patient_data", {})
+    vs = state.get("vital_signs", [])
+    risk = state.get("risk_level", "low")
+
+    # Base: 病种模板默认交接事项
     items = [
         {
             "type": inst.get("type", "unknown"),
             "content": inst.get("content", ""),
             "feedback": None,
+            "source": "disease_template",
         }
         for inst in instructions
     ]
+
+    # LLM增强: 根据患者实际情况个性化
+    try:
+        provider = get_ai_provider()
+        llm_prompt = (
+            f"根据患者数据个性化出院交接指导。病种: {template.get('name', '未知')}，风险: {risk}。"
+            f"模板基础指导: {json.dumps([i.get('content', '')[:80] for i in instructions], ensure_ascii=False)}。"
+            f"患者最新体征: {json.dumps(vs[-2:] if vs else [], ensure_ascii=False)}。"
+            f"请返回 personalized_notes 数组，每项含 type(medication/monitoring/followup) 和 content 字段。"
+            f"保持专业临床语言，不超过3条补充。"
+        )
+        llm_context = {"disease_template": template, "vital_signs": vs[-2:] if vs else [], "risk_level": risk}
+        llm_result = await provider.invoke(llm_prompt, context=llm_context)
+
+        if llm_result and llm_result.get("source_type") != "source_none":
+            personalized = llm_result.get("personalized_notes", [])
+            for note in personalized[:3]:
+                if isinstance(note, dict) and note.get("content"):
+                    items.append({
+                        "type": note.get("type", "supplement"),
+                        "content": note["content"],
+                        "feedback": None,
+                        "source": "llm_enhanced",
+                    })
+    except Exception:
+        pass  # LLM失败→仅用模板默认值
+
     valid, errors = validate_handoff_items(items)
     if errors:
         items = fallback_to_template(template)["handoff_items"]
+
     return {
         "handoff_items": items,
         "phase": "handoff",
@@ -478,24 +514,46 @@ async def node_patient_confirm(state: dict) -> dict:
 
 
 async def node_daily_round(state: dict) -> dict:
-    """P1修复: SOAP格式查房模板。"""
+    """P1修复: SOAP格式查房模板。Phase5: LLM生成真实临床内容（含回退）。"""
     vs = state.get("vital_signs", [])
     labs = state.get("lab_results", [])
     meds = state.get("medication_adjustments", [])
     chain = state.get("document_chain", [])
     risk = state.get("risk_level", "low")
+    template = state.get("disease_template", {})
 
     # 生命体征趋势
     latest_vs = vs[-1] if vs else {}
     vs_trend = _analyze_vs_trend(vs[-4:]) if len(vs) >= 4 else "数据不足"
 
+    # SOAP 主观+评估+计划 —— 尝试LLM生成
+    subjective = {"chief_complaint": "患者自述(未接入LLM)", "symptoms_since_last_round": "自觉症状变化(未接入LLM)"}
+    assessment = {"stability": "stable" if vs_trend == "稳定" else "unstable", "response_to_treatment": "评估中(未接入LLM)"}
+    plan = {"continue_monitoring": risk != "high", "consider_discharge": len(vs) >= 6 and risk != "high", "next_labs": "按病种模板复查(未接入LLM)"}
+
+    try:
+        provider = get_ai_provider()
+        llm_prompt = (
+            f"根据以下住院患者数据生成SOAP格式查房笔记的 subjective/assessment/plan 部分。"
+            f"病种: {template.get('name', '未知')}, 风险等级: {risk}。"
+            f"最新体征: {json.dumps(latest_vs, ensure_ascii=False)}。"
+            f"体征趋势: {vs_trend}。化验数: {len(labs)}, 用药调整数: {len(meds)}。"
+        )
+        llm_context = {"disease_template": template, "vital_signs_latest": latest_vs, "risk_level": risk}
+        llm_result = await provider.invoke(llm_prompt, context=llm_context)
+
+        if llm_result and llm_result.get("source_type") != "source_none":
+            subjective["chief_complaint"] = llm_result.get("chief_complaint", subjective["chief_complaint"])
+            subjective["symptoms_since_last_round"] = llm_result.get("symptoms_since_last_round", subjective["symptoms_since_last_round"])
+            assessment["response_to_treatment"] = llm_result.get("response_to_treatment", assessment["response_to_treatment"])
+            plan["next_labs"] = llm_result.get("next_labs", plan["next_labs"])
+    except Exception:
+        pass  # LLM失败→使用默认占位，不阻断临床流程
+
     round_note = {
         "type": "daily_round",
         "format": "SOAP",
-        "subjective": {
-            "chief_complaint": "患者自述(Phase5 LLM补全)",
-            "symptoms_since_last_round": "自觉症状变化(Phase5 LLM补全)",
-        },
+        "subjective": subjective,
         "objective": {
             "vital_signs_latest": latest_vs,
             "vital_signs_trend": vs_trend,
@@ -503,15 +561,8 @@ async def node_daily_round(state: dict) -> dict:
             "med_adjust_count": len(meds),
             "risk_level": risk,
         },
-        "assessment": {
-            "stability": "stable" if vs_trend == "稳定" else "unstable",
-            "response_to_treatment": "评估中(Phase5 LLM补全)",
-        },
-        "plan": {
-            "continue_monitoring": risk != "high",
-            "consider_discharge": len(vs) >= 6 and risk != "high",
-            "next_labs": "按病种模板复查(Phase5 LLM补全)",
-        },
+        "assessment": assessment,
+        "plan": plan,
         "timestamp": "daily-round-mock",
     }
 
