@@ -65,3 +65,14 @@ workflow-engine → 结构化 FHIR 快照 + 字段溯源
 | **医院系统接口协议**：HL7 v2/v3 / FHIR R4 / 定制 API？ | fhir-adapter 协议适配层选型 | 医院信息科 |
 | **CarePlan 双模式**：出院交接计划（short-term）vs 慢病照护计划（long-term）的实例化规则 | `care_plans` 表字段设计 | 需求 §6.1 |
 | **患者索引**：是否使用医院 EMPI 主索引？ | `patients.patient_id` 取值来源 | 医院信息科 |
+
+---
+
+## 阶段对照
+
+| 能力 | 阶段 0（当前） | 阶段 1 | 阶段 2 |
+|---|---|---|---|
+| 服务状态 | `services/fhir-adapter/` 未创建 | FastAPI 骨架 + 8 表 ORM | 完整 FHIR R4 服务端 |
+| 医院对接 | PoC 用 mock `snapshot` 数据结构 | HL7 v2 / FHIR R4 适配层 | 医院 HIS/EMR/LIS 实时对接 |
+| Patient Compartment | 无 | MySQL 行级过滤 | Keycloak 资源级权限联动 |
+| CarePlan 双模式 | 无 | 出院计划 + 慢病计划 两条 CarePlan | PlanDefinition 模板驱动 |

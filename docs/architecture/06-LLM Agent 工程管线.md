@@ -74,3 +74,14 @@ workflow-engine 内 Agent 编排层
 | **模型部署方式**：本地私有化 vs 云 API？ | 网络架构、数据出院合规 | 医院信息科 + 架构 |
 | **金标准案例集**：标注病例数量与评审流程 | Agent 评测基线 | 需求 §8.2 |
 | **LangGraph Checkpoint**：是否用于人工中断恢复？ | workflow-engine 状态持久化 | 架构总览 §9-D |
+
+---
+
+## 阶段对照
+
+| 能力 | 阶段 0（当前） | 阶段 1 | 阶段 2 |
+|---|---|---|---|
+| Agent 分析 | 确定性 mock 规则（`riskItems()/conflictRisk()`） | LangChain 编排 5 Agent，source_type 溯源 | 金标准案例集评测 + 模型 A/B |
+| 模型调用 | 无 | sentence-transformers 嵌入 + 轻量分类模型 | 强推理模型（GPT-4/Claude）+ 本地部署 |
+| 提示词管理 | 无 | Git 版本化 + 环境变量切换 | A/B 测试 + 自动评测 + 回滚 |
+| 幻觉检测 | 无（mock 规则无幻觉） | 自检 Agent + `source_none` 降级 | 人工复核闭环 + 反馈学习 |
