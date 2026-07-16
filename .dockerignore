@@ -1,0 +1,12 @@
+# Docker build context —— 排除不需要的目录
+node_modules/
+__pycache__/
+*.pyc
+*.egg-info/
+.git/
+poc/
+apps/
+tests/
+输出/
+参考借鉴项目/
+output/

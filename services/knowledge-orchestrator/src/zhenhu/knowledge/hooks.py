@@ -7,13 +7,17 @@
 from __future__ import annotations
 
 import logging
+import os
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
-# workflow-engine 的内部钩子入口地址
-_WORKFLOW_ENGINE_HOOK_URL = "http://localhost:8000/hooks/knowledge-changed"
+# workflow-engine 的内部钩子入口地址（可通过 WORKFLOW_ENGINE_URL 环境变量覆盖）
+_WORKFLOW_ENGINE_HOOK_URL = os.environ.get(
+    "WORKFLOW_ENGINE_URL",
+    "http://localhost:8000/hooks/knowledge-changed",
+)
 
 
 async def notify_knowledge_changed(

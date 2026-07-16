@@ -1,0 +1,72 @@
+# 臻护后端服务 —— 阶段 0 Docker Compose
+# 启动: docker compose up -d
+# 停止: docker compose down
+# 日志: docker compose logs -f
+
+services:
+  workflow-engine:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: workflow-engine
+    container_name: zhenhu-workflow
+    ports:
+      - "8100:8000"
+    volumes:
+      - workflow-data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  knowledge-orchestrator:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: knowledge-orchestrator
+    container_name: zhenhu-knowledge
+    ports:
+      - "8200:8000"
+    volumes:
+      - knowledge-data:/app/data
+    environment:
+      - WORKFLOW_ENGINE_URL=http://workflow-engine:8000/hooks/knowledge-changed
+    depends_on:
+      workflow-engine:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  fhir-adapter:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: fhir-adapter
+    container_name: zhenhu-fhir
+    ports:
+      - "8300:8000"
+    volumes:
+      - fhir-data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  workflow-data:
+  knowledge-data:
+  fhir-data:
