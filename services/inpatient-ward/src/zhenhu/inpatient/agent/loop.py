@@ -1,56 +1,19 @@
-"""AgentLoop[T] — 参考 RAGFlow agent_loop.go: push-based 泛型事件循环。合并迁入。
+"""AgentLoop[T] — 住院域扩展（阶段M: 基类已提取到 contracts）。
 
-阶段G: 将 StateGraph 包装为类型安全的 AgentLoop, 支持:
-- Push 事件注入(外部体征/检验/医嘱)
-- GenInput 策略路由(入院/监测/出院不同入口)
-- planTurn 双分支(New Turn + Resume)
-- 每步事件审计
+阶段M Agent升级: AgentEvent/LoopTrace/AgentLoop 从 contracts 导入，
+住院特定方法(gen_input/plan_turn/get_patient_loop)保留在此。
 """
 
-from typing import Generic, TypeVar
-from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Generic, TypeVar
+
+from zhenhu.contracts.agent import AgentLoop as _BaseAgentLoop, AgentEvent, LoopTrace  # noqa: F401
 
 T = TypeVar("T")
 
 
-@dataclass
-class AgentEvent:
-    """AgentLoop 事件基类。"""
-
-    event_type: str
-    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
-    source: str = "system"  # his|nurse_station|doctor|system
-
-
-@dataclass
-class LoopTrace:
-    """单次 Agent 运行的完整审计追踪。"""
-
-    turn_id: str
-    entry_strategy: str  # "new_admission"|"monitoring_resume"|"discharge_initiate"
-    node_path: list[str] = field(default_factory=list)
-    events_pushed: int = 0
-    errors: list[dict] = field(default_factory=list)
-    started_at: str = field(default_factory=lambda: datetime.now().isoformat())
-    completed_at: str | None = None
-
-
-class AgentLoop(Generic[T]):
-    """类型化 Agent 事件循环。
-
-    参考 RAGFlow agent_loop.go: push-based event loop with GenInput routing。
-    """
-
-    def __init__(self):
-        self._queue: list[AgentEvent] = []
-        self._traces: list[LoopTrace] = []
-        self._current_state: dict | None = None
-
-    def push(self, *events: AgentEvent) -> int:
-        """推送外部事件入队。返回队列长度。"""
-        self._queue.extend(events)
-        return len(self._queue)
+class PatientAgentLoop(_BaseAgentLoop[T]):
+    """住院域 AgentLoop 扩展——新增 gen_input 策略路由和 planTurn 双分支。"""
 
     def gen_input(self, strategy: str) -> dict:
         """策略注入: 根据入口策略生成初始 State。
@@ -109,7 +72,7 @@ class AgentLoop(Generic[T]):
             entry_strategy=state.get("phase", "unknown"),
         )
         try:
-            result = await inpatient_graph.ainvoke(state)
+            result = await inpatient_graph.ainvoke(state, {"configurable": {"thread_id": self._patient_id or "default"}})
             trace.node_path = result.get("document_chain", [])
             trace.completed_at = datetime.now().isoformat()
             self._traces.append(trace)
@@ -125,21 +88,16 @@ class AgentLoop(Generic[T]):
                 self._traces = self._traces[-100:]
             return state
 
-    @property
-    def traces(self) -> list[LoopTrace]:
-        """最近 N 条审计追踪(最多保留 100 条)。"""
-        return self._traces[-100:]
 
-    @property
-    def current_state(self) -> dict | None:
-        return self._current_state
+# 向后兼容别名（阶段M: routes 仍通过..agent.loop 导入 AgentLoop）
+AgentLoop = PatientAgentLoop
 
 
 # 患者级 AgentLoop 实例工厂(并发安全,避免全局单例互相覆盖)
-_patient_loops: dict[str, AgentLoop] = {}
+_patient_loops: dict[str, PatientAgentLoop] = {}
 
-def get_patient_loop(patient_id: str) -> AgentLoop:
+def get_patient_loop(patient_id: str) -> PatientAgentLoop:
     """为每个患者创建独立的 AgentLoop 实例(并发安全)。"""
     if patient_id not in _patient_loops:
-        _patient_loops[patient_id] = AgentLoop()
+        _patient_loops[patient_id] = PatientAgentLoop()
     return _patient_loops[patient_id]

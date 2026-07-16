@@ -387,6 +387,23 @@ class ServiceConfig:
 
 
 # ============================================================================
+# Agent 基础架构（阶段M: 4服务共享）
+# ============================================================================
+
+from zhenhu.contracts.agent import (  # noqa: E402
+    AgentLoop,
+    AgentEvent,
+    LoopTrace,
+    CircuitBreaker,
+    CircuitBreakerOpenError,
+    AgentAuditHook,
+    AIProvider,
+    FixtureAIProvider, RuleBasedProvider,
+    get_ai_provider,
+    set_ai_provider,
+)
+
+# ============================================================================
 # 公开 API
 # ============================================================================
 
@@ -467,4 +484,15 @@ __all__ = [
     "get_session",
     # 服务配置（阶段K: 统一管理）
     "ServiceConfig",
+    # Agent 基础架构（阶段M: 4服务共享）
+    "AgentLoop",
+    "AgentEvent",
+    "LoopTrace",
+    "CircuitBreaker",
+    "CircuitBreakerOpenError",
+    "AgentAuditHook",
+    "AIProvider",
+    "FixtureAIProvider",
+    "get_ai_provider",
+    "set_ai_provider",
 ]

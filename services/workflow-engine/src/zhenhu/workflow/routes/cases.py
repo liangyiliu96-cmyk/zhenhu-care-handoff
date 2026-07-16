@@ -56,9 +56,7 @@ def get_request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "unknown")
 
 
-# ============================================================================
 # 分析关键词 → 风险类别映射
-# ============================================================================
 
 _KEYWORD_CATEGORY_MAP: dict[str, str] = {
     "药物": "medication_allergy",
@@ -68,41 +66,6 @@ _KEYWORD_CATEGORY_MAP: dict[str, str] = {
     "医嘱": "missing_field",
     "交接": "missing_field",
 }
-
-
-# 模拟分析引擎（阶段 0 占位，后续由 Agent 编排替代）
-_MOCK_RISKS: list[dict] = [
-    {
-        "category": "medication_allergy",
-        "severity": "high",
-        "severity_label": "高风险",
-        "title": "出院药物与已记录过敏史存在潜在冲突",
-        "summary": "出院带药清单中出现阿莫西林/克拉维酸钾；输入快照记录青霉素类药物致皮疹。系统不作临床结论，请医生核实。",
-        "evidence_snippet": "青霉素类（皮疹）",
-        "citation_excerpt": "对青霉素类药物有过敏史者，应由具备处方责任的医师评估。",
-        "citation_document_id": "drug-label-amoxicillin-clavulanate",
-    },
-    {
-        "category": "followup_window",
-        "severity": "medium",
-        "severity_label": "中风险",
-        "title": "肾功能结果与随访计划时间窗不一致",
-        "summary": "最近肌酐采集时间为出院前 36 小时；随访草稿未包含复查时间。请核实是否需要补充院后监测安排。",
-        "evidence_snippet": "肌酐采集时间：出院前 36 小时",
-        "citation_excerpt": "复查事项和计划时间应在交接草稿中明确记录。",
-        "citation_document_id": "zhenhu-handoff-sop",
-    },
-    {
-        "category": "missing_field",
-        "severity": "low",
-        "severity_label": "低风险",
-        "title": "居家血压自测记录字段未见填写",
-        "summary": "交接单草稿未包含居家自测记录方式。该项仅提示信息完整性，不替代临床判断。",
-        "evidence_snippet": "居家血压记录字段为空",
-        "citation_excerpt": "交接信息应包含约定的居家监测记录方式。",
-        "citation_document_id": "zhenhu-handoff-sop",
-    },
-]
 
 
 async def _fetch_knowledge_for_keyword(
@@ -148,12 +111,15 @@ async def _fetch_knowledge_for_keyword(
 async def _analyse_and_generate_risks(
     session: AsyncSession, sm: CaseStateMachine, case: Case
 ) -> list[RiskItem]:
-    """阶段 0: 通过知识编排服务获取检索结果，生成风险项并写入数据库。
+    """阶段M Agent升级: 通过 Agent 模式获取风险项 + 知识编排检索 citation。
 
     并发对每个内置关键词调 knowledge-orchestrator 搜索。
     搜索成功时用返回的 citation 信息填充风险项的 evidence；
     搜索失败时保留原有 mock evidence，不阻断分析流程。
     """
+    # ---- 阶段M: Agent 模式生成风险项（含降级回退到 Mock） ----
+    risk_data_list = await sm.analyse(case)
+
     # ---- 阶段 0: 通过知识编排服务获取检索结果 ----
     keywords = ["药物", "过敏", "检验", "随访"]
     kw_citations: dict[str, dict] = {}
@@ -176,7 +142,7 @@ async def _analyse_and_generate_risks(
 
     # ---- 生成风险项 ----
     risks: list[RiskItem] = []
-    for mock_risk in _MOCK_RISKS:
+    for mock_risk in risk_data_list:
         cat = mock_risk["category"]
         # 搜索成功时用真实 citation 填充 evidence；搜索失败时保留 mock evidence
         if cat in category_citation:

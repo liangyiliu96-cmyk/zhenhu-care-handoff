@@ -1,11 +1,14 @@
 """体征监测路由 —— 阶段D: 对接Agent, 接收生命体征推送驱动monitoring循环。合并迁入。
 阶段G: 接入 AgentLoop, 通过 push 事件注入替代直接调 inpatient_graph。
+阶段M Agent升级: AgentEvent 从 contracts 导入。
 """
 
 from fastapi import APIRouter
 
+from zhenhu.contracts.agent import AgentEvent
+
 from ..schemas import UnifiedResponse
-from ..agent.loop import get_patient_loop, AgentEvent
+from ..agent.loop import get_patient_loop
 
 router = APIRouter(prefix="/inpatient", tags=["monitoring"])
 

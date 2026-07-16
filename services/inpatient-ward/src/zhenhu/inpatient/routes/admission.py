@@ -1,11 +1,12 @@
 """入院管理路由 —— 阶段D: 对接Agent Graph + 状态存储。合并迁入。
 阶段G: 接入 AgentLoop 替代直接调 inpatient_graph。
+阶段M Agent升级: AgentEvent 从 contracts 导入。
 """
 
 from fastapi import APIRouter
 
 from ..schemas import UnifiedResponse
-from ..agent.loop import get_patient_loop
+from ..agent.loop import get_patient_loop  # 阶段M: 住院特定工厂, 仍在此引入
 
 router = APIRouter(prefix="/inpatient", tags=["admission"])
 

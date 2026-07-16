@@ -15,6 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from zhenhu.contracts import assert_case_transition, ContractError
 from zhenhu.workflow.models import AuditEvent, Case, RiskItem, TaskDraft
 
+# 阶段M: Agent 模式替代硬编码 Mock
+from zhenhu.contracts.agent import get_ai_provider, AgentAuditHook
+
 
 def _utcnow() -> datetime:
     """返回当前 UTC 时间。"""
@@ -78,6 +81,70 @@ class CaseStateMachine:
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    # ========================================================================
+    # 阶段M Agent升级: analyse() 用 Agent 模式替代硬编码 Mock
+    # ========================================================================
+
+    async def analyse(self, case: Case) -> list[dict]:
+        """分析病例风险项 — 阶段M: Agent 模式替代 Mock。
+
+        优先调 AIProvider 获取结构化风险项，失败降级到 _mock_risks。
+        """
+        audit = AgentAuditHook()
+        audit.on_node_enter("analyse", {"case_id": case.case_id})
+
+        provider = get_ai_provider()
+        try:
+            result = await provider.invoke(
+                prompt="分析病例风险项",
+                context={"case_id": case.case_id, "snapshot": case.input_snapshot_id}
+            )
+            if result.get("risks"):
+                risks = result["risks"]
+            else:
+                risks = self._mock_risks()  # fallback
+        except Exception:
+            risks = self._mock_risks()
+
+        audit.on_node_exit("analyse", {"risk_count": len(risks)})
+        return risks
+
+    @staticmethod
+    def _mock_risks() -> list[dict]:
+        """模拟风险项 — 阶段M: Agent 降级回退。"""
+        return [
+            {
+                "category": "medication_allergy",
+                "severity": "high",
+                "severity_label": "高风险",
+                "title": "出院药物与已记录过敏史存在潜在冲突",
+                "summary": "出院带药清单中出现阿莫西林/克拉维酸钾；输入快照记录青霉素类药物致皮疹。系统不作临床结论，请医生核实。",
+                "evidence_snippet": "青霉素类（皮疹）",
+                "citation_excerpt": "对青霉素类药物有过敏史者，应由具备处方责任的医师评估。",
+                "citation_document_id": "drug-label-amoxicillin-clavulanate",
+            },
+            {
+                "category": "followup_window",
+                "severity": "medium",
+                "severity_label": "中风险",
+                "title": "肾功能结果与随访计划时间窗不一致",
+                "summary": "最近肌酐采集时间为出院前 36 小时；随访草稿未包含复查时间。请核实是否需要补充院后监测安排。",
+                "evidence_snippet": "肌酐采集时间：出院前 36 小时",
+                "citation_excerpt": "复查事项和计划时间应在交接草稿中明确记录。",
+                "citation_document_id": "zhenhu-handoff-sop",
+            },
+            {
+                "category": "missing_field",
+                "severity": "low",
+                "severity_label": "低风险",
+                "title": "居家血压自测记录字段未见填写",
+                "summary": "交接单草稿未包含居家自测记录方式。该项仅提示信息完整性，不替代临床判断。",
+                "evidence_snippet": "居家血压记录字段为空",
+                "citation_excerpt": "交接信息应包含约定的居家监测记录方式。",
+                "citation_document_id": "zhenhu-handoff-sop",
+            },
+        ]
 
     async def _add_audit(
         self,
