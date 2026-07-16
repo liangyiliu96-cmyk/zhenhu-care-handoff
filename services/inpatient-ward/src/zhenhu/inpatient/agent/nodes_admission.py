@@ -391,7 +391,23 @@ async def node_triage(state: dict) -> dict:
         result["mdt_roles"] = template.get("mdt_roles", ["心内科", "营养师", "康复师"])
         result["mdt_mode"] = "async-review"
         result["mdt_reason"] = f"风险分层为高危(匹配风险因子数={risk_count}): {', '.join(matched[:3])}"
-    
+
+    # LLM增强: 生成风险评估摘要
+    if matched:
+        try:
+            provider = get_ai_provider()
+            llm_result = await provider.invoke(
+                f"基于以下匹配的风险因子生成简短临床风险评估（1-2句中文）："
+                f"病种: {template.get('name', '未知')}，风险等级: {level}，"
+                f"匹配因子: {', '.join(matched[:5])}。"
+                f"返回JSON: {{\"risk_summary\": \"...\"}}",
+                context={"disease_template": template, "matched_factors": matched, "risk_level": level},
+            )
+            if llm_result and llm_result.get("source_type") != "source_none":
+                result["risk_summary"] = llm_result.get("risk_summary", "")
+        except Exception:
+            pass
+
     record("triage")
     return result
 

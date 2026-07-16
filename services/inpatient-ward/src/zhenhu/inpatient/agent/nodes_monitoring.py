@@ -65,10 +65,13 @@ async def node_daily_round(state: dict) -> dict:
     try:
         provider = get_ai_provider()
         llm_prompt = (
-            f"根据以下住院患者数据生成SOAP格式查房笔记的 subjective/assessment/plan 部分。"
-            f"病种: {template.get('name', '未知')}, 风险等级: {risk}。"
-            f"最新体征: {json.dumps(latest_vs, ensure_ascii=False)}。"
-            f"体征趋势: {vs_trend}。化验数: {len(labs)}, 用药调整数: {len(meds)}。"
+            f"作为住院医师，基于以下数据生成SOAP格式查房笔记（中文，专业临床语言）：\n"
+            f"病种: {template.get('name', '未知')}，风险等级: {risk}。\n"
+            f"最新体征: {json.dumps(latest_vs, ensure_ascii=False)}。\n"
+            f"体征趋势: {vs_trend}。\n"
+            f"化验结果数: {len(labs)}，用药调整数: {len(meds)}。\n"
+            f"请返回JSON: {{\"chief_complaint\": \"患者主诉(1句)\", \"symptoms_since_last_round\": \"症状变化\", "
+            f"\"response_to_treatment\": \"治疗反应评估\", \"next_labs\": \"下一步检查建议\"}}"
         )
         llm_context = {"disease_template": template, "vital_signs_latest": latest_vs, "risk_level": risk}
         llm_result = await provider.invoke(llm_prompt, context=llm_context)
@@ -163,11 +166,30 @@ async def node_medication_adjust(state: dict) -> dict:
     
     adjustments = state.get("medication_adjustments", [])
     if alerts and alert_history >= 2:
+        # LLM生成调药建议
+        suggestion = "建议医生评估调药(连续异常)"
+        urgency = "routine"
+        try:
+            provider = get_ai_provider()
+            llm_result = await provider.invoke(
+                f"基于以下体征异常生成用药调整建议（1-2句中文，含具体药物类别建议）："
+                f"病种: {template.get('name', '未知')}。"
+                f"异常体征: {json.dumps(alerts, ensure_ascii=False)}。"
+                f"返回JSON: {{\"suggestion\": \"...\", \"urgency\": \"routine/urgent/emergent\"}}",
+                context={"disease_template": template, "alerts": alerts},
+            )
+            if llm_result and llm_result.get("source_type") != "source_none":
+                suggestion = llm_result.get("suggestion", suggestion)
+                urgency = llm_result.get("urgency", "routine")
+        except Exception:
+            urgency = "routine"
+
         adjustments.append({
             "reason": alerts,
-            "action": "建议医生评估调药(连续异常)",
+            "action": suggestion,
             "timestamp": datetime.now().isoformat(),
             "requires_doctor_confirm": True,
+            "urgency": urgency,
         })
     
     record("medication_adjust")
@@ -202,9 +224,11 @@ async def node_lab_review(state: dict) -> dict:
         try:
             provider = get_ai_provider()
             llm_prompt = (
-                f"根据病种'{template.get('name', '未知')}'的背景，审阅以下检验结果并给出临床判断。"
-                f"检验: {json.dumps([{'test': l.get('name',''), 'value': l.get('value',''), 'unit': l.get('unit','')} for l in new_labs], ensure_ascii=False)}。"
-                f"返回JSON: {{\"interpretation\": \"异常结果综合解读(1-2句)\", \"abnormal_findings\": [...], \"recommendation\": \"下一步建议\"}}"
+                f"作为临床医生，审阅以下检验结果并给出专业判断。"
+                f"患者病种: {template.get('name', '未知')}。"
+                f"检验结果: {json.dumps([{'test': l.get('name',''), 'value': l.get('value',''), 'unit': l.get('unit','')} for l in new_labs], ensure_ascii=False)}。"
+                f"请识别异常结果，给出1-2句综合解读和下一步建议（中文）。"
+                f"返回JSON: {{\"interpretation\": \"异常解读\", \"abnormal_findings\": [{{\"test\": \"...\", \"finding\": \"...\", \"severity\": \"mild/moderate/severe\"}}], \"recommendation\": \"建议\"}}"
             )
             llm_ctx = {"disease_template": template, "lab_results": new_labs}
             llm_result = await provider.invoke(llm_prompt, context=llm_ctx)
@@ -290,6 +314,21 @@ async def node_transfer(state: dict) -> dict:
             transfer_needed = True
             transfer_target = target
             transfer_reason = reason_base
+
+    # LLM增强: 转科理由
+    if transfer_needed:
+        try:
+            provider = get_ai_provider()
+            llm_result = await provider.invoke(
+                f"生成转科至{transfer_target}的简要临床理由（1句中文）："
+                f"转科原因: {transfer_reason}，病种: {template.get('disease_id', '')}。"
+                f"返回JSON: {{\"rationale\": \"...\"}}",
+                context={"transfer_reason": transfer_reason, "transfer_target": transfer_target},
+            )
+            if llm_result and llm_result.get("source_type") != "source_none":
+                transfer_reason = f"{transfer_reason}。{llm_result.get('rationale', '')}"
+        except Exception:
+            pass
 
     record("transfer")
     return {

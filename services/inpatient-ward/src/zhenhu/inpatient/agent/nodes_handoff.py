@@ -97,18 +97,19 @@ async def node_handoff(state: dict) -> dict:
     try:
         provider = get_ai_provider()
         llm_prompt = (
-            f"根据患者数据个性化出院交接指导。病种: {template.get('name', '未知')}，风险: {risk}。"
-            f"模板基础指导: {json.dumps([i.get('content', '')[:80] for i in instructions], ensure_ascii=False)}。"
-            f"患者最新体征: {json.dumps(vs[-2:] if vs else [], ensure_ascii=False)}。"
-            f"请返回 personalized_notes 数组，每项含 type(medication/monitoring/followup) 和 content 字段。"
-            f"保持专业临床语言，不超过3条补充。"
+            f"为以下患者生成个性化出院指导补充（中文）：\n"
+            f"病种: {template.get('name', '未知')}，风险等级: {risk}。\n"
+            f"模板基础指导: {json.dumps([i.get('content', '')[:80] for i in instructions], ensure_ascii=False)}。\n"
+            f"最新体征: {json.dumps(vs[-2:] if vs else [], ensure_ascii=False)}。\n"
+            f"请返回JSON: {{\"personalized_notes\": [{{\"type\": \"medication/monitoring/followup\", "
+            f"\"content\": \"具体个性化的指导内容(20-50字中文)\"}}]}}，最多2条补充。"
         )
         llm_context = {"disease_template": template, "vital_signs": vs[-2:] if vs else [], "risk_level": risk}
         llm_result = await provider.invoke(llm_prompt, context=llm_context)
 
         if llm_result and llm_result.get("source_type") != "source_none":
             personalized = llm_result.get("personalized_notes", [])
-            for note in personalized[:3]:
+            for note in personalized[:2]:
                 if isinstance(note, dict) and note.get("content"):
                     items.append({
                         "type": note.get("type", "supplement"),
@@ -188,13 +189,32 @@ async def node_doctor_review(state: dict) -> dict:
 
     all_accepted = all(it.get("review_action") == "accept" for it in reviewed)
     record("doctor_review")
-    return {
+    
+    result = {
         "handoff_items": reviewed,
         "phase": "review",
         "discharge_decision": "approved" if all_accepted else "pending_reevaluation",
         "interrupt_pending": False,
         "patient_summary": state.get("patient_data", {}),
     }
+    
+    # LLM: 驳回时生成审核摘要
+    if not all_accepted:
+        try:
+            provider = get_ai_provider()
+            dismissed = [it for it in reviewed if it.get("review_action") == "dismiss"]
+            llm_result = await provider.invoke(
+                f"为医生生成被驳回交接事项的审核意见（1句中文）: "
+                f"{json.dumps([d.get('dismiss_reason', '') for d in dismissed], ensure_ascii=False)}。"
+                f"返回JSON: {{\"review_note\": \"...\"}}",
+                context={"dismissed_items": dismissed},
+            )
+            if llm_result and llm_result.get("source_type") != "source_none":
+                result["review_note"] = llm_result.get("review_note", "")
+        except Exception:
+            pass
+    
+    return result
 
 
 async def node_patient_confirm(state: dict) -> dict:
@@ -215,9 +235,10 @@ async def node_patient_confirm(state: dict) -> dict:
         try:
             provider = get_ai_provider()
             llm_result = await provider.invoke(
-                f"为以下出院指导生成一个Teach-back验证问题，并评估患者是否可能理解。"
-                f"指导类型: {item_type}。内容: {content[:200]}。"
-                f"返回JSON: {{\"teachback_question\": \"...\", \"comprehension\": \"likely_understood|needs_reinforcement|unlikely\"}}",
+                f"作为出院指导护士，对以下出院指导设计一个Teach-back验证问题，"
+                f"让患者用自己的话复述理解（中文，简单易懂）：\n"
+                f"指导类型: {item_type}。内容: {content[:200]}。\n"
+                f"返回JSON: {{\"teachback_question\": \"您能告诉我...\", \"comprehension\": \"likely_understood|needs_reinforcement|unlikely\"}}",
                 context={"handoff_item": item},
             )
             if llm_result and llm_result.get("source_type") != "source_none":
