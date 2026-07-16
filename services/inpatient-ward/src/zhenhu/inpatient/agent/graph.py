@@ -11,10 +11,16 @@ from typing import TypedDict
 
 try:
     from langgraph.checkpoint.memory import MemorySaver
+    try:
+        from langgraph.checkpoint.sqlite import SqliteSaver
+        _HAS_SQLITE_SAVER = True
+    except ImportError:
+        _HAS_SQLITE_SAVER = False
     from langgraph.graph import END, StateGraph
     _HAS_LANGGRAPH = True
 except ImportError:
     _HAS_LANGGRAPH = False
+    _HAS_SQLITE_SAVER = False
     MemorySaver = None  # type: ignore
     END = "end"  # type: ignore
     StateGraph = None  # type: ignore
@@ -189,7 +195,16 @@ def build_inpatient_graph():
     builder.add_edge("doctor_review", "patient_confirm")
     builder.add_edge("patient_confirm", END)
 
-    return builder.compile(checkpointer=MemorySaver())
+    import os
+    # 优先 SQLite 持久化（支持流程中断恢复），回退 MemorySaver
+    checkpoint_db = os.environ.get("LANGGRAPH_CHECKPOINT_DB", "")
+    if _HAS_SQLITE_SAVER and checkpoint_db:
+        import sqlite3
+        conn = sqlite3.connect(checkpoint_db, check_same_thread=False)
+        checkpointer = SqliteSaver(conn)
+    else:
+        checkpointer = MemorySaver()
+    return builder.compile(checkpointer=checkpointer)
 
 
 # 全局graph实例(开发阶段用MemorySaver, 若无langgraph则为None)
