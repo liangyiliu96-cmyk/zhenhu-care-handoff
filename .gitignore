@@ -7,6 +7,9 @@ dist/
 build/
 coverage/
 output/
+__pycache__/
+*.pyc
+*.egg-info/
 .playwright-cli/
 playwright-report/
 test-results/
