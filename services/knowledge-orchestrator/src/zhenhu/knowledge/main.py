@@ -5,15 +5,14 @@
 
 from __future__ import annotations
 
-import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
+from zhenhu.contracts.middleware import RequestIdMiddleware, setup_error_handlers
 from zhenhu.knowledge.routes import documents_router, search_router, admin_router
 
 VERSION = "0.2.0"
@@ -44,37 +43,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 请求 ID 中间件（透传/注入 X-Request-ID）
+app.add_middleware(RequestIdMiddleware)
+
+# 统一错误处理
+setup_error_handlers(app)
+
 # 注册路由
 app.include_router(documents_router)
 app.include_router(search_router)
 app.include_router(admin_router)
-
-
-@app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    """为每个请求注入 X-Request-ID（若上游已传则透传）。"""
-    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
-    request.state.request_id = request_id
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-    return response
-
-
-@app.exception_handler(Exception)
-async def internal_error_handler(request: Request, exc):
-    """500 统一错误处理。"""
-    return JSONResponse(
-        status_code=500,
-        content={
-            "request_id": getattr(request.state, "request_id", "unknown"),
-            "data": None,
-            "error": {
-                "code": "INTERNAL_ERROR",
-                "message": "服务内部错误",
-                "details": str(exc),
-            },
-        },
-    )
 
 
 @app.get("/health", tags=["system"])

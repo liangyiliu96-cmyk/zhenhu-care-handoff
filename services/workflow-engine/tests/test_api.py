@@ -147,7 +147,7 @@ class TestTaskDrafts:
 
         resp = await client.post(f"/cases/{case_id}/task-drafts")
         assert resp.status_code == 409
-        detail = resp.json()["detail"]
+        detail = resp.json()["error"]
         assert detail["code"] == "CASE_STATE_CONFLICT"
 
     @pytest.mark.asyncio
@@ -214,7 +214,7 @@ class TestSimulatedPublish:
         # 尝试发布应被阻断
         resp = await client.post(f"/cases/{case_id}/task-drafts/{draft_id}/simulated-publish")
         assert resp.status_code == 409
-        detail = resp.json()["detail"]
+        detail = resp.json()["error"]
         assert detail["code"] == "KNOWLEDGE_CHANGED"
 
     @pytest.mark.asyncio
@@ -266,7 +266,7 @@ class TestSupplement:
             headers={"X-User-Role": "nurse"},
         )
         assert resp.status_code == 403
-        detail = resp.json()["detail"]
+        detail = resp.json()["error"]
         assert detail["code"] == "FORBIDDEN"
 
     @pytest.mark.asyncio

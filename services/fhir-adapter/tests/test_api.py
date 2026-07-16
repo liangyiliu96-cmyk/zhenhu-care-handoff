@@ -52,7 +52,7 @@ class TestGetPatient:
         """查询不存在的患者应返回 404。"""
         resp = await client.get("/fhir/Patient/nonexistent-999")
         assert resp.status_code == 404
-        detail = resp.json()["detail"]
+        detail = resp.json()["error"]
         assert detail["code"] == "PATIENT_NOT_FOUND"
 
     @pytest.mark.asyncio
@@ -107,7 +107,7 @@ class TestGetPatientCarePlan:
         """查询不存在患者的照护计划应返回 404。"""
         resp = await client.get("/fhir/Patient/nonexistent-999/CarePlan")
         assert resp.status_code == 404
-        assert resp.json()["detail"]["code"] == "PATIENT_NOT_FOUND"
+        assert resp.json()["error"]["code"] == "PATIENT_NOT_FOUND"
 
 
 class TestCreateConsent:
@@ -137,7 +137,7 @@ class TestCreateConsent:
             "status": "active",
         })
         assert resp.status_code == 404
-        assert resp.json()["detail"]["code"] == "PATIENT_NOT_FOUND"
+        assert resp.json()["error"]["code"] == "PATIENT_NOT_FOUND"
 
     @pytest.mark.asyncio
     async def test_create_consent_invalid_status(self, client):
@@ -223,7 +223,7 @@ class TestGetAuditEvent:
         """查询不存在患者的审计事件应返回 404。"""
         resp = await client.get("/fhir/AuditEvent?patient=nonexistent-999")
         assert resp.status_code == 404
-        assert resp.json()["detail"]["code"] == "PATIENT_NOT_FOUND"
+        assert resp.json()["error"]["code"] == "PATIENT_NOT_FOUND"
 
     @pytest.mark.asyncio
     async def test_get_audit_events_missing_patient_param(self, client):

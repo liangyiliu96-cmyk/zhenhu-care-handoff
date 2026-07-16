@@ -5,15 +5,14 @@
 
 from __future__ import annotations
 
-import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
+from zhenhu.contracts.middleware import RequestIdMiddleware, setup_error_handlers
 from zhenhu.workflow.routes import cases_router, hooks_router
 
 VERSION = "0.2.0"
@@ -44,19 +43,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 请求 ID 中间件（透传/注入 X-Request-ID）
+app.add_middleware(RequestIdMiddleware)
+
+# 统一错误处理
+setup_error_handlers(app)
+
 # 注册路由
 app.include_router(cases_router)
 app.include_router(hooks_router)
-
-
-@app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    """为每个请求注入 X-Request-ID（若上游已传则透传）。"""
-    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
-    request.state.request_id = request_id
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-    return response
 
 
 @app.get("/health", tags=["system"])

@@ -92,7 +92,7 @@ class TestDocumentImport:
         # 第二次导入
         resp = await client.post("/knowledge/documents/import", json=sample_document_data)
         assert resp.status_code == 409
-        error = resp.json()["detail"]
+        error = resp.json()["error"]
         assert error["code"] == "DUPLICATE_KNOWLEDGE_CONTENT"
 
     @pytest.mark.asyncio
@@ -180,7 +180,7 @@ class TestDocumentTransition:
             json={"next_state": "expired"},
         )
         assert resp.status_code == 409
-        error = resp.json()["detail"]
+        error = resp.json()["error"]
         assert error["code"] == "ILLEGAL_TRANSITION"
 
     @pytest.mark.asyncio
@@ -191,7 +191,7 @@ class TestDocumentTransition:
             json={"next_state": "published"},
         )
         assert resp.status_code == 404
-        error = resp.json()["detail"]
+        error = resp.json()["error"]
         assert error["code"] == "DOCUMENT_NOT_FOUND"
 
 
