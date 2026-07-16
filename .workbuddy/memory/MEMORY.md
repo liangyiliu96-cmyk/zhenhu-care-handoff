@@ -17,7 +17,7 @@
 | 服务 | 目录 | 职责 | 状态 |
 |---|---|---|---|
 | workflow-engine | `services/workflow-engine/` | 病例状态机/Agent编排/审核流 | ✅ 58测试,3端点 |
-| knowledge-orchestrator | `services/knowledge-orchestrator/` | 知识导入/混合检索/后处理/反向阻断 | ❌ 待建 |
+| knowledge-orchestrator | `services/knowledge-orchestrator/` | 知识导入/混合检索/后处理/反向阻断 | ✅ 47测试,7端点 |
 | fhir-adapter | `services/fhir-adapter/` | 医院数据映射/Patient Compartment/Consent | ❌ 待建 |
 | api-gateway | `services/api-gateway/` | 前端网关/路由/鉴权 | ❌ 待建 |
 | clinical-contracts | `packages/clinical-contracts-py/` | Pydantic状态机/角色权限 | ✅ 已移植 |
@@ -26,7 +26,8 @@
 - `npm run poc:test` → `node --test poc/tests/*.test.mjs`（当前 44/44）
 - `npm run contracts:test` → `node --test tests/contracts/*.test.mjs`（当前 7/7）
 - `cd services/workflow-engine && python -m pytest -v`（当前 58/58）
-- 全部: 109 项测试全绿
+- `cd services/knowledge-orchestrator && python -m pytest -v`（当前 47/47）
+- 全部: 105 项测试全绿（正式工程）+ 51 项（PoC + contracts）= 156 项
 
 ## 关键架构文档
 - `docs/requirements/AI出院交接与慢病随访协同平台_需求规格说明书_v0.2.md` — 需求基线(16条增强,冻结)
@@ -44,6 +45,8 @@
 
 ## Git 基线(按时间)
 ```
+48f262b  knowledge-orchestrator 知识编排服务 (47/47)
+236ae96  gitignore 清理
 1fe19fb  01数据模型 + 03接口契约
 fed28fa  clinical-contracts Python移植 + workflow-engine骨架 (58/58)
 e63a5b9  架构总览 v0.2 — FastAPI+MySQL/Milvus+前端完整方案
