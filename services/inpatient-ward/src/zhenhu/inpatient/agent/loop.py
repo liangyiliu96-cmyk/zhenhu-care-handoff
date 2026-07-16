@@ -69,16 +69,21 @@ class PatientAgentLoop(_BaseAgentLoop[T]):
     async def plan_turn(self, state: dict) -> dict:
         """planTurn 双分支: New Turn(GEN) vs Resume。"""
         from .graph import inpatient_graph  # delay-import
+        import uuid
 
         if inpatient_graph is None:
             return state
+
+        # 每次用新thread_id避免checkpoint回滚状态
+        pid = getattr(self, '_patient_id', 'default')
+        thread_id = f"{pid}-{uuid.uuid4().hex[:8]}"
 
         trace = LoopTrace(
             turn_id=f"turn-{len(self._traces)}",
             entry_strategy=state.get("phase", "unknown"),
         )
         try:
-            result = await inpatient_graph.ainvoke(state, {"configurable": {"thread_id": getattr(self, '_patient_id', None) or "default"}})
+            result = await inpatient_graph.ainvoke(state, {"configurable": {"thread_id": thread_id}})
             trace.node_path = result.get("document_chain", [])
             trace.completed_at = datetime.now().isoformat()
             self._traces.append(trace)

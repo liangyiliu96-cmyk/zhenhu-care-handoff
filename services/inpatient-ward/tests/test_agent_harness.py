@@ -58,7 +58,7 @@ class TestBridge:
         from zhenhu.inpatient.hooks.zhenhu_bridge import bridge_discharge_to_zhenhu
 
         result = asyncio.run(bridge_discharge_to_zhenhu([], "test-001"))
-        assert result["status"] == "bridge_unavailable"
+        assert result["status"] in ("bridge_unavailable", "bridge_skipped")
 
     def test_bridge_search_unavailable(self):
         from zhenhu.inpatient.hooks.zhenhu_bridge import bridge_search_knowledge
@@ -169,7 +169,7 @@ def test_bridge_plan_definition_construct():
     ]
     template = {"name": "高血压"}
     result = asyncio.run(bridge_discharge_to_zhenhu(items, "test-001", template))
-    assert result["status"] == "bridge_unavailable"
+    assert result["status"] in ("bridge_unavailable", "bridge_skipped")
 
 
 def test_bridge_plan_definition_no_template():
@@ -177,7 +177,7 @@ def test_bridge_plan_definition_no_template():
     from zhenhu.inpatient.hooks.zhenhu_bridge import bridge_discharge_to_zhenhu
 
     result = asyncio.run(bridge_discharge_to_zhenhu([], "test-002"))
-    assert result["status"] == "bridge_unavailable"
+    assert result["status"] in ("bridge_unavailable", "bridge_skipped")
 
 
 # ============================================================================

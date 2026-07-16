@@ -59,8 +59,13 @@ async def load_fixture_patient(patient_key: str):
         result = await loop.plan_turn(get_state(patient_key))
         set_state(patient_key, result)
 
-        # 如果已自动出院，提前退出
+        # 如果已自动出院或满足出院条件，触发完整出院链路
         if result.get("phase") in ("discharge", "handoff", "review", "confirm"):
+            break
+        if result.get("discharge_decision") == "approved":
+            # 监测已批准出院→触发完整出院流程
+            result = await loop.plan_turn(get_state(patient_key))
+            set_state(patient_key, result)
             break
 
     return UnifiedResponse(data={

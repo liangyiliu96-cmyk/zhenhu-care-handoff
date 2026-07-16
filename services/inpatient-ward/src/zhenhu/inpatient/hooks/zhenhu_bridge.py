@@ -16,6 +16,15 @@ WORKFLOW_URL = ServiceConfig.WORKFLOW_URL
 KNOWLEDGE_URL = ServiceConfig.KNOWLEDGE_URL
 FHIR_URL = ServiceConfig.FHIR_URL
 
+# 开发模式：跳过桥接HTTP调用，避免等待外部服务超时（export SKIP_BRIDGE=true）
+SKIP_BRIDGE = os.environ.get("SKIP_BRIDGE", "").lower() in ("1", "true", "yes")
+
+
+def _skip_bridge(default=None):
+    """开发模式快捷返回，避免HTTP超时。"""
+    if SKIP_BRIDGE:
+        return default if default is not None else {"status": "bridge_skipped"}
+
 
 async def bridge_discharge_to_zhenhu(handoff_items: list[dict], patient_id: str, template: dict | None = None) -> dict:
     """出院交接→臻护创建病例。
@@ -26,6 +35,8 @@ async def bridge_discharge_to_zhenhu(handoff_items: list[dict], patient_id: str,
     3. 降级策略: httpx 超时/连接失败 → 返回 bridge_unavailable, 不阻断 Agent 流程
     """
     template = template or {}
+    if SKIP_BRIDGE:
+        return {"status": "bridge_skipped", "case_id": None}
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             pd = {
@@ -61,6 +72,8 @@ async def bridge_search_knowledge(query: str, top_k: int = 10) -> list[dict]:
     GET {KNOWLEDGE_URL}/knowledge/search?q={query}&top_k={top_k}
     降级策略: httpx 超时/连接失败 → 返回空列表, Agent 回退到病种模板默认值。
     """
+    if SKIP_BRIDGE:
+        return []
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.get(
@@ -80,6 +93,8 @@ async def bridge_patient_summary(patient_id: str) -> dict:
     GET {FHIR_URL}/fhir/Patient/{patient_id}
     降级策略: HTTP 失败 → 返回匿名摘要, 不阻断入院流程。
     """
+    if SKIP_BRIDGE:
+        return {"name": "***", "gender": "unknown", "age": None, "discharge_to": "home"}
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.get(f"{FHIR_URL}/fhir/Patient/{patient_id}")

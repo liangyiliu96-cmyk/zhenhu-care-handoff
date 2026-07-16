@@ -105,11 +105,9 @@ def after_monitoring(state: InpatientState) -> str:
     if "daily_round_note" in chain and state.get("discharge_decision") == "approved":
         return "discharge"
     
-    # 条件5b: 查房已完成+无体征数据→结束(防无限loop); 有体征→继续监测
+    # 条件5b: 查房已完成→结束监测循环(API重新触发新一轮)
     if "daily_round_note" in chain and "risk_assessment" in chain:
-        if not vs:
-            return END  # type: ignore
-        return "monitoring"
+        return END  # type: ignore
     
     # 条件6: 已分层未查房 → daily_round
     if "risk_assessment" in chain and "daily_round_note" not in chain:
