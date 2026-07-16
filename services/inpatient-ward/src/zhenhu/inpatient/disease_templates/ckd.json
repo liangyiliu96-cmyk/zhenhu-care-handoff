@@ -3,7 +3,12 @@
   "name": "慢性肾病",
   "vital_signs": [
     {"name": "egfr", "unit": "ml/min", "alert_below": 30},
-    {"name": "potassium", "unit": "mmol/L", "alert_above": 5.5}
+    {"name": "potassium", "unit": "mmol/L", "alert_above": 5.5},
+    {"name": "hemoglobin", "unit": "g/dL", "alert_below": 8},
+    {"name": "blood_pressure", "unit": "mmHg", "alert_above": "140/90"},
+    {"name": "bicarbonate", "unit": "mmol/L", "alert_below": 18},
+    {"name": "calcium", "unit": "mmol/L", "alert_below": 2.1},
+    {"name": "phosphorus", "unit": "mmol/L", "alert_above": 1.78}
   ],
   "risk_factors": [
     "diabetes_comorbidity",
@@ -11,18 +16,22 @@
     "proteinuria_gt_1g",
     "recent_aki"
   ],
-  "monitoring_interval_hours": 12,
+  "monitoring_interval_hours": 8,
   "discharge_criteria": [
-    "egfr_stable",
-    "potassium_normal",
-    "fluid_balance_achieved",
-    "renal_diet_education_done"
+    {"condition": "egfr_stable", "description": "eGFR稳定或改善"},
+    {"condition": "potassium_normal", "description": "血钾正常范围"},
+    {"condition": "fluid_balance_achieved", "description": "液体平衡达标"},
+    {"condition": "renal_diet_education_done", "description": "肾病饮食教育已完成"}
   ],
   "handoff_instructions": [
     {"type": "medication", "content": "出院后继续控制血压血糖，避免使用肾毒性药物(NSAIDs等)"},
     {"type": "monitoring", "content": "每周自测体重，每日记录尿量，限制液体入量"},
     {"type": "followup", "content": "出院后2周肾内科复查肾功能+电解质，评估透析时机"}
   ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["CKD分期管理", "肾性贫血治疗", "CKD-MBD管理", "肾脏替代治疗时机"]
+  },
   "followup_questions": [
     {"id": "ckd-fq-01", "question": "近3天体重有无快速增加(>1kg/天)？", "clinical_intent": "评估液体潴留", "source": "ehr-kg"},
     {"id": "ckd-fq-02", "question": "是否出现恶心、食欲减退或皮肤瘙痒？", "clinical_intent": "筛查尿毒症症状", "source": "ddx-kg"},

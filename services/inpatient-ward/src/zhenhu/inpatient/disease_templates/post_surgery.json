@@ -6,16 +6,28 @@
     {"name": "heart_rate", "unit": "次/分", "alert_above": 110},
     {"name": "temperature", "unit": "℃", "alert_above": 38.0},
     {"name": "spo2", "unit": "%", "alert_below": 94},
-    {"name": "pain_score", "unit": "分", "alert_above": 7}
+    {"name": "pain_score", "unit": "分", "alert_above": 7},
+    {"name": "urine_output", "unit": "ml/h", "alert_below": 30}
   ],
   "risk_factors": ["age_gt_70", "emergency_surgery", "asa_grade_3_plus", "operative_time_gt_3h", "comorbidity_dm_htn"],
   "monitoring_interval_hours": 4,
-  "discharge_criteria": ["vital_signs_stable_24h", "pain_controlled_via_oral", "wound_dry_no_infection", "toleration_of_oral_intake", "mobilization_achieved", "bowel_function_returned"],
+  "discharge_criteria": [
+    {"condition": "vital_signs_stable_24h", "description": "生命体征稳定>24h"},
+    {"condition": "pain_controlled_via_oral", "description": "口服止痛药疼痛可控(NRS≤3)"},
+    {"condition": "wound_dry_no_infection", "description": "伤口干燥无感染征象"},
+    {"condition": "toleration_of_oral_intake", "description": "能耐受经口进食"},
+    {"condition": "mobilization_achieved", "description": "可下床活动"},
+    {"condition": "bowel_function_returned", "description": "肠道功能已恢复(排气排便)"}
+  ],
   "handoff_instructions": [
     {"type": "medication", "content": "出院后按医嘱服用止痛药和抗生素，伤口换药每日1次保持干燥"},
     {"type": "monitoring", "content": "每日观察伤口有无红肿渗液，监测体温，术后2周内避免重体力活动"},
     {"type": "followup", "content": "出院后1周外科门诊拆线复查，如有异常随时复诊"}
   ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["术后伤口护理", "VTE预防", "功能康复指导", "拆线时间与指征"]
+  },
   "followup_questions": [
     {"id": "surg-fq-01", "question": "伤口有无红肿、渗液或异常疼痛？", "clinical_intent": "筛查手术部位感染", "source": "ehr-kg"},
     {"id": "surg-fq-02", "question": "是否已恢复排气排便？进食后有无腹胀恶心？", "clinical_intent": "评估胃肠功能恢复", "source": "ehr-kg"},

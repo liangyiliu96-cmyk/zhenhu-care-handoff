@@ -4,6 +4,7 @@
 人工审核: doctor_review(HumanInterrupt) -> patient_confirm
 
 阶段4 Agent框架, 阶段E: 补齐4个缺失临床节点。
+P0修复: 路由策略层重写(P0-6)、InpatientState 新增字段(P0-1/P0-2/P0-5/P0-7)。
 """
 
 from typing import TypedDict
@@ -43,54 +44,63 @@ class InpatientState(TypedDict):
     transfer_needed: bool  # 是否需要转科
     transfer_target: str | None  # 转科目标
     transfer_reason: str | None  # 转科原因
+    allergies: list[str]  # P0-7: 过敏史列表
+    patient_history: dict | None  # P0-5: 患者病史
+    triage_matched_factors: list[str]  # P0-5: 实际匹配的风险因子
+    consecutive_abnormal_count: int  # P0-2: 连续异常计数
+    allergy_status: str | None  # P0-7: 过敏史采集状态
+    discharge_criteria_check: dict | None  # P0-1: 出院标准检查结果
 
 
 def after_monitoring(state: InpatientState) -> str:
     """基于文档链决定下一步(策略路由层)。
-
-    1. 高危+3条以上体征 → transfer(转科)
-    2. 新检验结果未审阅 → lab_review(检查审核)
-    3. 体征突破警报阈值 → medication_adjust(用药调整)
-    4. 入院评估完成未风险分层 → triage(风险评估)
-    5. 有查房笔记且出院已批准 → discharge(出院)
-    6. 风险分层完成未查房 → daily_round(每日查房)
-    7. 默认 → monitoring(持续监测)
+    
+    P0-6修复: 
+    - R3: transfer 移到 medication 之后，并增加调药已尝试条件
+    - R1/R2: node_triage 现在写 risk_assessment 到 document_chain，修复不可达路由
     """
     chain = state.get("document_chain", [])
     labs = state.get("lab_results", [])
     template = state.get("disease_template", {})
     vs = state.get("vital_signs", [])
-
-    # 条件1: 检查转科条件 — 高危 + 多条体征异常
-    if state.get("risk_level") == "high" and len(vs) >= 3:
-        return "transfer"
-
-    # 条件2: 有新检验结果 → lab_review 审阅
+    
+    # 条件1: 有新检验结果 → lab_review 审阅
     if labs and len(labs) > len(state.get("reviewed_labs", [])):
         return "lab_review"
-
-    # 条件3: 体征突破警报 → medication_adjust 调药
+    
+    # 条件2: 体征突破警报 → medication_adjust（在 transfer 之前）
     for v_def in template.get("vital_signs", []):
         alert_above = v_def.get("alert_above")
         alert_below = v_def.get("alert_below")
-        for v in vs[-3:]:  # 最近3条体征
-            val = v.get(v_def.get("name", ""), 0)
-            if (alert_above and isinstance(val, (int, float)) and val > alert_above) or \
-               (alert_below and isinstance(val, (int, float)) and val < alert_below):
+        name = v_def.get("name", "")
+        if not name:
+            continue
+        for v in vs[-3:]:
+            val = v.get(name, 0)
+            if not isinstance(val, (int, float)):
+                continue
+            if (alert_above is not None and val > alert_above) or \
+               (alert_below is not None and val < alert_below):
                 return "medication"
-
-    # 条件4: 入院评估完成 → 风险分层
+    
+    # 条件3: 高危 + 体征持续异常 + 调药已尝试 → transfer
+    if (state.get("risk_level") == "high"
+        and len(vs) >= 3
+        and state.get("medication_adjustments")):
+        return "transfer"
+    
+    # 条件4: 入院完成未分层 → triage
     if "intake_note" in chain and "risk_assessment" not in chain:
         return "triage"
-
-    # 条件5: 有查房笔记且满足出院条件 → discharge
+    
+    # 条件5: 查房完成 + approved → discharge
     if "daily_round_note" in chain and state.get("discharge_decision") == "approved":
         return "discharge"
-
-    # 条件6: 风险分层完成 → 每日查房
+    
+    # 条件6: 已分层未查房 → daily_round
     if "risk_assessment" in chain and "daily_round_note" not in chain:
         return "daily_round"
-
+    
     # 默认: 持续监测
     return "monitoring"
 

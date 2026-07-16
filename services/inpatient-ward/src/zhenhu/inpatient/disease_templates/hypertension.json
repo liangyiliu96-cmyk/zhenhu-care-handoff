@@ -2,14 +2,17 @@
   "disease_id": "hypertension",
   "name": "高血压",
   "vital_signs": [
-    {"key": "blood_pressure", "unit": "mmHg", "alert_high": "180/120", "alert_low": "90/60"}
+    {"name": "blood_pressure", "unit": "mmHg", "alert_above": "180/120", "alert_below": "90/60"},
+    {"name": "heart_rate", "unit": "bpm", "alert_above": 110, "alert_below": 50},
+    {"name": "creatinine", "unit": "μmol/L", "alert_above": 133}
   ],
-  "risk_factors": ["age>60", "smoking", "family_history", "obesity", "diabetes_comorbid"],
+  "risk_factors": ["age>60", "smoking", "family_history", "obesity", "diabetes_comorbid", "ckd_stage3_plus", "lvh_ecg"],
   "monitoring_interval_hours": 4,
   "discharge_criteria": [
     {"condition": "bp_stable_24h", "description": "血压24小时稳定在目标范围内(<140/90)"},
     {"condition": "medication_confirmed", "description": "出院降压药方案已确认"},
-    {"condition": "no_acute_complication", "description": "无急性靶器官损害表现"}
+    {"condition": "no_acute_complication", "description": "无急性靶器官损害表现"},
+    {"condition": "oral_regimen_tolerated_24h", "description": "口服降压药方案耐受稳定24h"}
   ],
   "handoff_instructions": [
     {"type": "medication", "content": "遵医嘱规律服用降压药,不可自行停药或调整剂量"},

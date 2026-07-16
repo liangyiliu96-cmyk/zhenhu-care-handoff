@@ -3,7 +3,9 @@
   "name": "冠心病",
   "vital_signs": [
     {"name": "blood_pressure", "unit": "mmHg", "alert_above": "160/100"},
-    {"name": "heart_rate", "unit": "次/分", "alert_below": 50, "alert_above": 110}
+    {"name": "heart_rate", "unit": "bpm", "alert_below": 50, "alert_above": 110},
+    {"name": "troponin", "unit": "ng/mL", "alert_above": 0.04},
+    {"name": "ldl", "unit": "mmol/L", "alert_above": 2.6}
   ],
   "risk_factors": [
     "post_pci",
@@ -13,16 +15,20 @@
   ],
   "monitoring_interval_hours": 6,
   "discharge_criteria": [
-    "chest_pain_free_48h",
-    "bp_stable",
-    "dual_antiplatelet_compliance_verified",
-    "statin_initiated"
+    {"condition": "chest_pain_free_48h", "description": "48h无胸痛发作"},
+    {"condition": "bp_stable", "description": "血压稳定在目标范围"},
+    {"condition": "dual_antiplatelet_compliance_verified", "description": "双抗依从性已确认"},
+    {"condition": "statin_initiated", "description": "他汀已启用"}
   ],
   "handoff_instructions": [
     {"type": "medication", "content": "出院后坚持双抗(阿司匹林+氯吡格雷/替格瑞洛)+他汀，至少12个月"},
     {"type": "monitoring", "content": "每日自测血压心率，关注胸痛、气短症状"},
     {"type": "followup", "content": "出院后2周心内科复查心电图+血脂，同时参加心脏康复"}
   ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["冠心病二级预防", "双抗治疗", "心脏康复", "血脂管理目标"]
+  },
   "followup_questions": [
     {"id": "cad-fq-01", "question": "近日有无胸痛、胸闷或气短发作？", "clinical_intent": "筛查心绞痛复发", "source": "ehr-kg"},
     {"id": "cad-fq-02", "question": "抗血小板药物是否按时服用？有无牙龈出血或皮下瘀斑？", "clinical_intent": "评估抗栓安全性", "source": "ddx-kg"},

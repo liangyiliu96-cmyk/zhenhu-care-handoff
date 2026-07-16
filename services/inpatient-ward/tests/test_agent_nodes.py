@@ -18,12 +18,33 @@ def test_node_triage_risk_low_on_empty():
     assert result["risk_level"] == "low"
 
 def test_node_triage_risk_high_on_many_factors():
-    result = asyncio.run(node_triage({"vital_signs": [{"bp":"120/80"}], "disease_template": {"risk_factors":["a","b","c","d"]}}))
+    """P0-5修复: 使用真实风险因子名+患者数据匹配≥3个因子 → high"""
+    result = asyncio.run(node_triage({
+        "vital_signs": [{"bp": "120/80"}],
+        "disease_template": {"risk_factors": ["age>60", "smoking", "obesity", "diabetes_comorbid"]},
+        "patient_data": {"age": 65, "bmi": 30},
+        "patient_history": {"smoking": True, "comorbidities": ["diabetes"]},
+    }))
     assert result["risk_level"] == "high"
+    assert len(result.get("triage_matched_factors", [])) >= 3
 
 def test_node_monitoring_triggers_discharge():
-    result = asyncio.run(node_monitoring({"vital_signs":[{},{},{}]}))
+    """P0-1修复: 需提供discharge_criteria并全部满足才approved"""
+    tpl = {"discharge_criteria": [
+        {"condition": "bp_stable_24h", "description": "血压24小时稳定"},
+        {"condition": "vital_signs_stable", "description": "生命体征稳定≥3条"},
+    ]}
+    vs = [
+        {"blood_pressure_systolic": 130, "blood_pressure_diastolic": 80},
+        {"blood_pressure_systolic": 128, "blood_pressure_diastolic": 78},
+        {"blood_pressure_systolic": 132, "blood_pressure_diastolic": 82},
+    ]
+    result = asyncio.run(node_monitoring({
+        "disease_template": tpl,
+        "vital_signs": vs,
+    }))
     assert result["discharge_decision"] == "approved"
+    assert result["discharge_criteria_check"]["all_met"] is True
 
 def test_node_handoff_generates_items():
     tpl = {"handoff_instructions":[{"type":"medication","content":"降压药"}]}
@@ -70,13 +91,15 @@ def test_node_doctor_review_dismiss_triggers_reevaluation():
 
 
 def test_node_triage_mdt_on_high_risk():
-    """高危(>=3风险因子)自动触发MDT。"""
+    """高危(>=3风险因子)自动触发MDT。P0-5修复: 使用真实因子名+患者数据"""
     state = {
         "vital_signs": [{"bp": "120/80"}],
         "disease_template": {
-            "risk_factors": ["a", "b", "c", "d"],
+            "risk_factors": ["age>60", "smoking", "obesity", "diabetes_comorbid"],
             "mdt_roles": ["心内科", "营养师", "社区医生"],
         },
+        "patient_data": {"age": 65, "bmi": 30},
+        "patient_history": {"smoking": True, "comorbidities": ["diabetes"]},
     }
     result = asyncio.run(node_triage(state))
     assert result["risk_level"] == "high"
@@ -87,10 +110,12 @@ def test_node_triage_mdt_on_high_risk():
 
 
 def test_node_triage_no_mdt_on_medium_risk():
-    """中危不触发MDT。"""
+    """中危不触发MDT。P0-5修复: 使用真实因子名+患者数据匹配2个因子"""
     state = {
         "vital_signs": [{"bp": "120/80"}],
-        "disease_template": {"risk_factors": ["a", "b"]},
+        "disease_template": {"risk_factors": ["age>60", "smoking"]},
+        "patient_data": {"age": 65},
+        "patient_history": {"smoking": True},
     }
     result = asyncio.run(node_triage(state))
     assert result["risk_level"] == "medium"

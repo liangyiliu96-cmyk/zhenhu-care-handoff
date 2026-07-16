@@ -5,16 +5,28 @@
     {"name": "urine_output", "unit": "ml/h", "alert_below": 30},
     {"name": "creatinine", "unit": "μmol/L", "alert_above": 200},
     {"name": "potassium", "unit": "mmol/L", "alert_above": 5.5},
-    {"name": "blood_pressure", "unit": "mmHg", "alert_below": "90/60"}
+    {"name": "blood_pressure", "unit": "mmHg", "alert_below": "90/60"},
+    {"name": "bun", "unit": "mmol/L", "alert_above": 15},
+    {"name": "bicarbonate", "unit": "mmol/L", "alert_below": 18}
   ],
   "risk_factors": ["sepsis", "nephrotoxic_drugs", "contrast_exposure", "pre_existing_ckd", "dehydration", "major_surgery"],
   "monitoring_interval_hours": 6,
-  "discharge_criteria": ["creatinine_returning_to_baseline", "urine_output_gt_0.5ml_kg_h", "potassium_normal", "fluid_overload_resolved", "off_renal_replacement_therapy"],
+  "discharge_criteria": [
+    {"condition": "creatinine_returning_to_baseline", "description": "肌酐回落至基线水平"},
+    {"condition": "urine_output_gt_0.5ml_kg_h", "description": "尿量>0.5ml/kg/h持续6h"},
+    {"condition": "potassium_normal", "description": "血钾正常范围"},
+    {"condition": "fluid_overload_resolved", "description": "液体超负荷已纠正"},
+    {"condition": "off_renal_replacement_therapy", "description": "已脱离肾脏替代治疗"}
+  ],
   "handoff_instructions": [
     {"type": "medication", "content": "出院后严格避免使用NSAIDs等肾毒性药物，按医嘱调整降压药剂量"},
     {"type": "monitoring", "content": "每日记录尿量，每周测体重，严格限制液体入量(遵医嘱)"},
     {"type": "followup", "content": "出院后1周肾内科复查肾功能+电解质+尿常规，评估肾功能恢复趋势"}
   ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["AKI恢复期管理", "肾毒性药物避免", "肾功能监测频率", "水电解质平衡"]
+  },
   "followup_questions": [
     {"id": "aki-fq-01", "question": "每日尿量是否正常？有无明显减少或颜色变化？", "clinical_intent": "评估肾功能恢复", "source": "ehr-kg"},
     {"id": "aki-fq-02", "question": "有无恶心、食欲减退、乏力或肌肉抽搐？", "clinical_intent": "筛查尿毒症症状", "source": "ddx-kg"},

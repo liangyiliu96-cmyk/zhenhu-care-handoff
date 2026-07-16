@@ -3,7 +3,10 @@
   "name": "脑卒中",
   "vital_signs": [
     {"name": "blood_pressure", "unit": "mmHg", "alert_above": "180/110"},
-    {"name": "nihss_score", "unit": "分", "alert_above": 15}
+    {"name": "nihss_score", "unit": "分", "alert_above": 15},
+    {"name": "gcs", "unit": "分", "alert_below": 8},
+    {"name": "blood_glucose", "unit": "mmol/L", "alert_above": 10, "alert_below": 3.9},
+    {"name": "temperature", "unit": "℃", "alert_above": 38.0}
   ],
   "risk_factors": [
     "age_gt_70",
@@ -13,16 +16,21 @@
   ],
   "monitoring_interval_hours": 4,
   "discharge_criteria": [
-    "nihss_stable_or_improving",
-    "bp_controlled",
-    "swallow_screen_passed",
-    "mrs_lt_4"
+    {"condition": "nihss_stable_or_improving", "description": "NIHSS评分稳定或改善"},
+    {"condition": "bp_controlled", "description": "血压控制良好(<140/90)"},
+    {"condition": "swallow_screen_passed", "description": "吞咽筛查通过"},
+    {"condition": "mrs_le_3", "description": "mRS评分≤3"},
+    {"condition": "gcs_15", "description": "GCS 15分/意识清楚"}
   ],
   "handoff_instructions": [
     {"type": "medication", "content": "出院后继续抗血小板/抗凝治疗，严格遵医嘱不可自行停药"},
     {"type": "monitoring", "content": "家属每日监测血压，关注口齿、肢体活动变化"},
     {"type": "followup", "content": "出院后1周神经内科复查，同时开始康复治疗"}
   ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["脑卒中二级预防", "抗血小板治疗", "康复训练指南", "吞咽障碍护理"]
+  },
   "followup_questions": [
     {"id": "stroke-fq-01", "question": "近日有无新发口齿不清、肢体无力或麻木？", "clinical_intent": "筛查卒中复发/进展", "source": "ehr-kg"},
     {"id": "stroke-fq-02", "question": "是否出现吞咽困难或进食呛咳？", "clinical_intent": "评估吞咽功能", "source": "ddx-kg"},

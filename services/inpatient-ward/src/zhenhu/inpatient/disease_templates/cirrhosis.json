@@ -5,16 +5,30 @@
     {"name": "blood_pressure", "unit": "mmHg", "alert_below": "90/60"},
     {"name": "heart_rate", "unit": "次/分", "alert_above": 100},
     {"name": "weight", "unit": "kg", "note": "每日称重，警惕腹水加重"},
-    {"name": "consciousness", "unit": "分级", "alert_if": "嗜睡或定向力障碍"}
+    {"name": "west_haven_grade", "unit": "级", "alert_above": 2, "note": "≥2级提示临床肝性脑病"},
+    {"name": "inr", "unit": "", "alert_above": 1.5},
+    {"name": "bilirubin", "unit": "μmol/L", "alert_above": 34},
+    {"name": "albumin", "unit": "g/L", "alert_below": 28}
   ],
   "risk_factors": ["ascites_present", "hepatic_encephalopathy_history", "variceal_bleeding_history", "child_pugh_b_or_c", "meld_gt_15", "spontaneous_bacterial_peritonitis"],
   "monitoring_interval_hours": 8,
-  "discharge_criteria": ["ascites_controlled", "encephalopathy_resolved", "no_active_bleeding_72h", "oral_diuretics_tolerated", "sodium_normal_range", "infection_markers_normal"],
+  "discharge_criteria": [
+    {"condition": "ascites_controlled", "description": "腹水已控制(利尿剂有效)"},
+    {"condition": "encephalopathy_resolved", "description": "肝性脑病已纠正"},
+    {"condition": "no_active_bleeding_72h", "description": "72h无活动性出血"},
+    {"condition": "oral_diuretics_tolerated", "description": "能耐受口服利尿剂"},
+    {"condition": "sodium_normal_range", "description": "血钠正常范围"},
+    {"condition": "infection_markers_normal", "description": "感染指标正常"}
+  ],
   "handoff_instructions": [
     {"type": "medication", "content": "出院后继续口服利尿剂(螺内酯+呋塞米)，严格遵医嘱不可自行调整剂量"},
     {"type": "monitoring", "content": "每日称重记录，限制钠摄入<2g/天，观察意识变化、黑便或呕血立即就医"},
     {"type": "followup", "content": "出院后2周消化内科复查肝功能+电解质+腹水超声，评估肝移植时机"}
   ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["肝硬化并发症管理", "利尿剂使用", "肝性脑病预防", "食管静脉曲张监测"]
+  },
   "followup_questions": [
     {"id": "cirr-fq-01", "question": "每日体重有无快速增加？腹围是否增大？", "clinical_intent": "评估腹水控制", "source": "ehr-kg"},
     {"id": "cirr-fq-02", "question": "有无恶心、嗜睡、反应迟钝或性格改变？", "clinical_intent": "筛查肝性脑病", "source": "ddx-kg"},

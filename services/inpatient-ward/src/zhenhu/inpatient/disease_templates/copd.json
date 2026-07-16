@@ -2,8 +2,10 @@
   "disease_id": "copd",
   "name": "慢性阻塞性肺病",
   "vital_signs": [
-    {"name": "spo2", "unit": "%", "alert_below": 90},
-    {"name": "respiratory_rate", "unit": "次/分", "alert_above": 28}
+    {"name": "spo2", "unit": "%", "alert_below": 88},
+    {"name": "respiratory_rate", "unit": "次/分", "alert_above": 28},
+    {"name": "heart_rate", "unit": "bpm", "alert_above": 110},
+    {"name": "paco2", "unit": "mmHg", "alert_above": 50}
   ],
   "risk_factors": [
     "age_gt_65",
@@ -13,16 +15,20 @@
   ],
   "monitoring_interval_hours": 6,
   "discharge_criteria": [
-    "spo2_stable_above_90",
-    "respiratory_rate_lt_24",
-    "no_acute_exacerbation_72h",
-    "inhaler_technique_verified"
+    {"condition": "spo2_stable_above_88", "description": "SpO2稳定在88%以上(无吸氧)"},
+    {"condition": "respiratory_rate_lt_24", "description": "呼吸频率<24次/分"},
+    {"condition": "no_acute_exacerbation_72h", "description": "72小时无急性加重"},
+    {"condition": "inhaler_technique_verified", "description": "吸入药物技术已核验"}
   ],
   "handoff_instructions": [
     {"type": "medication", "content": "出院后继续使用长效支气管扩张剂(LABA/LAMA)，按需使用短效SABA"},
     {"type": "monitoring", "content": "每日监测指氧饱和度，低于90%立即就医"},
     {"type": "followup", "content": "出院后2周呼吸科复查肺功能"}
   ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["COPD稳定期管理", "吸入剂使用教学", "肺康复训练", "长期氧疗指征"]
+  },
   "followup_questions": [
     {"id": "copd-fq-01", "question": "近3天气喘或呼吸困难是否加重？", "clinical_intent": "评估急性加重风险", "source": "ehr-kg"},
     {"id": "copd-fq-02", "question": "是否按时使用吸入药物？吸入方法是否正确？", "clinical_intent": "评估依从性和吸入技术", "source": "ehr-kg"},

@@ -27,7 +27,9 @@ class PatientAgentLoop(_BaseAgentLoop[T]):
 
         if strategy == "new_admission":
             try:
-                template = load_template("hypertension")
+                current_state = self._current_state or {}
+                disease_id = current_state.get("disease_template", {}).get("disease_id", "hypertension")
+                template = current_state.get("disease_template") or load_template(disease_id)
             except FileNotFoundError:
                 template = {}
             return {

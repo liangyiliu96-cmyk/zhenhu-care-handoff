@@ -2,10 +2,15 @@
   "disease_id": "heart_failure",
   "name": "心力衰竭",
   "vital_signs": [
-    {"key": "blood_pressure", "unit": "mmHg", "alert_high": "160/100", "alert_low": "85/55"},
-    {"key": "heart_rate", "unit": "bpm", "alert_high": "120", "alert_low": "50"},
-    {"key": "weight", "unit": "kg", "alert_high": "+2kg_24h", "alert_low": "baseline"},
-    {"key": "spo2", "unit": "%", "alert_high": "100", "alert_low": "92"}
+    {"name": "blood_pressure", "unit": "mmHg", "alert_above": "160/100", "alert_below": "85/55"},
+    {"name": "heart_rate", "unit": "bpm", "alert_above": "120", "alert_below": "50"},
+    {"name": "weight", "unit": "kg", "alert_if": "体重2天内增加>2kg"},
+    {"name": "spo2", "unit": "%", "alert_above": "100", "alert_below": "92"},
+    {"name": "nt_probnp", "unit": "pg/mL", "alert_above": 5000},
+    {"name": "jvp", "unit": "cmH2O", "alert_above": 8},
+    {"name": "urine_output", "unit": "ml/h", "alert_below": 30},
+    {"name": "creatinine", "unit": "μmol/L", "alert_above": 150},
+    {"name": "potassium", "unit": "mmol/L", "alert_above": 5.5, "alert_below": 3.5}
   ],
   "risk_factors": ["age>65", "ef<40%", "nyha_class_iii_iv", "renal_insufficiency", "prior_hospitalization"],
   "monitoring_interval_hours": 2,

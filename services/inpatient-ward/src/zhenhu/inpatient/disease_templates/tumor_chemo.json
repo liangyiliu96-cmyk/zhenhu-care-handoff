@@ -5,16 +5,30 @@
     {"name": "temperature", "unit": "℃", "alert_above": 38.3, "note": "粒缺伴发热为急症"},
     {"name": "neutrophil_count", "unit": "×10⁹/L", "alert_below": 0.5},
     {"name": "platelet", "unit": "×10⁹/L", "alert_below": 20},
-    {"name": "spo2", "unit": "%", "alert_below": 94}
+    {"name": "spo2", "unit": "%", "alert_below": 94},
+    {"name": "wbc", "unit": "×10⁹/L", "alert_below": 2.0},
+    {"name": "hemoglobin", "unit": "g/dL", "alert_below": 8},
+    {"name": "creatinine", "unit": "μmol/L", "alert_above": 133}
   ],
   "risk_factors": ["febrile_neutropenia", "thrombocytopenia_bleeding", "mucositis_grade3", "nausea_vomiting_grade3", "tumor_lysis_syndrome_risk", "prior_chemo_cycles_gt_3"],
   "monitoring_interval_hours": 8,
-  "discharge_criteria": ["neutrophil_recovery_gt_1.0", "afebrile_48h", "oral_intake_adequate", "mucositis_improving", "platelet_stable_or_rising", "pain_controlled"],
+  "discharge_criteria": [
+    {"condition": "neutrophil_recovery_gt_1.0", "description": "中性粒细胞恢复>1.0×10⁹/L"},
+    {"condition": "afebrile_48h", "description": "体温正常>48h"},
+    {"condition": "oral_intake_adequate", "description": "经口摄入充足"},
+    {"condition": "mucositis_improving", "description": "口腔黏膜炎改善"},
+    {"condition": "platelet_stable_or_rising", "description": "血小板稳定或回升"},
+    {"condition": "pain_controlled", "description": "疼痛控制良好"}
+  ],
   "handoff_instructions": [
     {"type": "medication", "content": "出院后按医嘱服用升白针+止吐药，出现发热(T>38℃)立即返院不可拖延"},
     {"type": "monitoring", "content": "每日测体温，观察口腔黏膜、皮肤瘀斑和出血点，避免去人群密集场所"},
     {"type": "followup", "content": "出院后按化疗周期返院，每次化疗前复查血常规+肝肾功能+肿瘤标志物"}
   ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["化疗后骨髓抑制管理", "粒缺伴发热处理", "止吐方案", "肿瘤标志物监测"]
+  },
   "followup_questions": [
     {"id": "che-fq-01", "question": "每日体温是否正常？有无寒战或咽痛？", "clinical_intent": "筛查粒缺伴感染", "source": "ehr-kg"},
     {"id": "che-fq-02", "question": "口腔有无溃疡疼痛？进食是否受影响？", "clinical_intent": "评估黏膜炎程度", "source": "ehr-kg"},

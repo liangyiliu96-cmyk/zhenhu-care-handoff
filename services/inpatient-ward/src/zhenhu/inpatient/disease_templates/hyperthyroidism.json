@@ -5,16 +5,27 @@
     {"name": "heart_rate", "unit": "次/分", "alert_above": 110},
     {"name": "blood_pressure", "unit": "mmHg", "alert_above": "150/90"},
     {"name": "temperature", "unit": "℃", "alert_above": 38.0},
-    {"name": "weight", "unit": "kg", "note": "体重持续下降需警惕"}
+    {"name": "weight", "unit": "kg", "note": "体重持续下降需警惕"},
+    {"name": "wbc", "unit": "×10⁹/L", "alert_below": 3.0, "note": "警惕抗甲状腺药物致粒细胞缺乏"}
   ],
   "risk_factors": ["atrial_fibrillation", "thyroid_storm_risk", "agranulocytosis_risk", "large_goiter_with_compression", "orbitopathy_moderate_severe"],
   "monitoring_interval_hours": 12,
-  "discharge_criteria": ["heart_rate_controlled_lt_100", "thyroid_function_improving", "antithyroid_drug_tolerated", "afebrile", "weight_stable_or_gaining"],
+  "discharge_criteria": [
+    {"condition": "heart_rate_controlled_lt_100", "description": "静息心率控制<100次/分"},
+    {"condition": "thyroid_function_improving", "description": "甲状腺功能指标改善"},
+    {"condition": "antithyroid_drug_tolerated", "description": "抗甲状腺药物耐受良好"},
+    {"condition": "afebrile", "description": "无发热"},
+    {"condition": "weight_stable_or_gaining", "description": "体重稳定或回升"}
+  ],
   "handoff_instructions": [
     {"type": "medication", "content": "出院后继续抗甲状腺药物(甲巯咪唑/丙硫氧嘧啶)，每周复查血常规警惕粒细胞缺乏"},
     {"type": "monitoring", "content": "每日自测静息心率和体重，记录心悸、手抖、多汗等症状变化"},
     {"type": "followup", "content": "出院后2周内分泌科复查甲功+血常规+肝功能，根据结果调整药量"}
   ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["甲亢药物治疗", "粒细胞缺乏识别", "甲状腺危象预警", "碘131治疗适应证"]
+  },
   "followup_questions": [
     {"id": "ht-fq-01", "question": "服药后心慌手抖是否改善？静息心率是否<100次/分？", "clinical_intent": "评估甲亢控制", "source": "ehr-kg"},
     {"id": "ht-fq-02", "question": "有无咽痛发热或口腔溃疡？", "clinical_intent": "筛查粒细胞缺乏", "source": "ddx-kg"},
