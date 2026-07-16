@@ -86,9 +86,9 @@ class TestGetPatientCarePlan:
         assert data["error"] is None
         assert data["data"]["resourceType"] == "Bundle"
         entries = data["data"]["entry"]
-        assert len(entries) == 2  # 出院计划 + 慢病计划
+        assert len(entries) == 3  # 出院计划 + 慢病计划 + 出院后高血压管理计划
 
-        # 验证两条 CarePlan 的不同分类
+        # 验证 CarePlan 的不同分类
         resources = [e["resource"] for e in entries]
         categories = {r["category"][0]["text"] for r in resources}
         assert "出院随访" in categories
@@ -298,3 +298,81 @@ class TestAuditTrailIntegration:
             )
         ]
         assert len(consent_creates) >= 1
+
+
+class TestPatientCareView:
+    """GET /patient/{patient_id}/care-view 端点测试 —— 阶段 0: 患者照护视图聚合。"""
+
+    @pytest.mark.asyncio
+    async def test_care_view_full_success(self, client):
+        """完整照护视图：应包含 patient、care_plans、education。"""
+        resp = await client.get("/patient/pat-demo-001/care-view")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["error"] is None
+        assert "request_id" in data
+
+        view = data["data"]
+        # patient 信息
+        assert "patient" in view
+        assert view["patient"]["name"] == "演示患者"
+        assert view["patient"]["gender"] == "male"
+        assert isinstance(view["patient"]["age"], int)
+        assert view["patient"]["discharge_to"] == "home"
+
+        # care_plans 列表（应有 3 条）
+        assert "care_plans" in view
+        assert isinstance(view["care_plans"], list)
+        assert len(view["care_plans"]) == 3
+        # 验证每个 care_plan 结构
+        for cp in view["care_plans"]:
+            assert "title" in cp
+            assert "category" in cp
+            assert "status" in cp
+            assert "period" in cp
+            assert "start" in cp["period"]
+
+        # 验证新增的出院后高血压管理计划
+        discharge_titles = {
+            cp["title"] for cp in view["care_plans"] if cp["category"] == "discharge"
+        }
+        assert "出院后高血压管理计划" in discharge_titles
+
+        # education 列表（知识服务不可用时为空列表）
+        assert "education" in view
+        assert isinstance(view["education"], list)
+
+    @pytest.mark.asyncio
+    async def test_care_view_empty_care_plans(self, client):
+        """患者存在但无照护计划：care_plans 为空，education 仍为空列表不报错。"""
+        resp = await client.get("/patient/pat-demo-002/care-view")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["error"] is None
+
+        view = data["data"]
+        assert view["patient"]["name"] == "演示患者二"
+        assert view["patient"]["gender"] == "female"
+        # 无 CarePlan
+        assert view["care_plans"] == []
+        # education 仍为空列表，不阻断主流程
+        assert view["education"] == []
+
+    @pytest.mark.asyncio
+    async def test_care_view_patient_not_found(self, client):
+        """完全不存在的 patient_id 应返回 404。"""
+        resp = await client.get("/patient/nonexistent-999/care-view")
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "PATIENT_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_care_view_unified_response_format(self, client):
+        """响应格式应符合 UnifiedResponse 规范。"""
+        resp = await client.get("/patient/pat-demo-001/care-view")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "request_id" in data
+        assert "data" in data
+        assert "error" in data
+        assert data["error"] is None
+        assert "x-request-id" in resp.headers

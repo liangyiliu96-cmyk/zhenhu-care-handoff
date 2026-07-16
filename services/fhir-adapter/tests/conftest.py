@@ -102,12 +102,36 @@ async def client():
             ])
             session.add_all([
                 CarePlan(care_plan_id="cp-demo-001", patient_id="pat-demo-001",
+                         title="出院随访计划",
                          intent="plan", category="discharge", status="active",
                          period_start=date(2025, 1, 10), period_end=date(2025, 2, 10)),
                 CarePlan(care_plan_id="cp-demo-002", patient_id="pat-demo-001",
+                         title="慢病随访计划",
                          intent="order", category="chronic", status="active",
                          period_start=date(2025, 1, 10), period_end=date(2025, 7, 10)),
+                CarePlan(care_plan_id="cp-demo-003", patient_id="pat-demo-001",
+                         title="出院后高血压管理计划",
+                         intent="plan", category="discharge", status="active",
+                         period_start=date(2026, 7, 16), period_end=None),
             ])
+            # 阶段 0: 患者照护视图聚合 —— 第二个预置患者（无 CarePlan，用于测试空照护计划场景）
+            demo_patient_2 = Patient(
+                patient_id="pat-demo-002",
+                name="演示患者二",
+                gender="female",
+                birth_date=date(1975, 5, 20),
+                identifiers_json='["ID-19750520-5678"]',
+            )
+            session.add(demo_patient_2)
+            await session.flush()
+            session.add(Encounter(
+                encounter_id="enc-demo-002",
+                patient_id="pat-demo-002",
+                encounter_type="outpatient",
+                start_date=date(2025, 3, 1),
+                end_date=date(2025, 3, 1),
+                discharge_to=None,
+            ))
             await session.commit()
 
     transport = ASGITransport(app=app)

@@ -206,6 +206,25 @@ class AuditEventBundleResponse(BaseModel):
 
 
 # ============================================================================
+# 患者照护视图聚合
+# ============================================================================
+
+
+class PatientCareViewResponse(BaseModel):
+    """患者照护视图聚合响应 —— 阶段 0: 患者照护视图聚合。
+
+    Attributes:
+        patient: 患者基本信息 {name, gender, age, discharge_to}。
+        care_plans: 照护计划列表 [{title, category, status, period}]。
+        education: 知识材料引用 [{title, text, source}]。
+    """
+
+    patient: dict = Field(default_factory=dict, description="患者基本信息")
+    care_plans: list = Field(default_factory=list, description="照护计划列表")
+    education: list = Field(default_factory=list, description="知识材料引用")
+
+
+# ============================================================================
 # 错误
 # ============================================================================
 

@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from zhenhu.contracts.middleware import RequestIdMiddleware, setup_error_handlers
-from zhenhu.fhir.routes import patients_router, fhir_ops_router
+from zhenhu.fhir.routes import patients_router, fhir_ops_router, patient_care_router
 
 VERSION = "0.2.0"
 
@@ -128,11 +128,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 ),
             ])
 
-            # 6. 照护计划：出院计划（discharge）+ 慢病计划（chronic）
+            # 6. 照护计划：出院计划（discharge）+ 慢病计划（chronic）+ 出院后高血压管理
             session.add_all([
                 CarePlan(
                     care_plan_id="cp-demo-001",
                     patient_id="pat-demo-001",
+                    title="出院随访计划",
                     intent="plan",
                     category="discharge",
                     status="active",
@@ -142,11 +143,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 CarePlan(
                     care_plan_id="cp-demo-002",
                     patient_id="pat-demo-001",
+                    title="慢病随访计划",
                     intent="order",
                     category="chronic",
                     status="active",
                     period_start=date(2025, 1, 10),
                     period_end=date(2025, 7, 10),
+                ),
+                CarePlan(
+                    care_plan_id="cp-demo-003",
+                    patient_id="pat-demo-001",
+                    title="出院后高血压管理计划",
+                    intent="plan",
+                    category="discharge",
+                    status="active",
+                    period_start=date(2026, 7, 16),
+                    period_end=None,
                 ),
             ])
 
@@ -180,6 +192,7 @@ setup_error_handlers(app)
 # 注册路由
 app.include_router(patients_router)
 app.include_router(fhir_ops_router)
+app.include_router(patient_care_router)
 
 
 @app.get("/health", tags=["system"])

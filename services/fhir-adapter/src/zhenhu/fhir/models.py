@@ -271,6 +271,9 @@ class CarePlan(Base):
         String(128), ForeignKey("patients.patient_id"), nullable=False, index=True,
         comment="所属患者 ID",
     )
+    title: Mapped[str | None] = mapped_column(
+        String(256), nullable=True, comment="照护计划标题"
+    )
     intent: Mapped[str | None] = mapped_column(
         String(16), nullable=True, comment="意图：plan（出院计划）/ order（慢病照护）"
     )
