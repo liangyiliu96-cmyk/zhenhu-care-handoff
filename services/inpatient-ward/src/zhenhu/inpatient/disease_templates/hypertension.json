@@ -1,0 +1,30 @@
+{
+  "disease_id": "hypertension",
+  "name": "高血压",
+  "vital_signs": [
+    {"key": "blood_pressure", "unit": "mmHg", "alert_high": "180/120", "alert_low": "90/60"}
+  ],
+  "risk_factors": ["age>60", "smoking", "family_history", "obesity", "diabetes_comorbid"],
+  "monitoring_interval_hours": 4,
+  "discharge_criteria": [
+    {"condition": "bp_stable_24h", "description": "血压24小时稳定在目标范围内(<140/90)"},
+    {"condition": "medication_confirmed", "description": "出院降压药方案已确认"},
+    {"condition": "no_acute_complication", "description": "无急性靶器官损害表现"}
+  ],
+  "handoff_instructions": [
+    {"type": "medication", "content": "遵医嘱规律服用降压药,不可自行停药或调整剂量"},
+    {"type": "monitoring", "content": "每日早晚各测一次血压并记录,复查时携带记录本"},
+    {"type": "followup", "content": "出院7天内社区/门诊复诊,不适随时就诊"}
+  ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["降压药", "血压监测指南", "高血压出院SOP", "低盐饮食指导"]
+  },
+  "followup_questions": [
+    {"id": "htn-fq-01", "question": "近3天自测血压是否稳定在140/90以下？", "clinical_intent": "评估降压方案有效性", "source": "ehr-kg"},
+    {"id": "htn-fq-02", "question": "是否出现头晕、心悸或下肢水肿？", "clinical_intent": "筛查药物不良反应", "source": "ddx-kg"},
+    {"id": "htn-fq-03", "question": "降压药是否按时服用？有无漏服？", "clinical_intent": "评估依从性", "source": "ehr-kg"}
+  ],
+  "mdt_roles": ["心内科", "营养师", "社区医生"],
+  "mdt_threshold": "high"
+}

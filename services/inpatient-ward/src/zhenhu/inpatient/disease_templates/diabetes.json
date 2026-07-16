@@ -1,0 +1,34 @@
+{
+  "disease_id": "diabetes",
+  "name": "糖尿病",
+  "vital_signs": [
+    {"key": "blood_glucose_fasting", "unit": "mmol/L", "alert_high": "16.7", "alert_low": "3.9"},
+    {"key": "blood_glucose_postprandial", "unit": "mmol/L", "alert_high": "22.2", "alert_low": "3.9"},
+    {"key": "blood_pressure", "unit": "mmHg", "alert_high": "140/90", "alert_low": "90/60"},
+    {"key": "hba1c", "unit": "%", "alert_high": "9.0", "alert_low": "4.0"}
+  ],
+  "risk_factors": ["age>50", "diabetes_duration>10y", "cvd_history", "nephropathy", "neuropathy", "hypoglycemia_history"],
+  "monitoring_interval_hours": 4,
+  "discharge_criteria": [
+    {"condition": "glucose_stable", "description": "血糖波动可控,无严重高/低血糖事件24小时"},
+    {"condition": "ketosis_resolved", "description": "酮症/酮症酸中毒已纠正"},
+    {"condition": "insulin_or_medication_plan_set", "description": "出院降糖方案(口服药/胰岛素)已制定"},
+    {"condition": "self_monitoring_taught", "description": "掌握血糖自我监测方法"}
+  ],
+  "handoff_instructions": [
+    {"type": "medication", "content": "降糖药/胰岛素方案:剂量、时间、注射部位轮换"},
+    {"type": "monitoring", "content": "空腹+餐后2h血糖监测,记录血糖日志;低血糖症状识别"},
+    {"type": "followup", "content": "出院2周内内分泌科复诊,3个月复查HbA1c"}
+  ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["糖尿病饮食管理", "低血糖处理", "胰岛素注射教学", "糖尿病足部护理"]
+  },
+  "followup_questions": [
+    {"id": "dm-fq-01", "question": "近3天空腹血糖是否稳定在目标范围内(4.4-7.0 mmol/L)？", "clinical_intent": "评估降糖方案有效性", "source": "ehr-kg"},
+    {"id": "dm-fq-02", "question": "是否出现过心慌、手抖、出冷汗等低血糖症状？", "clinical_intent": "筛查低血糖事件", "source": "ddx-kg"},
+    {"id": "dm-fq-03", "question": "是否掌握胰岛素注射部位轮换方法？有无皮下硬结？", "clinical_intent": "评估自我管理能力", "source": "ehr-kg"}
+  ],
+  "mdt_roles": ["内分泌科", "营养师", "糖尿病教育师"],
+  "mdt_threshold": "high"
+}

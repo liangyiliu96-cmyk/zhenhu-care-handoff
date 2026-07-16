@@ -18,6 +18,7 @@ pip install -e packages/clinical-contracts-py -q 2>/dev/null || true
 pip install -e services/workflow-engine -q 2>/dev/null || true
 pip install -e services/knowledge-orchestrator -q 2>/dev/null || true
 pip install -e services/fhir-adapter -q 2>/dev/null || true
+pip install -e services/inpatient-ward -q 2>/dev/null || true  # 合并迁入: 住院协同服务
 
 # 清理上次运行的数据库文件
 rm -f /tmp/zhenhu-*.db 2>/dev/null
@@ -27,6 +28,7 @@ echo "启动服务..."
 echo "  workflow-engine       → http://localhost:8100"
 echo "  knowledge-orchestrator → http://localhost:8200"
 echo "  fhir-adapter           → http://localhost:8300"
+echo "  inpatient-ward         → http://localhost:8400  # 合并迁入"
 echo ""
 
 # 并行启动三个服务
@@ -41,12 +43,17 @@ PID2=$!
 uvicorn zhenhu.fhir.main:app --host 0.0.0.0 --port 8300 --log-level warning &
 PID3=$!
 
+# 合并迁入: 启动住院协同服务
+uvicorn zhenhu.inpatient.main:app --host 0.0.0.0 --port 8400 --log-level warning &
+PID4=$!
+
 # 等待全部就绪
 echo "等待服务就绪..."
 for i in 1 2 3 4 5; do
   if curl -s http://localhost:8100/health >/dev/null 2>&1 && \
      curl -s http://localhost:8200/health >/dev/null 2>&1 && \
-     curl -s http://localhost:8300/health >/dev/null 2>&1; then
+     curl -s http://localhost:8300/health >/dev/null 2>&1 && \
+     curl -s http://localhost:8400/health >/dev/null 2>&1; then
     echo "✅ 三个服务全部就绪"
     break
   fi
@@ -58,6 +65,7 @@ echo "端点速查:"
 echo "  curl http://localhost:8100/health"
 echo "  curl http://localhost:8200/health"
 echo "  curl http://localhost:8300/health"
+echo "  curl http://localhost:8400/health  # 合并迁入"
 echo ""
 echo "按 Ctrl+C 停止所有服务"
 

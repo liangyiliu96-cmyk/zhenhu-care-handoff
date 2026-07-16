@@ -1,0 +1,34 @@
+{
+  "disease_id": "heart_failure",
+  "name": "心力衰竭",
+  "vital_signs": [
+    {"key": "blood_pressure", "unit": "mmHg", "alert_high": "160/100", "alert_low": "85/55"},
+    {"key": "heart_rate", "unit": "bpm", "alert_high": "120", "alert_low": "50"},
+    {"key": "weight", "unit": "kg", "alert_high": "+2kg_24h", "alert_low": "baseline"},
+    {"key": "spo2", "unit": "%", "alert_high": "100", "alert_low": "92"}
+  ],
+  "risk_factors": ["age>65", "ef<40%", "nyha_class_iii_iv", "renal_insufficiency", "prior_hospitalization"],
+  "monitoring_interval_hours": 2,
+  "discharge_criteria": [
+    {"condition": "clinical_euvolemia_24h", "description": "临床容量正常24小时(无水肿/啰音/颈静脉怒张)"},
+    {"condition": "stable_hemodynamics", "description": "口服药物下血流动力学稳定24小时"},
+    {"condition": "self_care_education_done", "description": "完成自我管理教育(称重/限钠/症状识别)"},
+    {"condition": "medication_titrated", "description": "GDMT药物已启动或达到目标剂量"}
+  ],
+  "handoff_instructions": [
+    {"type": "medication", "content": "GDMT四联用药方案:β-blocker+ACEi/ARB/ARNI+MRA+SGLT2i"},
+    {"type": "monitoring", "content": "每日清晨排尿后称体重,记录;体重2天内增加>2kg需就诊"},
+    {"type": "followup", "content": "出院7-14天内心衰门诊复诊,定期复查电解质和肾功能"}
+  ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["心衰GDMT用药", "限钠限水指导", "体重监测方法", "心衰恶化识别"]
+  },
+  "followup_questions": [
+    {"id": "hf-fq-01", "question": "近3天清晨排尿后体重是否稳定？有无2天内增加>2kg？", "clinical_intent": "评估容量状态", "source": "ehr-kg"},
+    {"id": "hf-fq-02", "question": "是否出现夜间阵发性呼吸困难或端坐呼吸？", "clinical_intent": "筛查心衰恶化", "source": "ddx-kg"},
+    {"id": "hf-fq-03", "question": "GDMT四联药物是否全部按时服用？有无漏服或自行减量？", "clinical_intent": "评估药物依从性", "source": "ehr-kg"}
+  ],
+  "mdt_roles": ["心内科", "临床药师", "营养师"],
+  "mdt_threshold": "high"
+}

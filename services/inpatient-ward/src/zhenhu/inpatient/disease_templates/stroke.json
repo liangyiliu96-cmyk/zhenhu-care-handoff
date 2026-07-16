@@ -1,0 +1,33 @@
+{
+  "disease_id": "stroke",
+  "name": "脑卒中",
+  "vital_signs": [
+    {"name": "blood_pressure", "unit": "mmHg", "alert_above": "180/110"},
+    {"name": "nihss_score", "unit": "分", "alert_above": 15}
+  ],
+  "risk_factors": [
+    "age_gt_70",
+    "afib_history",
+    "hypertension_comorbidity",
+    "post_thrombolysis"
+  ],
+  "monitoring_interval_hours": 4,
+  "discharge_criteria": [
+    "nihss_stable_or_improving",
+    "bp_controlled",
+    "swallow_screen_passed",
+    "mrs_lt_4"
+  ],
+  "handoff_instructions": [
+    {"type": "medication", "content": "出院后继续抗血小板/抗凝治疗，严格遵医嘱不可自行停药"},
+    {"type": "monitoring", "content": "家属每日监测血压，关注口齿、肢体活动变化"},
+    {"type": "followup", "content": "出院后1周神经内科复查，同时开始康复治疗"}
+  ],
+  "followup_questions": [
+    {"id": "stroke-fq-01", "question": "近日有无新发口齿不清、肢体无力或麻木？", "clinical_intent": "筛查卒中复发/进展", "source": "ehr-kg"},
+    {"id": "stroke-fq-02", "question": "是否出现吞咽困难或进食呛咳？", "clinical_intent": "评估吞咽功能", "source": "ddx-kg"},
+    {"id": "stroke-fq-03", "question": "康复训练是否按计划执行？", "clinical_intent": "评估康复依从性", "source": "ehr-kg"}
+  ],
+  "mdt_roles": ["神经内科", "康复师", "言语治疗师", "营养师"],
+  "mdt_threshold": "high"
+}

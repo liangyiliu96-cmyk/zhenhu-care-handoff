@@ -1,0 +1,33 @@
+{
+  "disease_id": "cad",
+  "name": "冠心病",
+  "vital_signs": [
+    {"name": "blood_pressure", "unit": "mmHg", "alert_above": "160/100"},
+    {"name": "heart_rate", "unit": "次/分", "alert_below": 50, "alert_above": 110}
+  ],
+  "risk_factors": [
+    "post_pci",
+    "lvef_lt_40",
+    "diabetes_comorbidity",
+    "multi_vessel_disease"
+  ],
+  "monitoring_interval_hours": 6,
+  "discharge_criteria": [
+    "chest_pain_free_48h",
+    "bp_stable",
+    "dual_antiplatelet_compliance_verified",
+    "statin_initiated"
+  ],
+  "handoff_instructions": [
+    {"type": "medication", "content": "出院后坚持双抗(阿司匹林+氯吡格雷/替格瑞洛)+他汀，至少12个月"},
+    {"type": "monitoring", "content": "每日自测血压心率，关注胸痛、气短症状"},
+    {"type": "followup", "content": "出院后2周心内科复查心电图+血脂，同时参加心脏康复"}
+  ],
+  "followup_questions": [
+    {"id": "cad-fq-01", "question": "近日有无胸痛、胸闷或气短发作？", "clinical_intent": "筛查心绞痛复发", "source": "ehr-kg"},
+    {"id": "cad-fq-02", "question": "抗血小板药物是否按时服用？有无牙龈出血或皮下瘀斑？", "clinical_intent": "评估抗栓安全性", "source": "ddx-kg"},
+    {"id": "cad-fq-03", "question": "是否已开始低盐低脂饮食和规律运动？", "clinical_intent": "评估生活方式干预", "source": "ehr-kg"}
+  ],
+  "mdt_roles": ["心内科", "心脏康复师", "营养师"],
+  "mdt_threshold": "high"
+}

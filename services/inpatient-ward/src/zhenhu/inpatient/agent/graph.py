@@ -1,0 +1,181 @@
+"""LangGraph StateGraph —— 住院协同11节点Agent编排。合并迁入。
+
+自动模式: admission -> triage -> monitoring -> daily_round/medication_adjust/lab_review/transfer -> discharge -> handoff
+人工审核: doctor_review(HumanInterrupt) -> patient_confirm
+
+阶段4 Agent框架, 阶段E: 补齐4个缺失临床节点。
+"""
+
+from typing import TypedDict
+
+try:
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.graph import END, StateGraph
+    _HAS_LANGGRAPH = True
+except ImportError:
+    _HAS_LANGGRAPH = False
+    MemorySaver = None  # type: ignore
+    END = "end"  # type: ignore
+    StateGraph = None  # type: ignore
+
+
+class InpatientState(TypedDict):
+    """住院协同 Agent 状态 Schema。"""
+
+    patient_id: str
+    disease_template: dict  # 当前病种模板
+    phase: str  # admission|triage|monitoring|discharge|handoff|review|confirm|daily_round|medication_adjust|lab_review|transfer
+    vital_signs: list[dict]  # 生命体征记录
+    risk_level: str  # low|medium|high
+    discharge_decision: str | None  # pending|approved|rejected|pending_reevaluation
+    handoff_items: list[dict]  # 交接事项列表
+    knowledge_context: str  # RAG检索聚合上下文
+    interrupt_pending: bool  # 是否等待人工审核
+    event_type: str | None  # 当前触发的事件类型
+    document_chain: list[str]  # 已生成的文档链
+    lab_results: list[dict]  # 检验/检查结果列表
+    reviewed_labs: list[dict]  # 已审阅的检验结果
+    medication_adjustments: list[dict]  # 用药调整记录
+    medication_alerts: list[dict]  # 用药警报
+    lab_findings: list[dict]  # 检验审阅发现
+    latest_round: dict | None  # 最近一次查房笔记
+    round_count: int  # 查房次数
+    transfer_needed: bool  # 是否需要转科
+    transfer_target: str | None  # 转科目标
+    transfer_reason: str | None  # 转科原因
+
+
+def after_monitoring(state: InpatientState) -> str:
+    """基于文档链决定下一步(策略路由层)。
+
+    1. 高危+3条以上体征 → transfer(转科)
+    2. 新检验结果未审阅 → lab_review(检查审核)
+    3. 体征突破警报阈值 → medication_adjust(用药调整)
+    4. 入院评估完成未风险分层 → triage(风险评估)
+    5. 有查房笔记且出院已批准 → discharge(出院)
+    6. 风险分层完成未查房 → daily_round(每日查房)
+    7. 默认 → monitoring(持续监测)
+    """
+    chain = state.get("document_chain", [])
+    labs = state.get("lab_results", [])
+    template = state.get("disease_template", {})
+    vs = state.get("vital_signs", [])
+
+    # 条件1: 检查转科条件 — 高危 + 多条体征异常
+    if state.get("risk_level") == "high" and len(vs) >= 3:
+        return "transfer"
+
+    # 条件2: 有新检验结果 → lab_review 审阅
+    if labs and len(labs) > len(state.get("reviewed_labs", [])):
+        return "lab_review"
+
+    # 条件3: 体征突破警报 → medication_adjust 调药
+    for v_def in template.get("vital_signs", []):
+        alert_above = v_def.get("alert_above")
+        alert_below = v_def.get("alert_below")
+        for v in vs[-3:]:  # 最近3条体征
+            val = v.get(v_def.get("name", ""), 0)
+            if (alert_above and isinstance(val, (int, float)) and val > alert_above) or \
+               (alert_below and isinstance(val, (int, float)) and val < alert_below):
+                return "medication"
+
+    # 条件4: 入院评估完成 → 风险分层
+    if "intake_note" in chain and "risk_assessment" not in chain:
+        return "triage"
+
+    # 条件5: 有查房笔记且满足出院条件 → discharge
+    if "daily_round_note" in chain and state.get("discharge_decision") == "approved":
+        return "discharge"
+
+    # 条件6: 风险分层完成 → 每日查房
+    if "risk_assessment" in chain and "daily_round_note" not in chain:
+        return "daily_round"
+
+    # 默认: 持续监测
+    return "monitoring"
+
+
+def after_transfer(state: InpatientState) -> str:
+    """转科后路由 —— 需要转科则结束, 否则继续监测。"""
+    if state.get("transfer_needed"):
+        return "end"
+    return "monitoring"
+
+
+def build_inpatient_graph():
+    """构建住院协同11节点StateGraph, 带checkpoint和HumanInterrupt。
+
+    若 langgraph 未安装则返回 None。
+    """
+    if not _HAS_LANGGRAPH:
+        return None
+    builder = StateGraph(InpatientState)
+
+    from .nodes import (
+        node_admission,
+        node_daily_round,
+        node_discharge,
+        node_doctor_review,
+        node_handoff,
+        node_lab_review,
+        node_medication_adjust,
+        node_monitoring,
+        node_patient_confirm,
+        node_transfer,
+        node_triage,
+    )
+
+    builder.add_node("admission", node_admission)
+    builder.add_node("triage", node_triage)
+    builder.add_node("monitoring", node_monitoring)
+    builder.add_node("discharge", node_discharge)
+    builder.add_node("handoff", node_handoff)
+    builder.add_node("doctor_review", node_doctor_review)
+    builder.add_node("patient_confirm", node_patient_confirm)
+
+    builder.add_node("daily_round", node_daily_round)
+    builder.add_node("medication_adjust", node_medication_adjust)
+    builder.add_node("lab_review", node_lab_review)
+    builder.add_node("transfer", node_transfer)
+
+    # 自动模式链路
+    builder.set_entry_point("admission")
+    builder.add_edge("admission", "triage")
+    builder.add_edge("triage", "monitoring")
+
+    builder.add_conditional_edges(
+        "monitoring",
+        after_monitoring,
+        {
+            "discharge": "discharge",
+            "triage": "triage",
+            "monitoring": "monitoring",
+            "daily_round": "daily_round",
+            "transfer": "transfer",
+            "lab_review": "lab_review",
+            "medication": "medication_adjust",
+        },
+    )
+
+    builder.add_edge("daily_round", "monitoring")
+    builder.add_edge("medication_adjust", "monitoring")
+    builder.add_edge("lab_review", "monitoring")
+    builder.add_conditional_edges(
+        "transfer",
+        after_transfer,
+        {
+            "monitoring": "monitoring",
+            "end": END,
+        },
+    )
+
+    builder.add_edge("discharge", "handoff")
+    builder.add_edge("handoff", "doctor_review")
+    builder.add_edge("doctor_review", "patient_confirm")
+    builder.add_edge("patient_confirm", END)
+
+    return builder.compile(checkpointer=MemorySaver())
+
+
+# 全局graph实例(开发阶段用MemorySaver, 若无langgraph则为None)
+inpatient_graph = build_inpatient_graph()
