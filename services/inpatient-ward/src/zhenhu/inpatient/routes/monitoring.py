@@ -34,34 +34,37 @@ async def report_vital_signs(patient_id: str, vital_data: VitalSignsRequest):
 
     update_state(patient_id, {"vital_signs": vital_signs})
 
-    # 触发 graph 重新评估
-    loop = get_patient_loop(patient_id)
-    updated_state = get_state(patient_id)
-    result = await loop.plan_turn(updated_state)
+    # 直调monitoring节点评估出院标准
+    from ..agent.nodes_monitoring import node_monitoring
+    state = get_state(patient_id)
+    mon_result = await node_monitoring(state)
+    state = {**state, **mon_result}
+    update_state(patient_id, mon_result)
 
-    # graph重评估后检查是否自动出院
-    if result.get("discharge_decision") == "approved":
-        discharge_state = get_state(patient_id)
-        discharge_state["discharge_decision"] = "approved"
-        set_state(patient_id, discharge_state)
-        discharge_result = await loop.plan_turn(discharge_state)
-        set_state(patient_id, discharge_result)
+    # 自动出院: monitoring批准→直调discharge链路
+    if state.get("discharge_decision") == "approved":
+        from ..agent.nodes_handoff import node_discharge, node_handoff, node_doctor_review, node_patient_confirm
+        state = {**state, **await node_discharge(state)}
+        state = {**state, **await node_handoff(state)}
+        state = {**state, **await node_doctor_review(state)}
+        state = {**state, **await node_patient_confirm(state)}
+        set_state(patient_id, state)
 
         return UnifiedResponse(data={
             "patient_id": patient_id,
             "vitals_count": len(vital_signs),
-            "phase": discharge_result.get("phase"),
+            "phase": state.get("phase"),
             "auto_discharge": True,
-            "discharge_decision": discharge_result.get("discharge_decision"),
-            "handoff_items": discharge_result.get("handoff_items", []),
+            "discharge_decision": state.get("discharge_decision"),
+            "handoff_items": state.get("handoff_items", []),
         })
 
     return UnifiedResponse(data={
         "patient_id": patient_id,
         "vitals_count": len(vital_signs),
-        "phase": result.get("phase"),
-        "discharge_decision": result.get("discharge_decision"),
-        "alerts": result.get("clinical_alerts", []),
+        "phase": state.get("phase"),
+        "discharge_decision": state.get("discharge_decision"),
+        "alerts": state.get("clinical_alerts", []),
     })
 
 

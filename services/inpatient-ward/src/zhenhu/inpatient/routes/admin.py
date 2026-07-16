@@ -63,9 +63,15 @@ async def load_fixture_patient(patient_key: str):
         if result.get("phase") in ("discharge", "handoff", "review", "confirm"):
             break
         if result.get("discharge_decision") == "approved":
-            # 监测已批准出院→触发完整出院流程
-            result = await loop.plan_turn(get_state(patient_key))
-            set_state(patient_key, result)
+            # 直接用节点走discharge链路，绕过LangGraph state merge
+            from ..agent.nodes_handoff import node_discharge, node_handoff, node_doctor_review, node_patient_confirm
+            state = get_state(patient_key)
+            state = {**state, **await node_discharge(state)}
+            state = {**state, **await node_handoff(state)}
+            state = {**state, **await node_doctor_review(state)}
+            state = {**state, **await node_patient_confirm(state)}
+            set_state(patient_key, state)
+            result = state
             break
 
     return UnifiedResponse(data={
