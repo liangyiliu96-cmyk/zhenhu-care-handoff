@@ -1,6 +1,6 @@
 """臻护桥接 —— 出院→workflow-engine / RAG→knowledge-orchestrator / 患者摘要→fhir-adapter。合并迁入。
 
-阶段5 fixture占位。阶段6(桥接)对接臻护PoC验证。
+Phase5+ 已实现: HTTP桥接 + 退避重试 + 熔断器保护。三个桥接函数均为真实HTTP调用(非fixture)。
 阶段K: URL 常量统一从 zhenhu.contracts.ServiceConfig 导入。
 """
 
@@ -85,6 +85,21 @@ async def bridge_patient_summary(patient_id: str) -> dict:
             resp = await client.get(f"{FHIR_URL}/fhir/Patient/{patient_id}")
             if resp.status_code == 200:
                 data = resp.json().get("data", {})
+                # 从 birthDate 计算年龄
+                age = None
+                birth_date_str = data.get("birthDate")
+                if birth_date_str:
+                    try:
+                        from datetime import date
+                        parts = birth_date_str.split("-")
+                        if len(parts) >= 3:
+                            bd = date(int(parts[0]), int(parts[1]), int(parts[2]))
+                            today = date.today()
+                            age = today.year - bd.year
+                            if today.month < bd.month or (today.month == bd.month and today.day < bd.day):
+                                age -= 1
+                    except Exception:
+                        pass
                 return {
                     "name": (
                         data.get("name", [{}])[0].get("text", "***")
@@ -92,11 +107,12 @@ async def bridge_patient_summary(patient_id: str) -> dict:
                         else "***"
                     ),
                     "gender": data.get("gender", "unknown"),
+                    "age": age,
                     "discharge_to": "home",
                 }
     except Exception:
         pass
-    return {"name": "***", "gender": "unknown", "discharge_to": "home"}
+    return {"name": "***", "gender": "unknown", "age": None, "discharge_to": "home"}
 
 
 # ============================================================================

@@ -262,6 +262,8 @@ async def node_admission(state: dict) -> dict:
         # 扩展: 查询 FHIR Condition 获取合并症 + 本地病史表
         try:
             from zhenhu.fhir.models import Condition as FhirCondition
+            from sqlalchemy import select as sa_select
+            from zhenhu.fhir.models import async_session_factory as fhir_session_factory
             async with fhir_session_factory() as session:
                 result = await session.execute(
                     sa_select(FhirCondition).where(FhirCondition.patient_id == patient_id)
@@ -290,46 +292,50 @@ async def node_admission(state: dict) -> dict:
         except (ImportError, Exception):
             allergies = patient_data.get("allergies", [])
 
-        # M4-M7: 入院标准临床评估
-        from .assessments import (
-            PainAssessment, NutritionScreening, FallRiskAssessment,
-            DVTRiskAssessment, AdmissionAssessments,
-        )
-        # 从 patient_data/patient_history 中提取评估所需数据
-        age = patient_data.get("age", 0)
-        bmi = patient_data.get("bmi", 0)
-        has_fall_history = patient_history.get("fall_history", False) if patient_history else False
-        has_previous_vte = patient_history.get("previous_vte", False) if patient_history else False
-        has_cancer = "cancer" in patient_history.get("comorbidities", []) if patient_history else False
-        has_heart_failure = "heart_failure" in patient_history.get("comorbidities", []) if patient_history else False
+        # M4-M7: 入院标准临床评估（防御性包装，失败不影响入院流程）
+        try:
+            from .assessments import (
+                PainAssessment, NutritionScreening, FallRiskAssessment,
+                DVTRiskAssessment, AdmissionAssessments,
+            )
+            age = patient_data.get("age", 0) or 0
+            bmi = patient_data.get("bmi", 0) or 0
+            has_fall_history = patient_history.get("fall_history", False) if isinstance(patient_history, dict) else False
+            has_previous_vte = patient_history.get("previous_vte", False) if isinstance(patient_history, dict) else False
+            comorbidities = patient_history.get("comorbidities", []) if isinstance(patient_history, dict) else []
+            has_cancer = "cancer" in comorbidities
+            has_heart_failure = "heart_failure" in comorbidities
 
-        assessments = AdmissionAssessments(
-            pain=PainAssessment(
-                score=patient_data.get("pain_score", 0),
-                location=patient_data.get("pain_location"),
-            ),
-            nutrition=NutritionScreening(
-                age_bonus=1 if age >= 70 else 0,
-                disease_severity=2 if has_cancer or has_heart_failure else 1,
-                nutrition_impairment=1 if bmi < 18.5 else 0,
-            ),
-            fall_risk=FallRiskAssessment(
-                fall_history=has_fall_history,
-                age_ge_70=age >= 70,
-                reduced_mobility=patient_data.get("reduced_mobility", False),
-            ),
-            dvt_risk=DVTRiskAssessment(
-                patient_type=patient_data.get("patient_type", "medical"),
-                active_cancer=has_cancer,
-                previous_vte=has_previous_vte,
-                age_ge_70=age >= 70,
-                reduced_mobility=patient_data.get("reduced_mobility", False),
-                obesity_bmi_ge_30=bmi >= 30,
-            ),
-            allergies=allergies,
-        )
-
-        clinical_alerts = assessments.alerts
+            assessments = AdmissionAssessments(
+                pain=PainAssessment(
+                    score=patient_data.get("pain_score", 0) or 0,
+                    location=patient_data.get("pain_location"),
+                ),
+                nutrition=NutritionScreening(
+                    age_bonus=1 if (age or 0) >= 70 else 0,
+                    disease_severity=2 if has_cancer or has_heart_failure else 1,
+                    nutrition_impairment=1 if (bmi or 0) < 18.5 else 0,
+                ),
+                fall_risk=FallRiskAssessment(
+                    fall_history=has_fall_history,
+                    age_ge_70=(age or 0) >= 70,
+                    reduced_mobility=patient_data.get("reduced_mobility", False),
+                ),
+                dvt_risk=DVTRiskAssessment(
+                    patient_type=patient_data.get("patient_type", "medical"),
+                    active_cancer=has_cancer,
+                    previous_vte=has_previous_vte,
+                    age_ge_70=(age or 0) >= 70,
+                    reduced_mobility=patient_data.get("reduced_mobility", False),
+                    obesity_bmi_ge_30=(bmi or 0) >= 30,
+                ),
+                allergies=allergies,
+            )
+            clinical_alerts = assessments.alerts
+            assessments_dict = assessments.model_dump()
+        except Exception:
+            assessments_dict = None
+            clinical_alerts = []
 
         return {
             "phase": "admission",
@@ -340,7 +346,7 @@ async def node_admission(state: dict) -> dict:
             "document_chain": state.get("document_chain", []) + ["intake_note"],
             "allergies": allergies,
             "allergy_status": "collected" if allergies else "none_recorded",
-            "clinical_assessments": assessments.model_dump(),
+            "clinical_assessments": assessments_dict,
             "clinical_alerts": clinical_alerts,
         }
     except Exception:
