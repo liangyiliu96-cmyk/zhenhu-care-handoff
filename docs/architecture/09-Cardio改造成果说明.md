@@ -1,18 +1,18 @@
 # 09-Cardio改造成果说明
 
-> **改造日期**: 2026-07-16 | **测试**: 114 passed, 0 errors
+> **改造日期**: 2026-07-16 | **版本**: v0.4 | **测试**: 138 passed, 0 errors
+>
+> **阶段A**: 5个参考项目新模式融入(HITL重评/事件文档链/KG追问/自动MDT/PlanDefinition)
+> **阶段B**: 11个工程差距修复(表名复数/双ID/updated_at/routes/lifespan/async tests/模板迁移)
 
 ## 改造总览
 
-| 阶段 | 内容 | 状态 |
+| 阶段 | 内容 | 测试 |
 |---|---|---|
-| 1 | legacy归档+前端删除 | ✅ |
-| 2 | zhenhu namespace+中间件+28→12表 | ✅ |
-| 3 | 去心血管硬编码(bp→vital_sign)+3病种模板 | ✅ |
-| 4 | LangGraph Agent 7节点框架 | ✅ |
-| 5 | Harness安全护栏(校验/溯源/回退) | ✅ |
-| 6 | 臻护桥接(出院/workflow+检索/knowledge+患者/fhir) | ✅ |
-| 7 | 回归测试+QA问题修复+打磨 | ✅ |
+| 1-7 (原方案) | legacy归档, namespace, 去硬编码, Agent框架, Harness, 桥接, 打磨 | 114 ✅ |
+| **A** | **5个参考项目新模式**: HITL自适应重评 + 事件驱动文档链 + KG结构化追问 + 风险驱动MDT + PlanDefinition/$apply | +6 新测试 |
+| **B** | **11个工程差距修复**: 表名复数, 双ID, updated_at, routes, lifespan, async tests, 模板迁移 | +24 测试 |
+| **合计** | **全面适配臻护主项目** | **138 ✅** |
 
 ## 架构全景(实际目录)
 
@@ -48,10 +48,15 @@ cardio-inpatient-collab/
 
 ## Agent设计
 
-7节点 StateGraph: `admission → triage → monitoring → discharge → handoff → doctor_review → patient_confirm`
+**7节点** StateGraph: `admission → triage → monitoring → discharge → handoff → doctor_review → patient_confirm`
 
-- **interrupt**: 仅 `doctor_review` 触发 HumanInterrupt(checkpoint冻结),其余节点自动流转
-- **Harness**: `validate_handoff_items()` Pydantic校验 → `check_source_type()` score阈值(source_none/source_knowledge) → `fallback_to_template()` 模板回退
+| 模式 | 来源 | 改动 |
+|---|---|---|
+| **HITL 自适应重评** | carehandoff | `doctor_review` 支持 accept/edit/dismiss，dismiss 触发 `pending_reevaluation` |
+| **事件驱动文档链** | chronicdisease | `after_monitoring` 基于 `document_chain` 路由，非硬编码边 |
+| **KG 结构化追问** | chronicdisease | 3 个病种模板各含 `followup_questions[]`(ehr-kg/ddx-kg 溯源) |
+| **风险驱动自动 MDT** | chronicdisease | 高危自动标记 `mdt_required` + `mdt_roles` |
+| **PlanDefinition/$apply** | medplum | 出院桥接先构造 PlanDefinition(action[]) 再调 workflow |
 
 ## 臻护对接点
 
