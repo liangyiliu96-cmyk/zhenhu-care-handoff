@@ -411,3 +411,28 @@ async def init_db() -> None:
 
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+
+# ============================================================================
+# 异步会话工厂 —— 独立创建，避免与 main.py 循环导入
+# ============================================================================
+
+import os as _os
+
+from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker as _async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine as _create_async_engine
+
+_ASYNC_DATABASE_URL = _os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./zhenhu_inpatient.db")
+
+_engine = None
+
+
+def _get_engine():
+    global _engine
+    if _engine is None:
+        _engine = _create_async_engine(_ASYNC_DATABASE_URL, echo=False)
+    return _engine
+
+
+async_session_factory = _async_sessionmaker(_get_engine, class_=_AsyncSession, expire_on_commit=False)

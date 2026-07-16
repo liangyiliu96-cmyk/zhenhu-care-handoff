@@ -92,7 +92,7 @@ def _match_patient_risk_factors(
                 if matcher(patient_data, patient_history):
                     matched.append(factor)
             except Exception:
-                pass  # 匹配异常跳过该因子
+                logger.warning("_match_patient_risk_factors: matcher failed for factor '%s', skipping", factor)
     return matched
 
 
@@ -409,7 +409,7 @@ async def node_triage(state: dict) -> dict:
             if llm_result and llm_result.get("source_type") != "source_none":
                 result["risk_summary"] = llm_result.get("risk_summary", "")
         except Exception:
-            pass
+            logger.warning("node_triage: LLM risk summary generation failed, patient=%s", patient_id)
 
     record("triage")
     return result
