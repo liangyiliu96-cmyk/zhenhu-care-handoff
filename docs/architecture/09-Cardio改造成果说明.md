@@ -1,18 +1,26 @@
 # 09-Cardio改造成果说明
 
-> **改造日期**: 2026-07-16 | **版本**: v0.4 | **测试**: 138 passed, 0 errors
+> **改造日期**: 2026-07-16 | **版本**: v0.5 | **测试**: 141 passed, 0 errors
 >
-> **阶段A**: 5个参考项目新模式融入(HITL重评/事件文档链/KG追问/自动MDT/PlanDefinition)
-> **阶段B**: 11个工程差距修复(表名复数/双ID/updated_at/routes/lifespan/async tests/模板迁移)
+> **阶段A**: 5个参考项目新模式融入 | **阶段B**: 11个工程差距修复 | **阶段C**: 3处fixture→真实逻辑修复
 
 ## 改造总览
 
 | 阶段 | 内容 | 测试 |
 |---|---|---|
 | 1-7 (原方案) | legacy归档, namespace, 去硬编码, Agent框架, Harness, 桥接, 打磨 | 114 ✅ |
-| **A** | **5个参考项目新模式**: HITL自适应重评 + 事件驱动文档链 + KG结构化追问 + 风险驱动MDT + PlanDefinition/$apply | +6 新测试 |
-| **B** | **11个工程差距修复**: 表名复数, 双ID, updated_at, routes, lifespan, async tests, 模板迁移 | +24 测试 |
-| **合计** | **全面适配臻护主项目** | **138 ✅** |
+| **A** | **5个参考项目新模式** | +6 |
+| **B** | **11个工程差距修复** | +18 |
+| **C** | **3处fixture→真实逻辑**: discharge出院标准检查 + routes对接Agent Graph + admission加载模板 | +3 |
+| **合计** | **真实逻辑覆盖率 66% → ~90%** | **141 ✅** |
+
+### 阶段C修复详情
+
+| 修复 | 效果 |
+|---|---|
+| `node_discharge` 接上模板出院标准 | 遍历 `discharge_criteria`，对照 `vital_history` 逐项检查。数据不足→继续监测，充分监测→批准出院 |
+| `POST /inpatient/admissions` 调 Agent Graph | 构建完整 `initial_state`，`graph.ainvoke()` 端到端跑通入院→出院→交接全链路 |
+| `node_admission` 加载病种模板 | 原来 `load_template` 已 import 但从未调用。修复后模板参数实时驱动 triage/monitoring/discharge |
 
 ## 架构全景(实际目录)
 
