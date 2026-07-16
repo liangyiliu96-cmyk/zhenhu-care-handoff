@@ -5,6 +5,8 @@ description = "臻护 AI 协同平台 — 共享临床契约：病例/知识/入
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.0",
+    "sqlalchemy>=2.0",  # 阶段J审计修复: get_session/engine 统一
+    "aiosqlite>=0.20",  # 阶段J审计修复: SQLite :memory: 开发/测试
 ]
 
 [build-system]

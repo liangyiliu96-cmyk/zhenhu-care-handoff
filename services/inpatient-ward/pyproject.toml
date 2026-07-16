@@ -1,8 +1,8 @@
 [project]
 name = "zhenhu-inpatient-ward"
-version = "0.1.0"
+version = "0.3.0"  # 阶段J审计修复：版本号统一
 description = "臻护 - 通用住院协同服务"
-requires-python = ">=3.11"
+requires-python = ">=3.12"  # 阶段J审计修复：统一 Python 版本
 dependencies = [
     "fastapi>=0.109",
     "uvicorn[standard]",

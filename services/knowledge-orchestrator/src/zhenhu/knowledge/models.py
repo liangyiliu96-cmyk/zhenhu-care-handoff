@@ -21,6 +21,8 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from zhenhu.contracts import get_session as _contracts_get_session  # 阶段J审计修复
+
 import os
 import tempfile
 
@@ -353,7 +355,7 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
 
 
-async def get_session() -> AsyncSession:
-    """获取一个新的异步数据库会话（用于依赖注入）。"""
-    async with async_session_factory() as session:
+async def get_session() -> AsyncSession:  # 阶段J审计修复: 委托 contracts 统一实现
+    """获取一个新的异步数据库会话（用于依赖注入） —— 阶段J审计修复。"""
+    async for session in _contracts_get_session(async_session_factory):
         yield session

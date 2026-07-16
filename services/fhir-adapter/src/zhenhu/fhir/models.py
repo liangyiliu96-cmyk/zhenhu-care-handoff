@@ -25,6 +25,8 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from zhenhu.contracts import get_session as _contracts_get_session  # 阶段J审计修复
+
 # 测试用临时文件数据库；生产环境通过 DATABASE_URL 环境变量覆盖
 _test_db = os.path.join(tempfile.gettempdir(), "zhenhu_fhir_test.db")
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite+aiosqlite:///{_test_db}")
@@ -379,11 +381,11 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
 
 
-async def get_session() -> AsyncSession:
-    """获取一个新的异步数据库会话（用于 FastAPI 依赖注入）。
+async def get_session() -> AsyncSession:  # 阶段J审计修复: 委托 contracts 统一实现
+    """获取一个新的异步数据库会话（用于 FastAPI 依赖注入） —— 阶段J审计修复。
 
     Yields:
         AsyncSession: SQLAlchemy 异步会话实例。
     """
-    async with async_session_factory() as session:
+    async for session in _contracts_get_session(async_session_factory):
         yield session

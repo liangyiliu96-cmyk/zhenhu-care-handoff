@@ -1,35 +1,17 @@
 """Pydantic v2 请求/响应 Schema —— workflow-engine 服务。
 
 所有 API 出入参均由此定义，确保类型安全。
+阶段J审计修复: UnifiedResponse/ErrorDetail 统一迁移至 zhenhu.contracts。
 """
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Generic, TypeVar
+from typing import Any
 
 from pydantic import BaseModel, Field
 
-
-# ============================================================================
-# 统一响应包装
-# ============================================================================
-
-T = TypeVar("T")
-
-
-class UnifiedResponse(BaseModel, Generic[T]):
-    """统一 API 响应格式。
-
-    Attributes:
-        request_id: 请求关联 ID（透传自 X-Request-ID）。
-        data: 响应载荷。
-        error: 错误信息，成功时为 None。
-    """
-
-    request_id: str = Field(..., description="请求关联 ID")
-    data: T | None = Field(default=None, description="响应载荷")
-    error: str | None = Field(default=None, description="错误信息")
+from zhenhu.contracts import ErrorDetail, UnifiedResponse  # 阶段J审计修复
 
 
 # ============================================================================
@@ -207,16 +189,3 @@ class AuditEventResponse(BaseModel):
     occurred_at: datetime = Field(..., description="发生时间")
 
     model_config = {"from_attributes": True}
-
-
-# ============================================================================
-# 错误
-# ============================================================================
-
-
-class ErrorDetail(BaseModel):
-    """结构化错误详情。"""
-
-    code: str = Field(..., description="错误码")
-    message: str = Field(..., description="错误描述")
-    details: dict[str, Any] | None = Field(default=None, description="附加详情")

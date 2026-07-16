@@ -24,7 +24,7 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = [
     "src",
-    "../packages/clinical-contracts-py/src",
+    "../../packages/clinical-contracts-py/src",
 ]
 
 [build-system]

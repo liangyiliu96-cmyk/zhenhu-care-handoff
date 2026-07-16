@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 # 合并迁入修正A: 使用共享 contracts 中间件, 不再引用本地 middleware.py
 from zhenhu.contracts.middleware import RequestIdMiddleware, setup_error_handlers
+from zhenhu.contracts import get_session as _contracts_get_session  # 阶段J审计修复
 # 合并迁入修正: 路由导入改为相对路径
 from .routes.admission import router as admission_router
 from .routes.monitoring import router as monitoring_router
@@ -34,9 +35,9 @@ async_engine = create_async_engine(ASYNC_DATABASE_URL, echo=False)
 async_session_factory = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 
 
-async def get_session() -> AsyncSession:
-    """获取异步数据库会话。"""
-    async with async_session_factory() as session:
+async def get_session() -> AsyncSession:  # 阶段J审计修复: 委托 contracts 统一实现
+    """FastAPI Depends: 注入数据库会话 —— 阶段J审计修复。"""
+    async for session in _contracts_get_session(async_session_factory):
         yield session
 
 

@@ -8,7 +8,11 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import FrozenSet
+from typing import AsyncGenerator, FrozenSet, Generic, TypeVar
+from uuid import uuid4
+
+from pydantic import BaseModel as _BaseModel, Field as _Field
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 
 # ============================================================================
@@ -369,6 +373,46 @@ def build_contract_snapshot() -> dict:
 # 公开 API
 # ============================================================================
 
+# ============================================================================
+# 统一响应模型（阶段J: 4服务共享）
+# ============================================================================
+
+T = TypeVar("T")  # 阶段J审计修复: UnifiedResponse 泛型参数
+
+
+class ErrorDetail(_BaseModel):
+    """统一错误详情 —— 阶段J审计修复: 4 服务共享。"""
+
+    code: str = _Field(..., description="错误码（如 ILLEGAL_TRANSITION）")
+    message: str = _Field(default="", description="人类可读错误信息")
+
+
+class UnifiedResponse(_BaseModel, Generic[T]):
+    """统一 API 响应包装 —— 阶段J审计修复: 4 服务共享。"""
+
+    request_id: str = _Field(default_factory=lambda: str(uuid4()))
+    data: T | None = None
+    error: ErrorDetail | None = None
+
+
+# ============================================================================
+# 共享数据库会话管理（阶段J: 4服务统一）
+# ============================================================================
+
+
+def create_engine_and_session(database_url: str = "sqlite+aiosqlite:///:memory:"):
+    """创建异步引擎 + 会话工厂 —— 开发阶段用 SQLite :memory:。"""
+    engine = create_async_engine(database_url, echo=False)
+    SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    return engine, SessionLocal
+
+
+async def get_session(session_factory) -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI Depends: 注入数据库会话 —— 阶段J审计修复: 4 服务统一。"""
+    async with session_factory() as session:
+        yield session
+
+
 __all__ = [
     # 枚举
     "CaseState",
@@ -376,6 +420,9 @@ __all__ = [
     "KnowledgeIngestionJobState",
     "ClinicalRole",
     "Surface",
+    # 统一响应
+    "ErrorDetail",
+    "UnifiedResponse",
     # 转移表
     "CASE_TRANSITIONS",
     "KNOWLEDGE_TRANSITIONS",
@@ -398,4 +445,7 @@ __all__ = [
     "assert_role_access",
     # 快照
     "build_contract_snapshot",
+    # 数据库会话（阶段J审计修复）
+    "create_engine_and_session",
+    "get_session",
 ]
