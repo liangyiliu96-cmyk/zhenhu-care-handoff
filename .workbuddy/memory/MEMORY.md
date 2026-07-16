@@ -18,7 +18,7 @@
 |---|---|---|---|
 | workflow-engine | `services/workflow-engine/` | 病例状态机/Agent编排/审核流 | ✅ 81测试,10端点 |
 | knowledge-orchestrator | `services/knowledge-orchestrator/` | 知识导入/混合检索/后处理/反向阻断 | ✅ 47测试,7端点 |
-| fhir-adapter | `services/fhir-adapter/` | 医院数据映射/Patient Compartment/Consent | ❌ 待建 |
+| fhir-adapter | `services/fhir-adapter/` | 医院数据映射/Patient Compartment/Consent | ✅ 37测试,4端点 |
 | api-gateway | `services/api-gateway/` | 前端网关/路由/鉴权 | ❌ 待建 |
 | clinical-contracts | `packages/clinical-contracts-py/` | Pydantic状态机/角色权限 | ✅ 已移植 |
 
