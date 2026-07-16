@@ -15,7 +15,7 @@ router = APIRouter(prefix="/inpatient", tags=["admission"])
 async def create_admission(
     patient_id: str = "pat-demo-001",
     disease_id: str = "hypertension",
-):
+) -> UnifiedResponse:
     """创建入院记录并启动Agent全流程。
 
     阶段D: 从fixture升级为真实Agent调用, 结果写入状态存储。

@@ -142,6 +142,23 @@ async def node_doctor_review(state: dict) -> dict:
     patient_id = state.get("patient_id", "unknown")
     logger.info("node_doctor_review: start, patient=%s", patient_id)
     items = state.get("handoff_items", [])
+
+    # 尝试 interrupt.py 的医生审核（外部人工审核接口）
+    try:
+        from .interrupt import request_doctor_review
+        interrupt_result = await request_doctor_review(items)
+        if interrupt_result.get("status") == "reviewed":
+            # 外部审核完成，直接采用结果
+            return {
+                "handoff_items": interrupt_result.get("handoff_items", items),
+                "phase": "review",
+                "discharge_decision": "approved" if interrupt_result.get("all_accepted") else "pending_reevaluation",
+                "interrupt_pending": False,
+                "patient_summary": state.get("patient_data", {}),
+            }
+    except Exception:
+        pass  # interrupt不可用→回退内联规则审核
+
     reviewed = []
 
     for item in items:

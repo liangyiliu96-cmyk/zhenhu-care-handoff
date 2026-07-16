@@ -10,12 +10,13 @@ from zhenhu.contracts.agent import AgentEvent
 
 from ..schemas import UnifiedResponse
 from ..agent.loop import get_patient_loop
+from .route_schemas import VitalSignsRequest, LabResultsRequest
 
 router = APIRouter(prefix="/inpatient", tags=["monitoring"])
 
 
 @router.post("/monitoring/{patient_id}/vitals")
-async def report_vital_signs(patient_id: str, vital_data: dict):
+async def report_vital_signs(patient_id: str, vital_data: VitalSignsRequest):
     """上报生命体征并触发Agent监测循环。
     
     P1修复: 写入state后触发graph重新评估，实现真正的持续监测→自动出院。
@@ -23,11 +24,13 @@ async def report_vital_signs(patient_id: str, vital_data: dict):
     from .state_store import get_state, update_state
     from ..agent.loop import get_patient_loop
 
+    vital_dict = vital_data.model_dump(exclude_none=True)
+
     state = get_state(patient_id)
     if not state:
-        vital_signs = [vital_data]
+        vital_signs = [vital_dict]
     else:
-        vital_signs = state.get("vital_signs", []) + [vital_data]
+        vital_signs = state.get("vital_signs", []) + [vital_dict]
 
     update_state(patient_id, {"vital_signs": vital_signs})
 
@@ -46,13 +49,15 @@ async def report_vital_signs(patient_id: str, vital_data: dict):
 
 
 @router.post("/monitoring/{patient_id}/labs")
-async def report_lab_results(patient_id: str, lab_data: dict):
+async def report_lab_results(patient_id: str, lab_data: LabResultsRequest):
     """上报检验结果并触发Agent检验审阅。"""
     from .state_store import get_state, update_state
     from ..agent.loop import get_patient_loop
 
+    lab_dict = lab_data.model_dump(exclude_none=True)
+
     state = get_state(patient_id)
-    lab_results = (state.get("lab_results", []) if state else []) + [lab_data]
+    lab_results = (state.get("lab_results", []) if state else []) + [lab_dict]
     update_state(patient_id, {"lab_results": lab_results})
 
     loop = get_patient_loop(patient_id)

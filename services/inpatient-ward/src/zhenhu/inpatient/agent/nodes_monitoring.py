@@ -136,33 +136,30 @@ async def node_medication_adjust(state: dict) -> dict:
     alert_history = state.get("consecutive_abnormal_count", 0)
     alerts = []
     
+    # 建立阈值查找表 {name: (alert_above, alert_below)}
+    thresholds = {}
     for v_def in template.get("vital_signs", []):
         name = v_def.get("name", "")
-        alert_above = v_def.get("alert_above")
-        alert_below = v_def.get("alert_below")
-        
-        if not name:
-            continue
-        
-        # 只检查最近2条记录
-        recent = vs[-2:] if len(vs) >= 2 else vs
-        triggered = False
-        for v in recent:
-            val = v.get(name, 0)
-            if not isinstance(val, (int, float)):
+        if name:
+            thresholds[name] = (v_def.get("alert_above"), v_def.get("alert_below"))
+
+    # 单次扫描最近2条体征
+    recent = vs[-2:] if len(vs) >= 2 else vs
+    for v in recent:
+        for key, val in v.items():
+            if key not in thresholds or not isinstance(val, (int, float)):
                 continue
-            if alert_above is not None and val > alert_above:
-                triggered = True
-                break
-            if alert_below is not None and val < alert_below:
-                triggered = True
-                break
-        
-        if triggered:
-            alert_history += 1
-            alerts.append({"sign": name, "consecutive_count": alert_history})
+            alert_above, alert_below = thresholds[key]
+            if (alert_above is not None and val > alert_above) or \
+               (alert_below is not None and val < alert_below):
+                alert_history += 1
+                alerts.append({"sign": key, "consecutive_count": alert_history})
+                break  # 每个体征记录只记一次告警
         else:
-            alert_history = 0
+            continue
+        break  # 已触发告警
+    else:
+        alert_history = 0  # 最近2条均无异常
     
     adjustments = state.get("medication_adjustments", [])
     if alerts and alert_history >= 2:

@@ -4,6 +4,7 @@
 住院特定方法(gen_input/plan_turn/get_patient_loop)保留在此。
 """
 
+import threading
 from datetime import datetime
 from typing import Generic, TypeVar
 
@@ -106,14 +107,18 @@ AgentLoop = PatientAgentLoop
 
 # 患者级 AgentLoop 实例工厂(并发安全,避免全局单例互相覆盖)
 _patient_loops: dict[str, PatientAgentLoop] = {}
+_patient_loops_lock = threading.Lock()
+
 
 def get_patient_loop(patient_id: str) -> PatientAgentLoop:
-    """为每个患者创建独立的 AgentLoop 实例(并发安全)。"""
-    if patient_id not in _patient_loops:
-        _patient_loops[patient_id] = PatientAgentLoop()
-    return _patient_loops[patient_id]
+    """为每个患者创建独立的 AgentLoop 实例（线程安全）。"""
+    with _patient_loops_lock:
+        if patient_id not in _patient_loops:
+            _patient_loops[patient_id] = PatientAgentLoop()
+        return _patient_loops[patient_id]
 
 
 def cleanup_patient_loop(patient_id: str) -> None:
-    """移除患者AgentLoop实例（出院后调用）。"""
-    _patient_loops.pop(patient_id, None)
+    """移除患者AgentLoop实例（线程安全，出院后调用）。"""
+    with _patient_loops_lock:
+        _patient_loops.pop(patient_id, None)
