@@ -17,7 +17,7 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GzipMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -53,15 +53,19 @@ else:
 
 # 合并迁入修正: SQLite 数据库引擎(移除 app.config.settings 依赖)
 ASYNC_DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./zhenhu_inpatient.db")
-async_engine = create_async_engine(
-    ASYNC_DATABASE_URL,
-    echo=False,
-    pool_size=int(os.environ.get("DB_POOL_SIZE", "5")),
-    max_overflow=int(os.environ.get("DB_MAX_OVERFLOW", "10")),
-    pool_recycle=int(os.environ.get("DB_POOL_RECYCLE", "3600")),  # 1小时回收
-    pool_pre_ping=True,  # 连接前验证
-    pool_timeout=30,  # 等待连接超时30秒
-)
+
+# 连接池配置：SQLite 用默认 NullPool，PostgreSQL/MySQL 启用连接池
+_engine_kwargs: dict = {"echo": False}
+if "sqlite" not in ASYNC_DATABASE_URL:
+    _engine_kwargs.update({
+        "pool_size": int(os.environ.get("DB_POOL_SIZE", "5")),
+        "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "10")),
+        "pool_recycle": int(os.environ.get("DB_POOL_RECYCLE", "3600")),
+        "pool_pre_ping": True,
+        "pool_timeout": 30,
+    })
+
+async_engine = create_async_engine(ASYNC_DATABASE_URL, **_engine_kwargs)
 async_session_factory = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -110,7 +114,7 @@ app.add_middleware(
 )
 
 # Gzip 压缩中间件
-app.add_middleware(GzipMiddleware, minimum_size=1000)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # 臻护请求 ID 中间件（透传/注入 X-Request-ID）
 app.add_middleware(RequestIdMiddleware)

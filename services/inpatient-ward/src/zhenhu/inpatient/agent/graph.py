@@ -105,6 +105,12 @@ def after_monitoring(state: InpatientState) -> str:
     if "daily_round_note" in chain and state.get("discharge_decision") == "approved":
         return "discharge"
     
+    # 条件5b: 查房已完成+无体征数据→结束(防无限loop); 有体征→继续监测
+    if "daily_round_note" in chain and "risk_assessment" in chain:
+        if not vs:
+            return END  # type: ignore
+        return "monitoring"
+    
     # 条件6: 已分层未查房 → daily_round
     if "risk_assessment" in chain and "daily_round_note" not in chain:
         return "daily_round"
@@ -175,6 +181,7 @@ def build_inpatient_graph():
             "transfer": "transfer",
             "lab_review": "lab_review",
             "medication": "medication_adjust",
+            END: END,
         },
     )
 

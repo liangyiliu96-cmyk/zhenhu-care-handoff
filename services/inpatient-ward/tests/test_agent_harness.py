@@ -117,8 +117,8 @@ def test_event_routing_after_monitoring_discharge():
 
 
 def test_event_routing_after_monitoring_stay():
-    """查房完成+未approved → monitoring。"""
-    from zhenhu.inpatient.agent.graph import after_monitoring
+    """查房完成+未approved+无新体征→结束循环(防无限loop)。"""
+    from zhenhu.inpatient.agent.graph import after_monitoring, END
 
     state = {
         "document_chain": ["intake_note", "risk_assessment", "daily_round_note"],
@@ -130,7 +130,7 @@ def test_event_routing_after_monitoring_stay():
         "risk_level": "low",
     }
     result = after_monitoring(state)
-    assert result == "monitoring"
+    assert result == END  # 无体征+查房已完成→安全退出
 
 
 def test_event_routing_after_monitoring_to_triage():
