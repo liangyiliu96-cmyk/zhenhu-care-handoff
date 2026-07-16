@@ -53,6 +53,7 @@ class CaseResponse(BaseModel):
     case_id: str = Field(..., description="病例 ID")
     state: str = Field(..., description="当前状态")
     input_snapshot_id: str | None = Field(default=None, description="输入快照标识")
+    patient_ref: str | None = Field(default=None, description="患者引用（来自 FHIR 适配层）")
     workflow_version: str = Field(default="0.2.0", description="工作流版本")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="最后更新时间")

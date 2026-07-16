@@ -9,6 +9,10 @@ cd "$ROOT"
 
 echo "=== 臻护后端启动 ==="
 
+# 跨服务 URL 配置
+export KNOWLEDGE_URL=http://localhost:8200
+export FHIR_URL=http://localhost:8300
+
 # 安装依赖（仅首次需要）
 pip install -e packages/clinical-contracts-py -q 2>/dev/null || true
 pip install -e services/workflow-engine -q 2>/dev/null || true

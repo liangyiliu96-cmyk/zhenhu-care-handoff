@@ -13,8 +13,11 @@ POST /cases/{case_id}/reconcile — 重新核实（知识变更后）
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,11 +40,30 @@ from zhenhu.workflow.state_machine import CaseStateMachine, StateMachineError
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
+# ============================================================================
+# 跨服务 URL 配置
+# ============================================================================
+
+KNOWLEDGE_URL = os.environ.get("KNOWLEDGE_URL", "http://localhost:8200")
+FHIR_URL = os.environ.get("FHIR_URL", "http://localhost:8300")
+
 
 # 依赖注入：获取当前 request_id
 def get_request_id(request: Request) -> str:
     """从请求上下文中提取 request_id。"""
     return getattr(request.state, "request_id", "unknown")
+
+
+# ============================================================================
+# 分析关键词 → 风险类别映射
+# ============================================================================
+
+_KEYWORD_CATEGORY_MAP: dict[str, str] = {
+    "药物": "medication_allergy",
+    "过敏": "medication_allergy",
+    "检验": "followup_window",
+    "随访": "followup_window",
+}
 
 
 # 模拟分析引擎（阶段 0 占位，后续由 Agent 编排替代）
@@ -79,12 +101,84 @@ _MOCK_RISKS: list[dict] = [
 ]
 
 
+async def _fetch_knowledge_for_keyword(
+    client: httpx.AsyncClient, keyword: str
+) -> tuple[str, dict | None]:
+    """阶段 0: 通过知识编排服务获取检索结果（单次调用）。
+
+    Args:
+        client: 共享的 httpx 异步客户端。
+        keyword: 检索关键词（如 "药物"、"过敏"、"检验"、"随访"）。
+
+    Returns:
+        tuple[str, dict | None]: (keyword, citation_dict)；
+                     搜索失败或无结果时 citation_dict 为 None。
+    """
+    try:
+        resp = await client.get(
+            f"{KNOWLEDGE_URL}/knowledge/search",
+            params={"q": keyword},
+        )
+        if resp.status_code == 200:
+            body = resp.json()
+            results = body.get("data", {}).get("results", [])
+            if results:
+                first = results[0]
+                return keyword, {
+                    "citation_excerpt": (first.get("text", "") or "")[:200],
+                    "citation_document_id": first.get("document_id", ""),
+                    "evidence_snippet": (first.get("text", "") or "")[:100],
+                }
+    except Exception:
+        # 搜索失败时保留原有 mock evidence，不阻断分析流程
+        pass
+    return keyword, None
+
+
 async def _analyse_and_generate_risks(
     session: AsyncSession, sm: CaseStateMachine, case: Case
 ) -> list[RiskItem]:
-    """模拟分析：生成风险项并写入数据库。"""
+    """阶段 0: 通过知识编排服务获取检索结果，生成风险项并写入数据库。
+
+    并发对每个内置关键词调 knowledge-orchestrator 搜索。
+    搜索成功时用返回的 citation 信息填充风险项的 evidence；
+    搜索失败时保留原有 mock evidence，不阻断分析流程。
+    """
+    # ---- 阶段 0: 通过知识编排服务获取检索结果 ----
+    keywords = ["药物", "过敏", "检验", "随访"]
+    kw_citations: dict[str, dict] = {}
+
+    async with httpx.AsyncClient(timeout=2.0) as client:
+        tasks = [_fetch_knowledge_for_keyword(client, kw) for kw in keywords]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for result in results:
+            if isinstance(result, tuple):
+                kw, cit = result
+                if cit is not None:
+                    kw_citations[kw] = cit
+
+    # 按类别聚合：同一类别的多个关键词取第一个命中的结果
+    category_citation: dict[str, dict] = {}
+    for kw, cit in kw_citations.items():
+        cat = _KEYWORD_CATEGORY_MAP.get(kw)
+        if cat and cat not in category_citation:
+            category_citation[cat] = cit
+
+    # ---- 生成风险项 ----
     risks: list[RiskItem] = []
     for mock_risk in _MOCK_RISKS:
+        cat = mock_risk["category"]
+        # 搜索成功时用真实 citation 填充 evidence；搜索失败时保留 mock evidence
+        if cat in category_citation:
+            cit = category_citation[cat]
+            evidence_snippet = cit["evidence_snippet"]
+            citation_excerpt = cit["citation_excerpt"]
+            citation_document_id = cit["citation_document_id"]
+        else:
+            evidence_snippet = mock_risk["evidence_snippet"]
+            citation_excerpt = mock_risk["citation_excerpt"]
+            citation_document_id = mock_risk["citation_document_id"]
+
         risk = RiskItem(
             case_id=case.case_id,
             category=mock_risk["category"],
@@ -93,14 +187,41 @@ async def _analyse_and_generate_risks(
             title=mock_risk["title"],
             summary=mock_risk["summary"],
             status="pending",
-            evidence_snippet=mock_risk["evidence_snippet"],
-            citation_excerpt=mock_risk["citation_excerpt"],
-            citation_document_id=mock_risk["citation_document_id"],
+            evidence_snippet=evidence_snippet,
+            citation_excerpt=citation_excerpt,
+            citation_document_id=citation_document_id,
         )
         session.add(risk)
         risks.append(risk)
     await session.flush()
     return risks
+
+
+async def _fetch_patient_from_fhir(patient_id: str) -> str | None:
+    """阶段 0: 通过 FHIR 适配层获取患者数据。
+
+    调用 GET {FHIR_URL}/fhir/Patient/{patient_id} 获取患者姓名引用。
+    成功时返回脱敏后的患者姓名；失败时返回 None。
+
+    Args:
+        patient_id: FHIR 患者 ID（以 pat- 开头）。
+
+    Returns:
+        str | None: 患者姓名 token（脱敏），失败时返回 None。
+    """
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(f"{FHIR_URL}/fhir/Patient/{patient_id}")
+            if resp.status_code == 200:
+                body = resp.json()
+                data = body.get("data")
+                if data:
+                    name_list = data.get("name", [])
+                    if name_list:
+                        return name_list[0].get("text", None)
+    except Exception:
+        pass
+    return None
 
 
 # ============================================================================
@@ -120,8 +241,21 @@ async def create_case(
     """
     request_id = get_request_id(request)
 
+    # ---- 阶段 0: 通过 FHIR 适配层获取患者数据 ----
+    patient_ref: str | None = None
+    if body.input_snapshot_id and body.input_snapshot_id.startswith("pat-"):
+        fhir_name = await _fetch_patient_from_fhir(body.input_snapshot_id)
+        if fhir_name:
+            patient_ref = fhir_name
+        else:
+            # 失败时用 snapshot_id 作为 fallback
+            patient_ref = body.input_snapshot_id
+    else:
+        patient_ref = body.input_snapshot_id
+
     case = Case(
         input_snapshot_id=body.input_snapshot_id,
+        patient_ref=patient_ref,
         state="draft",
         workflow_version="0.2.0",
     )
@@ -162,7 +296,7 @@ async def analyse_case(
             detail="执行数据质量规则、确定性规则和知识检索",
         )
 
-        # 模拟分析：生成风险项
+        # 分析：生成风险项（阶段 0: 通过知识编排服务获取检索结果）
         risks = await _analyse_and_generate_risks(session, sm, case)
 
         # 转移 → review_pending
@@ -523,7 +657,7 @@ async def reconcile_case(
             await session.delete(risk)
         await session.flush()
 
-        # 2. 重新执行分析：生成新风险项
+        # 2. 重新执行分析：生成新风险项（阶段 0: 通过知识编排服务获取检索结果）
         new_risks = await _analyse_and_generate_risks(session, sm, case)
 
         # 3. 状态转移：knowledge_changed → review_pending

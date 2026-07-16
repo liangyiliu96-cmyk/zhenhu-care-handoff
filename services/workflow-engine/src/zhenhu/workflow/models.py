@@ -56,6 +56,7 @@ class Case(Base):
     )
     state: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
     input_snapshot_id: Mapped[str] = mapped_column(String(64), nullable=True)
+    patient_ref: Mapped[str | None] = mapped_column(String(256), nullable=True)
     workflow_version: Mapped[str] = mapped_column(
         String(32), nullable=False, default="0.2.0"
     )

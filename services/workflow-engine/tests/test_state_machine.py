@@ -531,3 +531,48 @@ class TestFastAPIEndpoints:
         assert "data" in data
         assert "error" in data
         assert data["error"] is None
+
+
+# ============================================================================
+# 环境变量测试
+# ============================================================================
+
+
+class TestEnvVars:
+    """跨服务环境变量读取测试。"""
+
+    def test_knowledge_url_default(self):
+        """KNOWLEDGE_URL 环境变量默认值应为 http://localhost:8200。"""
+        from zhenhu.workflow.routes.cases import KNOWLEDGE_URL
+        assert KNOWLEDGE_URL == "http://localhost:8200"
+
+    def test_fhir_url_default(self):
+        """FHIR_URL 环境变量默认值应为 http://localhost:8300。"""
+        from zhenhu.workflow.routes.cases import FHIR_URL
+        assert FHIR_URL == "http://localhost:8300"
+
+    def test_knowledge_url_from_env(self, monkeypatch):
+        """KNOWLEDGE_URL 应从环境变量读取。"""
+        monkeypatch.setenv("KNOWLEDGE_URL", "http://knowledge-test:9999")
+        import importlib
+        from zhenhu.workflow.routes import cases as cases_mod
+        importlib.reload(cases_mod)
+        try:
+            assert cases_mod.KNOWLEDGE_URL == "http://knowledge-test:9999"
+        finally:
+            # 还原默认值
+            monkeypatch.delenv("KNOWLEDGE_URL", raising=False)
+            importlib.reload(cases_mod)
+
+    def test_fhir_url_from_env(self, monkeypatch):
+        """FHIR_URL 应从环境变量读取。"""
+        monkeypatch.setenv("FHIR_URL", "http://fhir-test:8888")
+        import importlib
+        from zhenhu.workflow.routes import cases as cases_mod
+        importlib.reload(cases_mod)
+        try:
+            assert cases_mod.FHIR_URL == "http://fhir-test:8888"
+        finally:
+            # 还原默认值
+            monkeypatch.delenv("FHIR_URL", raising=False)
+            importlib.reload(cases_mod)
