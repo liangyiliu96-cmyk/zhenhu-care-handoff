@@ -528,3 +528,108 @@ class TestEndToEnd:
         # analyse 只能在 draft/failed/knowledge_changed 状态发起
         # review_pending 状态下 analyse 会报 ILLEGAL_TRANSITION
         # 这是预期的——reconcile 已经生成了新的风险项
+
+
+# ============================================================================
+# 测试：GET /cases/{case_id} 只读查询端点
+# ============================================================================
+
+
+class TestGetCase:
+    """GET /cases/{case_id} 只读查询病例概览测试。"""
+
+    @pytest.mark.asyncio
+    async def test_get_case_200(self, client):
+        """GET /cases/{case_id} 返回 200 并包含完整概览数据。"""
+        case_id, draft_id = await full_flow_to_task_draft(client)
+
+        resp = await client.get(f"/cases/{case_id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["error"] is None
+
+        payload = data["data"]
+        # 基本字段
+        assert payload["case_id"] == case_id
+        assert payload["state"] == "task_draft"
+        assert "patient_ref" in payload
+
+        # risks 列表
+        assert isinstance(payload["risks"], list)
+        assert len(payload["risks"]) == 3
+        for risk in payload["risks"]:
+            assert "risk_id" in risk
+            assert "category" in risk
+            assert "severity" in risk
+            assert "status" in risk
+            assert "title" in risk
+
+        # task_draft 存在
+        assert payload["task_draft"] is not None
+        assert payload["task_draft"]["case_id"] == case_id
+        assert "draft_id" in payload["task_draft"]
+
+        # audit_event_count > 0（完整流程至少包含多条审计事件）
+        assert isinstance(payload["audit_event_count"], int)
+        assert payload["audit_event_count"] > 0
+
+    @pytest.mark.asyncio
+    async def test_get_case_404(self, client):
+        """GET /cases/{case_id} 不存在的病例返回 404。"""
+        resp = await client.get("/cases/NONEXIST-CASE-ID")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_get_case_field_completeness(self, client):
+        """GET /cases/{case_id} 验证响应包含所有必需字段。"""
+        # 创建病例但只做分析（不生成任务草稿）
+        create_resp = await client.post(
+            "/cases", json={"input_snapshot_id": "snapshot-fields-test"}
+        )
+        assert create_resp.status_code == 201
+        case_id = create_resp.json()["data"]["case_id"]
+
+        # 分析
+        analyse_resp = await client.post(f"/cases/{case_id}/analyse")
+        assert analyse_resp.status_code == 200
+
+        resp = await client.get(f"/cases/{case_id}")
+        assert resp.status_code == 200
+        payload = resp.json()["data"]
+
+        # 顶层必填字段
+        required_fields = [
+            "case_id", "state", "patient_ref",
+            "workflow_version", "created_at", "updated_at",
+            "risks", "task_draft", "audit_event_count",
+        ]
+        for field in required_fields:
+            assert field in payload, f"缺少字段: {field}"
+
+        # task_draft 应为 None（尚未生成）
+        assert payload["task_draft"] is None
+
+        # risks 应有 3 条
+        assert len(payload["risks"]) == 3
+
+        # audit_event_count >= 2（创建时的 draft 也有审计吗？不，create 不写审计。
+        # analyse 写了 2 条：analysis_started + analysis_completed）
+        assert payload["audit_event_count"] >= 2
+
+    @pytest.mark.asyncio
+    async def test_get_case_freshly_created(self, client):
+        """GET /cases/{case_id} 刚创建的病例，无风险无草稿无审计。"""
+        create_resp = await client.post(
+            "/cases", json={"input_snapshot_id": "snapshot-fresh"}
+        )
+        assert create_resp.status_code == 201
+        case_id = create_resp.json()["data"]["case_id"]
+
+        resp = await client.get(f"/cases/{case_id}")
+        assert resp.status_code == 200
+        payload = resp.json()["data"]
+
+        assert payload["state"] == "draft"
+        assert payload["risks"] == []
+        assert payload["task_draft"] is None
+        assert payload["audit_event_count"] == 0

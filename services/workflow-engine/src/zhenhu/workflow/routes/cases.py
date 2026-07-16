@@ -1,5 +1,6 @@
 """病例相关 API 端点。
 
+GET  /cases/{case_id}          — 查询病例概览
 POST /cases                 — 创建病例
 POST /cases/{case_id}/analyse    — 发起分析
 POST /cases/{case_id}/risks/{risk_id}/review — 审核风险项
@@ -19,9 +20,10 @@ import os
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from zhenhu.workflow.models import Case, RiskItem, TaskDraft, get_session
+from zhenhu.workflow.models import AuditEvent, Case, RiskItem, TaskDraft, get_session
 from zhenhu.workflow.schemas import (
     AnalyseResponse,
     CaseCreate,
@@ -272,6 +274,61 @@ async def create_case(
     await session.commit()
 
     resp = CaseResponse.model_validate(case)
+    return UnifiedResponse(request_id=request_id, data=resp, error=None)
+
+
+@router.get("/{case_id}")
+async def get_case(
+    case_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[CaseResponse]:
+    """查询病例概览。
+
+    返回病例基本状态、风险项列表、任务草稿（若存在）和审计事件数量。
+    case 不存在时返回 404。
+    """
+    request_id = get_request_id(request)
+
+    # 1. 查 Case
+    result = await session.execute(
+        select(Case).where(Case.case_id == case_id)
+    )
+    case = result.scalar_one_or_none()
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"Case not found: {case_id}")
+
+    # 2. 查 RiskItems
+    risk_result = await session.execute(
+        select(RiskItem).where(RiskItem.case_id == case_id)
+    )
+    risks = list(risk_result.scalars().all())
+
+    # 3. 查 TaskDraft（若有）
+    draft_result = await session.execute(
+        select(TaskDraft).where(TaskDraft.case_id == case_id)
+    )
+    draft = draft_result.scalar_one_or_none()
+
+    # 4. 统计 AuditEvents
+    count_result = await session.execute(
+        select(func.count(AuditEvent.id)).where(AuditEvent.case_id == case_id)
+    )
+    audit_event_count = count_result.scalar() or 0
+
+    # 组装响应
+    resp = CaseResponse(
+        case_id=case.case_id,
+        state=case.state,
+        input_snapshot_id=case.input_snapshot_id,
+        patient_ref=case.patient_ref,
+        workflow_version=case.workflow_version,
+        created_at=case.created_at,
+        updated_at=case.updated_at,
+        risks=[RiskItemResponse.model_validate(r) for r in risks],
+        task_draft=TaskDraftResponse.model_validate(draft) if draft else None,
+        audit_event_count=audit_event_count,
+    )
     return UnifiedResponse(request_id=request_id, data=resp, error=None)
 
 

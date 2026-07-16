@@ -48,7 +48,11 @@ class CaseCreate(BaseModel):
 
 
 class CaseResponse(BaseModel):
-    """病例响应体。"""
+    """病例响应体。
+
+    用于创建、状态变更等写入操作的响应，也用于 GET 只读查询。
+    只读查询时会填充 risks、task_draft、audit_event_count 字段。
+    """
 
     case_id: str = Field(..., description="病例 ID")
     state: str = Field(..., description="当前状态")
@@ -57,6 +61,13 @@ class CaseResponse(BaseModel):
     workflow_version: str = Field(default="0.2.0", description="工作流版本")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="最后更新时间")
+    risks: list[RiskItemResponse] = Field(
+        default_factory=list, description="风险项列表（GET 查询时填充）"
+    )
+    task_draft: TaskDraftResponse | None = Field(
+        default=None, description="任务草稿（GET 查询时填充，若存在）"
+    )
+    audit_event_count: int = Field(default=0, description="审计事件数量（GET 查询时填充）")
 
     model_config = {"from_attributes": True}
 
