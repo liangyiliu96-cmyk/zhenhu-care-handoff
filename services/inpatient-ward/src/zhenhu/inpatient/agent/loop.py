@@ -17,13 +17,7 @@ class PatientAgentLoop(_BaseAgentLoop[T]):
     """住院域 AgentLoop 扩展——新增 gen_input 策略路由和 planTurn 双分支。"""
 
     def gen_input(self, strategy: str) -> dict:
-        """策略注入: 根据入口策略生成初始 State。
-
-        策略路由:
-        - "new_admission": 加载病种模板, 初始化空白 State(phase=admission)
-        - "monitoring_resume": 恢复当前患者状态, 继续监测循环
-        - "discharge_initiate": 基于当前状态, 强制设置 discharge_decision=approved
-        """
+        """策略注入: 根据入口策略生成初始 State。"""
         from .nodes import load_template  # delay-import
 
         if strategy == "new_admission":
@@ -84,7 +78,7 @@ class PatientAgentLoop(_BaseAgentLoop[T]):
             entry_strategy=state.get("phase", "unknown"),
         )
         try:
-            result = await inpatient_graph.ainvoke(state, {"configurable": {"thread_id": self._patient_id or "default"}})
+            result = await inpatient_graph.ainvoke(state, {"configurable": {"thread_id": getattr(self, '_patient_id', None) or "default"}})
             trace.node_path = result.get("document_chain", [])
             trace.completed_at = datetime.now().isoformat()
             self._traces.append(trace)
@@ -114,7 +108,9 @@ def get_patient_loop(patient_id: str) -> PatientAgentLoop:
     """为每个患者创建独立的 AgentLoop 实例（线程安全）。"""
     with _patient_loops_lock:
         if patient_id not in _patient_loops:
-            _patient_loops[patient_id] = PatientAgentLoop()
+            loop = PatientAgentLoop()
+            loop._patient_id = patient_id
+            _patient_loops[patient_id] = loop
         return _patient_loops[patient_id]
 
 
