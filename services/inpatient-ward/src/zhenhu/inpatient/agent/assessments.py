@@ -194,3 +194,98 @@ class AdmissionAssessments(BaseModel):
         if self.dvt_risk and self.dvt_risk.needs_prophylaxis:
             result.append(f"{'Padua' if self.dvt_risk.patient_type=='medical' else 'Caprini'}={self.dvt_risk.padua_score}分，需VTE预防")
         return result
+
+
+# ── M12: 老年综合评估 CGA ──
+
+class CognitiveScreening(BaseModel):
+    """认知功能筛查 MMSE 简化版。≥27=正常, 21-26=轻度, 10-20=中度, <10=重度。"""
+    orientation: int = Field(10, ge=0, le=10)
+    memory: int = Field(6, ge=0, le=6)
+    attention: int = Field(5, ge=0, le=5)
+    language: int = Field(8, ge=0, le=8)
+    visuospatial: int = Field(1, ge=0, le=1)
+
+    @property
+    def total_score(self) -> int:
+        return self.orientation + self.memory + self.attention + self.language + self.visuospatial
+
+    @property
+    def impairment_level(self) -> str:
+        s = self.total_score
+        if s >= 27: return "normal"
+        elif s >= 21: return "mild"
+        elif s >= 10: return "moderate"
+        return "severe"
+
+
+class FunctionalAssessment(BaseModel):
+    """Barthel ADL (0-100) + Lawton IADL (0-8)。"""
+    feeding: int = Field(10, ge=0, le=10)
+    bathing: int = Field(5, ge=0, le=5)
+    grooming: int = Field(5, ge=0, le=5)
+    dressing: int = Field(10, ge=0, le=10)
+    bowels: int = Field(10, ge=0, le=10)
+    bladder: int = Field(10, ge=0, le=10)
+    toilet_use: int = Field(10, ge=0, le=10)
+    transfers: int = Field(15, ge=0, le=15)
+    mobility: int = Field(15, ge=0, le=15)
+    stairs: int = Field(10, ge=0, le=10)
+    phone_use: int = Field(1, ge=0, le=1)
+    shopping: int = Field(1, ge=0, le=1)
+    food_prep: int = Field(1, ge=0, le=1)
+    housekeeping: int = Field(1, ge=0, le=1)
+    laundry: int = Field(1, ge=0, le=1)
+    transportation: int = Field(1, ge=0, le=1)
+    medications_mgmt: int = Field(1, ge=0, le=1)
+    finances: int = Field(1, ge=0, le=1)
+
+    @property
+    def adl_score(self) -> int:
+        return (self.feeding + self.bathing + self.grooming + self.dressing +
+                self.bowels + self.bladder + self.toilet_use + self.transfers +
+                self.mobility + self.stairs)
+
+    @property
+    def iadl_score(self) -> int:
+        return (self.phone_use + self.shopping + self.food_prep +
+                self.housekeeping + self.laundry + self.transportation +
+                self.medications_mgmt + self.finances)
+
+    @property
+    def dependency_level(self) -> str:
+        adl = self.adl_score
+        if adl >= 80: return "independent"
+        elif adl >= 60: return "mild_dependency"
+        elif adl >= 40: return "moderate_dependency"
+        return "severe_dependency"
+
+
+class ComprehensiveGeriatricAssessment(BaseModel):
+    """老年综合评估(≥65岁)。CGA=认知+功能+老年综合征。"""
+    cognitive: CognitiveScreening | None = None
+    functional: FunctionalAssessment | None = None
+    age: int = 0
+    polypharmacy: bool = False
+    visual_impairment: bool = False
+    hearing_impairment: bool = False
+    social_isolation: bool = False
+
+    @property
+    def applicable(self) -> bool:
+        return self.age >= 65
+
+    @property
+    def alerts(self) -> list[str]:
+        result = []
+        if self.cognitive and self.cognitive.impairment_level in ("moderate", "severe"):
+            result.append(f"认知障碍({self.cognitive.impairment_level})，建议神经内科会诊")
+        if self.functional and self.functional.dependency_level in ("moderate_dependency", "severe_dependency"):
+            result.append(f"功能依赖({self.functional.dependency_level})，建议康复+照护计划")
+        if self.polypharmacy:
+            result.append("多重用药(≥5种)，建议临床药师审核")
+        if self.visual_impairment or self.hearing_impairment:
+            result.append("感官障碍，需沟通辅助")
+        if self.social_isolation:
+            result.append("社会隔离风险，建议社工介入")
+        return result

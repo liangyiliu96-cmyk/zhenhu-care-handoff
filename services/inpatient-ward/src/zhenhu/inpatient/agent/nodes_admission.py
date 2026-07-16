@@ -5,6 +5,7 @@ node_medication_reconciliation 及辅助函数。
 """
 
 import json
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -12,6 +13,8 @@ from typing import Callable
 
 from .harness import normalize_template
 from zhenhu.contracts.agent import get_ai_provider
+
+logger = logging.getLogger("zhenhu.inpatient")
 
 # 合并迁入修正B: 不依赖 app.domain.templates, 直接加载 disease_templates/
 _TEMPLATE_DIR = Path(os.path.join(os.path.dirname(__file__), "..", "disease_templates")).resolve()
@@ -220,6 +223,7 @@ async def node_admission(state: dict) -> dict:
     """
     try:
         patient_id = state.get("patient_id", "unknown")
+        logger.info("node_admission: start, patient=%s", patient_id)
         template = state.get("disease_template", {})
         if not template:
             template = load_template("hypertension")
@@ -368,6 +372,8 @@ async def node_triage(state: dict) -> dict:
     P0-5修复: 基于实际患者数据逐条匹配模板风险因子，而非用模板定义数量。
     P0-6修复: 写入 risk_assessment 到 document_chain，修复路由不可达。
     """
+    patient_id = state.get("patient_id", "unknown")
+    logger.info("node_triage: start, patient=%s", patient_id)
     template = state.get("disease_template", {})
     patient_data = state.get("patient_data", {})
     patient_history = state.get("patient_history", {})
@@ -413,20 +419,30 @@ async def node_medication_reconciliation(state: dict) -> dict:
     patient_id = state.get("patient_id", "")
     template = state.get("disease_template", {})
 
-    # 1. 调 fhir-adapter 获取患者历史用药
-    from ..hooks.zhenhu_bridge import FHIR_URL
-    import httpx
     pre_admission_meds = []
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            # 查患者的 MedicationRequest 历史
-            resp = await client.get(f"{FHIR_URL}/fhir/Patient/{patient_id}/CarePlan")
-            if resp.status_code == 200:
-                data = resp.json().get("data", {})
-                # fixture: 从预置数据提取
-                pre_admission_meds = data.get("medications", [])
-    except Exception:
-        pass
+        from zhenhu.fhir.models import async_session_factory as fhir_asf
+        from zhenhu.fhir.models import CarePlan as FhirCarePlan
+        from sqlalchemy import select as sa_select
+        async with fhir_asf() as session:
+            result = await session.execute(
+                sa_select(FhirCarePlan).where(FhirCarePlan.patient_id == patient_id)
+            )
+            plans = result.scalars().all()
+            for p in plans:
+                if hasattr(p, 'medications'):
+                    pre_admission_meds.extend(p.medications or [])
+    except (ImportError, Exception):
+        import httpx
+        try:
+            from ..hooks.zhenhu_bridge import FHIR_URL
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(f"{FHIR_URL}/fhir/Patient/{patient_id}/CarePlan")
+                if resp.status_code == 200:
+                    data = resp.json().get("data", {})
+                    pre_admission_meds = data.get("medications", [])
+        except Exception:
+            pass
 
     # 2. 从病种模板读取标准出院用药
     handoff_meds = [

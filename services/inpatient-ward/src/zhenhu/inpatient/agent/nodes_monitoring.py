@@ -5,10 +5,13 @@ node_lab_review, node_transfer, _analyze_vs_trend。
 """
 
 import json
+import logging
 from datetime import datetime
 
 from .nodes_admission import _check_discharge_criteria
 from zhenhu.contracts.agent import get_ai_provider
+
+logger = logging.getLogger("zhenhu.inpatient")
 
 
 async def node_monitoring(state: dict) -> dict:
@@ -16,6 +19,8 @@ async def node_monitoring(state: dict) -> dict:
     
     P0-1修复: 不再按体征数量批准出院。
     """
+    patient_id = state.get("patient_id", "unknown")
+    logger.info("node_monitoring: start, patient=%s", patient_id)
     template = state.get("disease_template", {})
     vs = state.get("vital_signs", [])
     risk = state.get("risk_level", "low")
@@ -37,6 +42,8 @@ async def node_monitoring(state: dict) -> dict:
 
 async def node_daily_round(state: dict) -> dict:
     """P1修复: SOAP格式查房模板。Phase5: LLM生成真实临床内容（含回退）。"""
+    patient_id = state.get("patient_id", "unknown")
+    logger.info("node_daily_round: start, patient=%s", patient_id)
     vs = state.get("vital_signs", [])
     labs = state.get("lab_results", [])
     meds = state.get("medication_adjustments", [])
@@ -70,6 +77,7 @@ async def node_daily_round(state: dict) -> dict:
             assessment["response_to_treatment"] = llm_result.get("response_to_treatment", assessment["response_to_treatment"])
             plan["next_labs"] = llm_result.get("next_labs", plan["next_labs"])
     except Exception:
+        logger.warning("node_daily_round: LLM failed, patient=%s", state.get("patient_id", "unknown"))
         pass  # LLM失败→使用默认占位，不阻断临床流程
 
     round_note = {
@@ -216,6 +224,8 @@ async def node_lab_review(state: dict) -> dict:
 
 async def node_transfer(state: dict) -> dict:
     """P1修复: 增加疾病特异性转科标准，替代仅靠高危+体征计数。"""
+    patient_id = state.get("patient_id", "unknown")
+    logger.info("node_transfer: start, patient=%s", patient_id)
     risk_level = state.get("risk_level", "low")
     vs = state.get("vital_signs", [])
     template = state.get("disease_template", {})

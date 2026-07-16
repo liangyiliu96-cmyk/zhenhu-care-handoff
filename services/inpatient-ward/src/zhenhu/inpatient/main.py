@@ -9,6 +9,7 @@ lifespan + async engine + 路由注册。
 
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -29,6 +30,9 @@ from .routes.discharge import router as discharge_router
 from .routes.admin import router as admin_router
 
 VERSION = "0.3.0"
+
+# 结构化日志配置
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 
 # 阶段5: DeepSeek LLM 接入（API key 通过环境变量 DEEPSEEK_API_KEY 传入；不可用时回退 RuleBasedProvider）
 deepseek_key = os.environ.get("DEEPSEEK_API_KEY", "")
@@ -100,6 +104,7 @@ async def health_check() -> dict:
     """健康检查端点。"""
     return {
         "status": "ok",
+        "service": "inpatient-ward",
         "version": VERSION,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

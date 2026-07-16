@@ -64,6 +64,7 @@ async def health_check() -> dict:
     """
     return {
         "status": "ok",
+        "service": "knowledge-orchestrator",
         "version": VERSION,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

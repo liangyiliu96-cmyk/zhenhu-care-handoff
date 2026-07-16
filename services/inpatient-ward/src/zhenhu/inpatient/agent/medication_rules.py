@@ -355,3 +355,63 @@ def check_allergy_contraindications(
                     break
     
     return results
+
+
+# ── 药物-疾病禁忌 ──
+
+class DrugDiseaseRule(BaseModel):
+    drug: str
+    disease_condition: str
+    severity: Literal["contraindicated", "major", "moderate"]
+    clinical_consequence: str
+    recommendation: str
+    evidence_level: str
+    source: str
+
+
+DRUG_DISEASE_RULES: list[DrugDiseaseRule] = [
+    DrugDiseaseRule(drug="华法林", disease_condition="肝硬化/严重肝病", severity="contraindicated",
+        clinical_consequence="INR不可预测，出血风险极高",
+        recommendation="避免使用，考虑低分子肝素", evidence_level="A", source="ACCP抗栓指南"),
+    DrugDiseaseRule(drug="二甲双胍", disease_condition="eGFR<30", severity="contraindicated",
+        clinical_consequence="乳酸性酸中毒风险",
+        recommendation="禁用二甲双胍，换用其他降糖药", evidence_level="A", source="KDIGO CKD指南"),
+    DrugDiseaseRule(drug="NSAID", disease_condition="心力衰竭", severity="major",
+        clinical_consequence="钠水潴留→心衰恶化",
+        recommendation="避免NSAID，首选对乙酰氨基酚", evidence_level="A", source="ESC心衰指南2021"),
+    DrugDiseaseRule(drug="NSAID", disease_condition="CKD", severity="contraindicated",
+        clinical_consequence="急性肾损伤",
+        recommendation="禁用NSAID", evidence_level="A", source="KDIGO CKD指南"),
+    DrugDiseaseRule(drug="ACEi", disease_condition="双侧肾动脉狭窄", severity="contraindicated",
+        clinical_consequence="急性肾衰竭",
+        recommendation="禁用ACEi/ARB", evidence_level="A", source="中国高血压防治指南"),
+    DrugDiseaseRule(drug="螺内酯", disease_condition="高钾血症", severity="contraindicated",
+        clinical_consequence="致命性高钾血症",
+        recommendation="停用螺内酯，纠正高钾后再评估", evidence_level="A", source="ESC心衰指南"),
+    DrugDiseaseRule(drug="苯二氮䓬类", disease_condition="COPD/呼吸衰竭", severity="major",
+        clinical_consequence="呼吸抑制",
+        recommendation="避免使用", evidence_level="B", source="GOLD COPD指南"),
+    DrugDiseaseRule(drug="糖皮质激素", disease_condition="未控制的糖尿病", severity="major",
+        clinical_consequence="严重高血糖",
+        recommendation="加强血糖监测，调整降糖方案", evidence_level="A", source="中国糖尿病指南"),
+]
+
+
+def detect_drug_disease_contraindications(
+    med_list: list[str], conditions: list[str], egfr: float | None = None
+) -> list[dict]:
+    """检测药物-疾病禁忌。"""
+    results = []
+    for rule in DRUG_DISEASE_RULES:
+        drug_matched = any(rule.drug.lower() in m.lower() for m in med_list)
+        condition_matched = any(c.lower() in rule.disease_condition.lower() for c in conditions)
+        if egfr is not None and "egfr" in rule.disease_condition.lower():
+            if "<30" in rule.disease_condition.lower() and egfr < 30:
+                condition_matched = True
+        if drug_matched and condition_matched:
+            results.append({
+                "drug": rule.drug, "condition": rule.disease_condition,
+                "severity": rule.severity, "consequence": rule.clinical_consequence,
+                "recommendation": rule.recommendation, "evidence": rule.evidence_level,
+            })
+    return results

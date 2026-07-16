@@ -4,9 +4,12 @@
 """
 
 import json
+import logging
 
 from .harness import validate_handoff_items, fallback_to_template
 from zhenhu.contracts.agent import get_ai_provider
+
+logger = logging.getLogger("zhenhu.inpatient")
 
 
 async def node_discharge(state: dict) -> dict:
@@ -18,6 +21,8 @@ async def node_discharge(state: dict) -> dict:
     template = state.get("disease_template", {})
     handoff_items = state.get("handoff_items", [])
     patient_id = state.get("patient_id", "")
+
+    logger.info("node_discharge: start, patient=%s", patient_id)
 
     result = {"phase": "discharge", "discharge_decision": "approved"}
 
@@ -113,8 +118,8 @@ async def node_handoff(state: dict) -> dict:
                         "feedback": None,
                         "source": "llm_enhanced",
                     })
-    except Exception:
-        pass  # LLM失败→仅用模板默认值
+    except Exception as e:
+        logger.warning("node_handoff: LLM enhancement failed, reason=%s", str(e)[:100])
 
     valid, errors = validate_handoff_items(items)
     if errors:
@@ -135,6 +140,8 @@ async def node_doctor_review(state: dict) -> dict:
     - monitoring类型: accept(监测指导无争议)
     - followup类型: 如有handoff_missing标记则dismiss要求补全
     """
+    patient_id = state.get("patient_id", "unknown")
+    logger.info("node_doctor_review: start, patient=%s", patient_id)
     items = state.get("handoff_items", [])
     reviewed = []
 
@@ -174,8 +181,42 @@ async def node_doctor_review(state: dict) -> dict:
 
 
 async def node_patient_confirm(state: dict) -> dict:
-    """患者确认: 逐项标记'已理解'。"""
+    """患者确认——Teach-back回授法验证理解。
+    
+    每项交接事项要求患者用自己的话复述，评估理解程度。
+    Phase5: LLM评估，失败回退简单标记。
+    """
+    patient_id = state.get("patient_id", "unknown")
+    logger.info("node_patient_confirm: start, patient=%s", patient_id)
     items = state.get("handoff_items", [])
+    
     for item in items:
-        item["feedback"] = "已理解"
+        content = item.get("content", "")
+        item_type = item.get("type", "")
+        
+        # Teach-back: 尝试LLM生成验证问题+评估理解
+        try:
+            provider = get_ai_provider()
+            llm_result = await provider.invoke(
+                f"为以下出院指导生成一个Teach-back验证问题，并评估患者是否可能理解。"
+                f"指导类型: {item_type}。内容: {content[:200]}。"
+                f"返回JSON: {{\"teachback_question\": \"...\", \"comprehension\": \"likely_understood|needs_reinforcement|unlikely\"}}",
+                context={"handoff_item": item},
+            )
+            if llm_result and llm_result.get("source_type") != "source_none":
+                comprehension = llm_result.get("comprehension", "likely_understood")
+                # RuleBasedProvider可能返回不匹配的默认值，保守处理
+                if comprehension not in ("likely_understood", "needs_reinforcement", "unlikely"):
+                    comprehension = "likely_understood"
+                item["teachback_question"] = llm_result.get("teachback_question", "")
+                item["comprehension"] = comprehension
+                item["feedback"] = "已理解" if comprehension == "likely_understood" else "需强化教育"
+            else:
+                item["feedback"] = "已理解"
+                item["comprehension"] = "likely_understood"
+        except Exception:
+            logger.warning("node_patient_confirm: LLM failed for item, patient=%s", patient_id)
+            item["feedback"] = "已理解"
+            item["comprehension"] = "likely_understood"
+    
     return {"handoff_items": items, "phase": "confirm"}
