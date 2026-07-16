@@ -30,15 +30,19 @@ from .routes.admin import router as admin_router
 
 VERSION = "0.3.0"
 
-# 阶段5: DeepSeek LLM 接入（API不可用时自动回退 RuleBasedProvider）
-try:
-    set_ai_provider(DeepSeekProvider(
-        api_key="sk-b2fe81ac266741448e1c839635abc464",
-        model="deepseek-v4-flash",
-        temperature=0.3,
-    ))
-except Exception:
-    set_ai_provider(RuleBasedProvider())  # 回退
+# 阶段5: DeepSeek LLM 接入（API key 通过环境变量 DEEPSEEK_API_KEY 传入；不可用时回退 RuleBasedProvider）
+deepseek_key = os.environ.get("DEEPSEEK_API_KEY", "")
+if deepseek_key:
+    try:
+        set_ai_provider(DeepSeekProvider(
+            api_key=deepseek_key,
+            model=os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash"),
+            temperature=0.3,
+        ))
+    except Exception:
+        set_ai_provider(RuleBasedProvider())  # 回退
+else:
+    set_ai_provider(RuleBasedProvider())
 
 # 合并迁入修正: SQLite 数据库引擎(移除 app.config.settings 依赖)
 ASYNC_DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./zhenhu_inpatient.db")
