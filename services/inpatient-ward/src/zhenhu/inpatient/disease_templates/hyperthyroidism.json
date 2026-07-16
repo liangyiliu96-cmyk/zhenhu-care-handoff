@@ -1,0 +1,25 @@
+{
+  "disease_id": "hyperthyroidism",
+  "name": "甲状腺功能亢进",
+  "vital_signs": [
+    {"name": "heart_rate", "unit": "次/分", "alert_above": 110},
+    {"name": "blood_pressure", "unit": "mmHg", "alert_above": "150/90"},
+    {"name": "temperature", "unit": "℃", "alert_above": 38.0},
+    {"name": "weight", "unit": "kg", "note": "体重持续下降需警惕"}
+  ],
+  "risk_factors": ["atrial_fibrillation", "thyroid_storm_risk", "agranulocytosis_risk", "large_goiter_with_compression", "orbitopathy_moderate_severe"],
+  "monitoring_interval_hours": 12,
+  "discharge_criteria": ["heart_rate_controlled_lt_100", "thyroid_function_improving", "antithyroid_drug_tolerated", "afebrile", "weight_stable_or_gaining"],
+  "handoff_instructions": [
+    {"type": "medication", "content": "出院后继续抗甲状腺药物(甲巯咪唑/丙硫氧嘧啶)，每周复查血常规警惕粒细胞缺乏"},
+    {"type": "monitoring", "content": "每日自测静息心率和体重，记录心悸、手抖、多汗等症状变化"},
+    {"type": "followup", "content": "出院后2周内分泌科复查甲功+血常规+肝功能，根据结果调整药量"}
+  ],
+  "followup_questions": [
+    {"id": "ht-fq-01", "question": "服药后心慌手抖是否改善？静息心率是否<100次/分？", "clinical_intent": "评估甲亢控制", "source": "ehr-kg"},
+    {"id": "ht-fq-02", "question": "有无咽痛发热或口腔溃疡？", "clinical_intent": "筛查粒细胞缺乏", "source": "ddx-kg"},
+    {"id": "ht-fq-03", "question": "体重是否稳定或开始回升？食欲变化如何？", "clinical_intent": "评估代谢状态", "source": "ehr-kg"}
+  ],
+  "mdt_roles": ["内分泌科", "心内科", "眼科"],
+  "mdt_threshold": "high"
+}

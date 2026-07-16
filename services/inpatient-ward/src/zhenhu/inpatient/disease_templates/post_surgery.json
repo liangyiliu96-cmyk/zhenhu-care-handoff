@@ -1,0 +1,26 @@
+{
+  "disease_id": "post_surgery",
+  "name": "术后恢复",
+  "vital_signs": [
+    {"name": "blood_pressure", "unit": "mmHg", "alert_below": "90/60", "alert_above": "160/100"},
+    {"name": "heart_rate", "unit": "次/分", "alert_above": 110},
+    {"name": "temperature", "unit": "℃", "alert_above": 38.0},
+    {"name": "spo2", "unit": "%", "alert_below": 94},
+    {"name": "pain_score", "unit": "分", "alert_above": 7}
+  ],
+  "risk_factors": ["age_gt_70", "emergency_surgery", "asa_grade_3_plus", "operative_time_gt_3h", "comorbidity_dm_htn"],
+  "monitoring_interval_hours": 4,
+  "discharge_criteria": ["vital_signs_stable_24h", "pain_controlled_via_oral", "wound_dry_no_infection", "toleration_of_oral_intake", "mobilization_achieved", "bowel_function_returned"],
+  "handoff_instructions": [
+    {"type": "medication", "content": "出院后按医嘱服用止痛药和抗生素，伤口换药每日1次保持干燥"},
+    {"type": "monitoring", "content": "每日观察伤口有无红肿渗液，监测体温，术后2周内避免重体力活动"},
+    {"type": "followup", "content": "出院后1周外科门诊拆线复查，如有异常随时复诊"}
+  ],
+  "followup_questions": [
+    {"id": "surg-fq-01", "question": "伤口有无红肿、渗液或异常疼痛？", "clinical_intent": "筛查手术部位感染", "source": "ehr-kg"},
+    {"id": "surg-fq-02", "question": "是否已恢复排气排便？进食后有无腹胀恶心？", "clinical_intent": "评估胃肠功能恢复", "source": "ehr-kg"},
+    {"id": "surg-fq-03", "question": "活动能力恢复如何？能否独立下床行走？", "clinical_intent": "评估功能恢复", "source": "ehr-kg"}
+  ],
+  "mdt_roles": ["外科", "麻醉科", "康复师", "营养师"],
+  "mdt_threshold": "high"
+}

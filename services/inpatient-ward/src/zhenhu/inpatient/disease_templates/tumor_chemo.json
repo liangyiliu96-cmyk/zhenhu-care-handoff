@@ -1,0 +1,25 @@
+{
+  "disease_id": "tumor_chemo",
+  "name": "肿瘤化疗后",
+  "vital_signs": [
+    {"name": "temperature", "unit": "℃", "alert_above": 38.3, "note": "粒缺伴发热为急症"},
+    {"name": "neutrophil_count", "unit": "×10⁹/L", "alert_below": 0.5},
+    {"name": "platelet", "unit": "×10⁹/L", "alert_below": 20},
+    {"name": "spo2", "unit": "%", "alert_below": 94}
+  ],
+  "risk_factors": ["febrile_neutropenia", "thrombocytopenia_bleeding", "mucositis_grade3", "nausea_vomiting_grade3", "tumor_lysis_syndrome_risk", "prior_chemo_cycles_gt_3"],
+  "monitoring_interval_hours": 8,
+  "discharge_criteria": ["neutrophil_recovery_gt_1.0", "afebrile_48h", "oral_intake_adequate", "mucositis_improving", "platelet_stable_or_rising", "pain_controlled"],
+  "handoff_instructions": [
+    {"type": "medication", "content": "出院后按医嘱服用升白针+止吐药，出现发热(T>38℃)立即返院不可拖延"},
+    {"type": "monitoring", "content": "每日测体温，观察口腔黏膜、皮肤瘀斑和出血点，避免去人群密集场所"},
+    {"type": "followup", "content": "出院后按化疗周期返院，每次化疗前复查血常规+肝肾功能+肿瘤标志物"}
+  ],
+  "followup_questions": [
+    {"id": "che-fq-01", "question": "每日体温是否正常？有无寒战或咽痛？", "clinical_intent": "筛查粒缺伴感染", "source": "ehr-kg"},
+    {"id": "che-fq-02", "question": "口腔有无溃疡疼痛？进食是否受影响？", "clinical_intent": "评估黏膜炎程度", "source": "ehr-kg"},
+    {"id": "che-fq-03", "question": "恶心呕吐是否可控？止吐药效果如何？", "clinical_intent": "评估化疗耐受性", "source": "ehr-kg"}
+  ],
+  "mdt_roles": ["肿瘤内科", "营养师", "心理科", "疼痛科"],
+  "mdt_threshold": "high"
+}

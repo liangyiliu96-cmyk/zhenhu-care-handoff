@@ -1,0 +1,25 @@
+{
+  "disease_id": "gi_bleeding",
+  "name": "消化道出血",
+  "vital_signs": [
+    {"name": "blood_pressure", "unit": "mmHg", "alert_below": "90/60"},
+    {"name": "heart_rate", "unit": "次/分", "alert_above": 110},
+    {"name": "hemoglobin", "unit": "g/dL", "alert_below": 7},
+    {"name": "spo2", "unit": "%", "alert_below": 94}
+  ],
+  "risk_factors": ["active_hematemesis", "hemodynamic_instability", "age_gt_60", "comorbidity_cirrhosis", "inr_gt_1.5", "rebleeding_risk"],
+  "monitoring_interval_hours": 4,
+  "discharge_criteria": ["no_active_bleeding_72h", "hemoglobin_stable", "oral_intake_tolerated", "hemodynamics_stable", "endoscopic_hemostasis_confirmed", "ppi_therapy_established"],
+  "handoff_instructions": [
+    {"type": "medication", "content": "出院后继续服用PPI抑酸药8-12周，根除HP治疗(如阳性)完整服药14天"},
+    {"type": "monitoring", "content": "观察大便颜色，出现黑便、呕血或头晕乏力立即急诊"},
+    {"type": "followup", "content": "出院后4周消化内科复查胃镜+血常规，评估溃疡愈合和HP根除效果"}
+  ],
+  "followup_questions": [
+    {"id": "gib-fq-01", "question": "大便颜色是否已恢复正常？有无再次出现黑便？", "clinical_intent": "评估再出血风险", "source": "ehr-kg"},
+    {"id": "gib-fq-02", "question": "有无头晕、乏力、活动后气促？", "clinical_intent": "评估贫血程度", "source": "ehr-kg"},
+    {"id": "gib-fq-03", "question": "是否避免饮酒和NSAIDs类药物？", "clinical_intent": "评估危险因素控制", "source": "ehr-kg"}
+  ],
+  "mdt_roles": ["消化内科", "内镜中心", "输血科"],
+  "mdt_threshold": "high"
+}

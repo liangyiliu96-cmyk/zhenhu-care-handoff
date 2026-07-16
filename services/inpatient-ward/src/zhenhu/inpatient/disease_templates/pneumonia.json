@@ -1,0 +1,25 @@
+{
+  "disease_id": "pneumonia",
+  "name": "社区获得性肺炎",
+  "vital_signs": [
+    {"name": "spo2", "unit": "%", "alert_below": 92},
+    {"name": "temperature", "unit": "℃", "alert_above": 38.5},
+    {"name": "respiratory_rate", "unit": "次/分", "alert_above": 28},
+    {"name": "heart_rate", "unit": "次/分", "alert_above": 100}
+  ],
+  "risk_factors": ["age_gt_65", "multilobar_infiltrate", "confusion", "urea_gt_7", "comorbidity_copd"],
+  "monitoring_interval_hours": 6,
+  "discharge_criteria": ["afebrile_48h", "spo2_stable_above_92_no_supplemental", "oral_antibiotics_tolerated", "crp_declining", "chest_xray_improving"],
+  "handoff_instructions": [
+    {"type": "medication", "content": "出院后继续口服抗生素完成全程(通常7-10天)，不可提前停药"},
+    {"type": "monitoring", "content": "每日监测体温和指氧饱和度，发热或气促加重立即就医"},
+    {"type": "followup", "content": "出院后2周呼吸科复查胸片+血常规，评估炎症吸收情况"}
+  ],
+  "followup_questions": [
+    {"id": "pna-fq-01", "question": "出院后体温是否持续正常？有无再次发热？", "clinical_intent": "评估感染控制", "source": "ehr-kg"},
+    {"id": "pna-fq-02", "question": "咳嗽咳痰是否逐渐减轻？痰量和颜色有无变化？", "clinical_intent": "评估炎症消退", "source": "ddx-kg"},
+    {"id": "pna-fq-03", "question": "抗生素是否按时服药？有无恶心腹泻等不良反应？", "clinical_intent": "评估用药依从性", "source": "ehr-kg"}
+  ],
+  "mdt_roles": ["呼吸内科", "临床药师", "营养师"],
+  "mdt_threshold": "high"
+}
