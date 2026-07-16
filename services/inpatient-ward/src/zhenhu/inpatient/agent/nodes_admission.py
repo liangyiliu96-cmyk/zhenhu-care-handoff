@@ -253,7 +253,7 @@ async def node_admission(state: dict) -> dict:
                                 age -= 1
                             patient_data["age"] = age
                         except Exception:
-                            pass
+                            logger.warning("node_admission: FHIR birth_date age calculation failed, patient=%s", patient_id)
                     
                     # 尝试获取BMI（如果有Observation资源）
                     patient_data["bmi"] = patient_data.get("bmi", 0)
@@ -446,7 +446,7 @@ async def node_medication_reconciliation(state: dict) -> dict:
                     data = resp.json().get("data", {})
                     pre_admission_meds = data.get("medications", [])
         except Exception:
-            pass
+            logger.warning("node_medication_reconciliation: FHIR CarePlan HTTP fallback failed, patient=%s", patient_id)
 
     # 2. 从病种模板读取标准出院用药
     handoff_meds = [
@@ -526,6 +526,7 @@ async def node_medication_reconciliation(state: dict) -> dict:
             if warnings:
                 findings["llm_warnings"] = warnings
     except Exception:
+        logger.warning("node_medication_reconciliation: LLM interaction detection failed, patient=%s", patient_id)
         pass  # LLM失败不影响规则库结果
 
     record("medication_reconciliation")

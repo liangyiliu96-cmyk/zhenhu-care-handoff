@@ -53,6 +53,15 @@ class PatientAgentLoop(_BaseAgentLoop[T]):
                 "transfer_needed": False,
                 "transfer_target": None,
                 "transfer_reason": None,
+                "latest_round": None,
+                "allergies": [],
+                "patient_history": {},
+                "triage_matched_factors": [],
+                "consecutive_abnormal_count": 0,
+                "allergy_status": None,
+                "discharge_criteria_check": None,
+                "clinical_assessments": None,
+                "clinical_alerts": [],
             }
         elif strategy == "monitoring_resume":
             return self._current_state or {}
@@ -103,3 +112,8 @@ def get_patient_loop(patient_id: str) -> PatientAgentLoop:
     if patient_id not in _patient_loops:
         _patient_loops[patient_id] = PatientAgentLoop()
     return _patient_loops[patient_id]
+
+
+def cleanup_patient_loop(patient_id: str) -> None:
+    """移除患者AgentLoop实例（出院后调用）。"""
+    _patient_loops.pop(patient_id, None)

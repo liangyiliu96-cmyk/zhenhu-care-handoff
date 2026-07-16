@@ -216,6 +216,7 @@ async def node_lab_review(state: dict) -> dict:
                     finding["interpretation"] = llm_result.get("interpretation", "")
                     finding["recommendation"] = llm_result.get("recommendation", "")
         except Exception:
+            logger.warning("node_lab_review: LLM interpretation failed, patient=%s", state.get("patient_id", "unknown"))
             pass  # LLM失败→仅标记reviewed，不阻断
     
     record("lab_review")

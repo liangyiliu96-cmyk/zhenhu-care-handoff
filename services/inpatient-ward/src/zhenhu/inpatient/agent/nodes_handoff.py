@@ -13,6 +13,26 @@ from zhenhu.contracts.agent import get_ai_provider
 logger = logging.getLogger("zhenhu.inpatient")
 
 
+async def _create_zhenhu_case(patient_id: str, handoff_items: list[dict], template: dict) -> dict:
+    """创建臻护病例——优先同进程import，失败走HTTP bridge。"""
+    try:
+        from zhenhu.workflow.state_machine import CaseStateMachine
+        from zhenhu.workflow.models import Case, async_session_factory
+        async with async_session_factory() as session:
+            stm = CaseStateMachine(session)
+            case = Case(
+                input_snapshot_id=f"zhenhu-{patient_id}",
+                patient_ref=patient_id,
+                state="draft",
+            )
+            session.add(case)
+            await session.flush()
+            return {"status": "ok", "case_id": case.case_id, "state": case.state}
+    except (ImportError, Exception):
+        from ..hooks.zhenhu_bridge import bridge_discharge_to_zhenhu_with_retry
+        return await bridge_discharge_to_zhenhu_with_retry(handoff_items, patient_id, template)
+
+
 async def node_discharge(state: dict) -> dict:
     """阶段K: 出院全链路自动化——创建病例+检索知识+患者照护视图。
 
@@ -28,31 +48,7 @@ async def node_discharge(state: dict) -> dict:
     result = {"phase": "discharge", "discharge_decision": "approved"}
 
     if handoff_items:
-        # ── 阶段K: 同仓库直接调用——优先 import, 失败走 HTTP fallback ──
-        bridge_result = {"status": "bridge_unavailable"}
-
-        try:
-            # 同仓库直接调 workflow-engine
-            from zhenhu.workflow.state_machine import CaseStateMachine
-            from zhenhu.workflow.models import Case, async_session_factory
-            async with async_session_factory() as session:
-                stm = CaseStateMachine(session)
-                case = Case(
-                    input_snapshot_id=f"zhenhu-{patient_id}",
-                    patient_ref=patient_id,
-                    state="draft",
-                )
-                session.add(case)
-                await session.flush()
-                bridge_result = {
-                    "status": "ok",
-                    "case_id": case.case_id,
-                    "state": case.state,
-                }
-        except (ImportError, Exception):
-            from ..hooks.zhenhu_bridge import bridge_discharge_to_zhenhu_with_retry
-            bridge_result = await bridge_discharge_to_zhenhu_with_retry(handoff_items, patient_id, template)
-
+        bridge_result = await _create_zhenhu_case(patient_id, handoff_items, template)
         result["bridge_result"] = bridge_result
 
         # 2. 检索相关知识

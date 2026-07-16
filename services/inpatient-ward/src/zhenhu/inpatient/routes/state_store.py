@@ -1,22 +1,36 @@
-"""内存状态存储 —— 阶段D: 跨请求共享患者Agent状态(生产应换Redis)。合并迁入。
-
-阶段H审计修复: 添加 update_state 原子操作,避免 read-modify-write 竞态。
-"""
+"""内存状态存储——阶段D+：带TTL的跨请求共享(30分钟过期)。"""
+import time as _time
 from typing import Any
 
-_store: dict[str, Any] = {}
+_store: dict[str, tuple[float, dict[str, Any]]] = {}
+_TTL_SECONDS = 1800  # 30分钟
+
+
+def _cleanup_expired() -> None:
+    now = _time.time()
+    expired = [k for k, (ts, _) in _store.items() if now - ts > _TTL_SECONDS]
+    for k in expired:
+        del _store[k]
+
 
 def get_state(patient_id: str) -> dict[str, Any]:
-    """获取患者状态。阶段D: 内存存储(生产应换Redis)。"""
-    return _store.get(patient_id, {})
+    _cleanup_expired()
+    entry = _store.get(patient_id)
+    if entry:
+        ts, state = entry
+        if _time.time() - ts <= _TTL_SECONDS:
+            return state
+        del _store[patient_id]
+    return {}
+
 
 def set_state(patient_id: str, state: dict[str, Any]) -> None:
-    """写入患者状态。阶段D: 内存存储(生产应换Redis)。"""
-    _store[patient_id] = state
+    _store[patient_id] = (_time.time(), state)
+
 
 def update_state(patient_id: str, updates: dict[str, Any]) -> dict[str, Any]:
-    """原子更新患者状态(阶段H: 修复 read-modify-write 竞态)。"""
-    current = _store.get(patient_id, {})
+    _cleanup_expired()
+    ts, current = _store.get(patient_id, (_time.time(), {}))
     current.update(updates)
-    _store[patient_id] = current
+    _store[patient_id] = (ts, current)
     return current
