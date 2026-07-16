@@ -11,4 +11,6 @@
 | 06 | LLM Agent 工程管线 | 5Agent+模型路由+溯源 |
 | 07 | 可观测性与运维方案 | 日志/告警/CI/CD |
 | 08 | Cardio改造方案 | 废案→通用住院协同, 9阶段 |
-| 09 | Cardio改造成果说明 | merged into inpatient-ward |
+| 09 | Cardio改造成果说明 | 已合并至 inpatient-ward |
+
+Mermaid 图表见 `diagrams/` 子目录。

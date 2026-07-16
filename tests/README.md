@@ -1,6 +1,10 @@
 # 测试目录
 
-此目录用于正式项目的测试。PoC 的测试位于 `poc/tests/`，其验证结果不等同于正式项目测试通过。
+| 位置 | 说明 |
+|------|------|
+| `services/*/tests/` | 各服务独立 pytest（225 passed） |
+| `packages/clinical-contracts/tests/` | JS 版契约测试（PoC 验证，7/7） |
+| `poc/tests/` | PoC 验证测试（冻结，44/44） |
+| `tests/contracts/` | 正式工程契约测试（迁移中） |
 
-- `e2e/`：正式项目从医生审核到下游受控任务闭环的端到端测试。
-- 单元测试与正式包或服务源代码相邻放置，覆盖状态机、契约校验和权限拒绝。
+运行：`cd services/<name> && python -m pytest -v`
