@@ -52,9 +52,10 @@
 ```
 f107250  14/14病种全通：COPD SpO2修复+11fixture患者，79/79 (2026-07-16)
 418425e  monitoring+discharge节点直调，三患者出院，79/79
-89d5ce6  LLM全面升级：4新节点+5prompt优化，79/79
-7df95ef  SKIP_BRIDGE秒级开发+checkpoint修复，79/79
-...（详见 .workbuddy/memory/2026-07-16.md 完整20 commit列表）
+fe72574  docs: 临床完整度补全方案v1.0 (2026-07-16 最终)
+072a1fc  models会话管理+裸except日志，86/86 (2026-07-16)
+f88d077  start.sh+3模块补单测，79→86 (2026-07-16)
+...（详见 .workbuddy/memory/2026-07-16.md 完整25 commit列表）
 e44f10f  P0/P1/P2临床精度打磨：7P0+46指标+格式+4节点 (2026-07-16)
 cc41fed  workflow-engine 补全7端点+hook (81/81)
 48f262b  knowledge-orchestrator 知识编排服务 (47/47)
@@ -82,5 +83,8 @@ c597fc4  项目初始化
 - **出院链路直调模式**: monitoring→discharge→handoff→review→confirm 直接节点调用，不依赖graph
 - **14病种全通验证**: 14个fixture患者×6+体征序列×3移交事项，全链路admission→confirm
 - **SpO2阈值正则提取**: 替代硬编码90/92/94，支持88等自定义阈值
+- **文件总量**: 25 commits, 86 tests, 9 LLM nodes, 7 assessments, 39 drug rules, 14 templates
+- **后端成熟度**: 生产可用（中间件/连接池/优雅关闭/Gzip/TrustedHost/health/metrics/docs全齐）
+- **下一个里程碑**: `docs/plans/临床完整度补全方案_v1.0.md` — 病史采集+体格检查+DDx+护理+医生介入
 - **药物规则库设计**: Pydantic DrugInteractionRule 模型，≥30对静态规则 + LLM语义补充
 - **入院评估体系**: 4项国际标准(NRS/NRS2002/Morse/Padua)+3项CGA(MMSE/ADL/IADL)
