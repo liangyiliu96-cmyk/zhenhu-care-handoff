@@ -5,10 +5,11 @@
 
 import json
 import logging
+from datetime import datetime, timezone
 
-from .harness import validate_handoff_items, fallback_to_template
+from .harness import validate_handoff_items, validate_llm_output, fallback_to_template
 from .metrics import record
-from zhenhu.contracts.agent import get_ai_provider
+from .llm_utils import get_provider_for_node, safe_llm_invoke
 
 logger = logging.getLogger("zhenhu.inpatient")
 
@@ -39,15 +40,29 @@ async def node_discharge(state: dict) -> dict:
     出院决定 → 自动调 bridge 创建臻护病例 + 检索知识 + 生成照护视图。
     同仓库优先 import workflow state_machine, 失败走 HTTP fallback。
     """
+    chain = list(state.get("document_chain", []) or [])
+    if "discharge_bridge" in chain:
+        return {"phase": "discharge"}
+
     template = state.get("disease_template", {})
     handoff_items = state.get("handoff_items", [])
     patient_id = state.get("patient_id", "")
 
     logger.info("node_discharge: start, patient=%s", patient_id)
 
-    result = {"phase": "discharge", "discharge_decision": "approved"}
+    result = {
+        "phase": "discharge",
+        "discharge_decision": "approved",
+        "document_chain": chain,
+    }
 
-    if handoff_items:
+    if not handoff_items:
+        result.update({
+            "discharge_decision": "bridge_failed",
+            "bridge_error": "handoff_items_missing",
+            "document_chain": chain + ["discharge_bridge_failed"],
+        })
+    else:
         bridge_result = await _create_zhenhu_case(patient_id, handoff_items, template)
         result["bridge_result"] = bridge_result
 
@@ -65,6 +80,9 @@ async def node_discharge(state: dict) -> dict:
         if bridge_result.get("status") != "ok":
             result["discharge_decision"] = "bridge_failed"
             result["bridge_error"] = bridge_result.get("status", "unknown")
+            result["document_chain"] = chain + ["discharge_bridge_failed"]
+        else:
+            result["document_chain"] = chain + ["discharge_bridge"]
 
     record("discharge")
     return result
@@ -76,6 +94,10 @@ async def node_handoff(state: dict) -> dict:
     Phase5: 模板指令作为base，LLM根据患者体征/化验/风险生成个性化补充。
     失败回退→仅使用模板默认值。
     """
+    chain = state.get("document_chain", []) or []
+    if "handoff_note" in chain and state.get("handoff_items"):
+        return {"phase": "handoff"}
+
     template = state.get("disease_template", {})
     instructions = template.get("handoff_instructions", [])
     patient_data = state.get("patient_data", {})
@@ -95,7 +117,7 @@ async def node_handoff(state: dict) -> dict:
 
     # LLM增强: 根据患者实际情况个性化
     try:
-        provider = get_ai_provider()
+        provider = get_provider_for_node("handoff")
         llm_prompt = (
             f"为以下患者生成个性化出院指导补充（中文）：\n"
             f"病种: {template.get('name', '未知')}，风险等级: {risk}。\n"
@@ -105,18 +127,20 @@ async def node_handoff(state: dict) -> dict:
             f"\"content\": \"具体个性化的指导内容(20-50字中文)\"}}]}}，最多2条补充。"
         )
         llm_context = {"disease_template": template, "vital_signs": vs[-2:] if vs else [], "risk_level": risk}
-        llm_result = await provider.invoke(llm_prompt, context=llm_context)
+        llm_result = await safe_llm_invoke(provider, llm_prompt, context=llm_context, timeout=20.0, retries=0, caller="handoff")
 
         if llm_result and llm_result.get("source_type") != "source_none":
             personalized = llm_result.get("personalized_notes", [])
-            for note in personalized[:2]:
-                if isinstance(note, dict) and note.get("content"):
-                    items.append({
-                        "type": note.get("type", "supplement"),
-                        "content": note["content"],
-                        "feedback": None,
-                        "source": "llm_enhanced",
-                    })
+            valid_notes, errors = validate_llm_output("handoff", personalized)
+            if errors:
+                logger.info("node_handoff: rejected %d malformed LLM notes", len(errors))
+            for note in valid_notes[:2]:
+                items.append({
+                    "type": note["type"],
+                    "content": note["content"],
+                    "feedback": note.get("feedback"),
+                    "source": "llm_enhanced",
+                })
     except Exception as e:
         logger.warning("node_handoff: LLM enhancement failed, reason=%s", str(e)[:100])
 
@@ -129,6 +153,11 @@ async def node_handoff(state: dict) -> dict:
         "handoff_items": items,
         "phase": "handoff",
         "patient_summary": state.get("patient_data", {}),
+        "document_chain": (
+            state.get("document_chain", [])
+            if "handoff_note" in state.get("document_chain", [])
+            else state.get("document_chain", []) + ["handoff_note"]
+        ),
     }
 
 
@@ -148,13 +177,29 @@ async def node_doctor_review(state: dict) -> dict:
     try:
         from .interrupt import request_doctor_review
         interrupt_result = await request_doctor_review(items)
-        if interrupt_result.get("status") == "reviewed":
-            # 外部审核完成，直接采用结果
+        action = interrupt_result.get("action")
+        if action == "accept":
+            reviewed_items = interrupt_result.get("items", items)
+            for item in reviewed_items:
+                item.setdefault("review_action", "accept")
+                item.setdefault("feedback", "已由医生确认")
+            chain = state.get("document_chain", [])
             return {
-                "handoff_items": interrupt_result.get("handoff_items", items),
+                "handoff_items": reviewed_items,
                 "phase": "review",
-                "discharge_decision": "approved" if interrupt_result.get("all_accepted") else "pending_reevaluation",
+                "discharge_decision": "approved",
                 "interrupt_pending": False,
+                "patient_summary": state.get("patient_data", {}),
+                "document_chain": chain if "review_note" in chain else chain + ["review_note"],
+            }
+        if action == "pending":
+            pending = interrupt_result.get("pending_review", {})
+            pending.setdefault("type", "discharge_sign")
+            pending.setdefault("payload", {"handoff_items": items, "patient_id": patient_id})
+            return {
+                "phase": "review",
+                "pending_review": pending,
+                "interrupt_pending": True,
                 "patient_summary": state.get("patient_data", {}),
             }
     except Exception:
@@ -196,18 +241,27 @@ async def node_doctor_review(state: dict) -> dict:
         "discharge_decision": "approved" if all_accepted else "pending_reevaluation",
         "interrupt_pending": False,
         "patient_summary": state.get("patient_data", {}),
+        "document_chain": (
+            state.get("document_chain", [])
+            if "review_note" in state.get("document_chain", [])
+            else state.get("document_chain", []) + ["review_note"]
+        ),
     }
     
     # LLM: 驳回时生成审核摘要
     if not all_accepted:
         try:
-            provider = get_ai_provider()
+            provider = get_provider_for_node("handoff")
             dismissed = [it for it in reviewed if it.get("review_action") == "dismiss"]
-            llm_result = await provider.invoke(
+            llm_result = await safe_llm_invoke(
+                provider,
                 f"为医生生成被驳回交接事项的审核意见（1句中文）: "
                 f"{json.dumps([d.get('dismiss_reason', '') for d in dismissed], ensure_ascii=False)}。"
                 f"返回JSON: {{\"review_note\": \"...\"}}",
                 context={"dismissed_items": dismissed},
+                timeout=15.0,
+                retries=0,
+                caller="handoff",
             )
             if llm_result and llm_result.get("source_type") != "source_none":
                 result["review_note"] = llm_result.get("review_note", "")
@@ -217,45 +271,62 @@ async def node_doctor_review(state: dict) -> dict:
     return result
 
 
+def evaluate_patient_confirmation(state: dict) -> dict:
+    """Evaluate confirmation from persisted recipient actions, never from an LLM guess."""
+    chain = list(state.get("document_chain", []) or [])
+    education_records = state.get("education_records", []) or []
+    teach_back_records = [
+        record for record in education_records
+        if record.get("acknowledged") and str(record.get("teach_back") or "").strip()
+    ]
+
+    requirements = []
+    if not state.get("handoff_acknowledged"):
+        requirements.append("handoff_acknowledgement")
+    if not teach_back_records:
+        requirements.append("teach_back")
+
+    bridge_completed = "discharge_bridge" in chain
+    signed = state.get("discharge_sign_status") in {"signed", "approved"}
+    if requirements or not bridge_completed or not signed:
+        if not bridge_completed:
+            requirements.append("discharge_bridge")
+        if not signed:
+            requirements.append("doctor_signature")
+        return {
+            "phase": "awaiting_patient_confirmation",
+            "patient_confirmation_status": "pending",
+            "patient_confirmation_requirements": list(dict.fromkeys(requirements)),
+            "patient_confirmation_evidence": [],
+        }
+
+    evidence = [
+        {
+            "education_record_id": record.get("id"),
+            "recipient": record.get("recipient"),
+            "topic": record.get("topic"),
+            "teach_back": record.get("teach_back"),
+            "acknowledged_at": record.get("acknowledged_at"),
+        }
+        for record in teach_back_records
+    ]
+    if "confirm_note" not in chain:
+        chain.append("confirm_note")
+    return {
+        "phase": "confirm",
+        "patient_confirmation_status": "confirmed",
+        "patient_confirmation_requirements": [],
+        "patient_confirmation_evidence": evidence,
+        "patient_confirmed_at": datetime.now(timezone.utc).isoformat(),
+        "document_chain": chain,
+    }
+
+
 async def node_patient_confirm(state: dict) -> dict:
-    """患者确认——Teach-back回授法验证理解。
-    
-    每项交接事项要求患者用自己的话复述，评估理解程度。
-    Phase5: LLM评估，失败回退简单标记。
-    """
+    """Complete patient confirmation only from handoff receipt and recorded teach-back."""
     patient_id = state.get("patient_id", "unknown")
-    logger.info("node_patient_confirm: start, patient=%s", patient_id)
-    items = state.get("handoff_items", [])
-    
-    for item in items:
-        content = item.get("content", "")
-        item_type = item.get("type", "")
-        
-        # Teach-back: 尝试LLM生成验证问题+评估理解
-        try:
-            provider = get_ai_provider()
-            llm_result = await provider.invoke(
-                f"作为出院指导护士，对以下出院指导设计一个Teach-back验证问题，"
-                f"让患者用自己的话复述理解（中文，简单易懂）：\n"
-                f"指导类型: {item_type}。内容: {content[:200]}。\n"
-                f"返回JSON: {{\"teachback_question\": \"您能告诉我...\", \"comprehension\": \"likely_understood|needs_reinforcement|unlikely\"}}",
-                context={"handoff_item": item},
-            )
-            if llm_result and llm_result.get("source_type") != "source_none":
-                comprehension = llm_result.get("comprehension", "likely_understood")
-                # RuleBasedProvider可能返回不匹配的默认值，保守处理
-                if comprehension not in ("likely_understood", "needs_reinforcement", "unlikely"):
-                    comprehension = "likely_understood"
-                item["teachback_question"] = llm_result.get("teachback_question", "")
-                item["comprehension"] = comprehension
-                item["feedback"] = "已理解" if comprehension == "likely_understood" else "需强化教育"
-            else:
-                item["feedback"] = "已理解"
-                item["comprehension"] = "likely_understood"
-        except Exception:
-            logger.warning("node_patient_confirm: LLM failed for item, patient=%s", patient_id)
-            item["feedback"] = "已理解"
-            item["comprehension"] = "likely_understood"
-    
-    record("patient_confirm")
-    return {"handoff_items": items, "phase": "confirm"}
+    logger.info("node_patient_confirm: evaluate, patient=%s", patient_id)
+    result = evaluate_patient_confirmation(state)
+    if result.get("patient_confirmation_status") == "confirmed":
+        record("patient_confirm")
+    return result

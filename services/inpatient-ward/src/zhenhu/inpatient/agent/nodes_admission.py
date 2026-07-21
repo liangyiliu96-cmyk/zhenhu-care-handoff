@@ -13,7 +13,7 @@ from typing import Callable
 
 from .harness import normalize_template
 from .metrics import record
-from zhenhu.contracts.agent import get_ai_provider
+from .config import get_cached_provider
 
 logger = logging.getLogger("zhenhu.inpatient")
 
@@ -101,7 +101,7 @@ def _match_patient_risk_factors(
 # ============================================================================
 
 
-def _check_discharge_criteria(
+async def _check_discharge_criteria(
     criteria: list,
     vital_signs: list[dict],
     state: dict,
@@ -115,23 +115,83 @@ def _check_discharge_criteria(
     Phase 5 可升级为 LLM 评估。
     """
     if not criteria:
-        return {"all_met": False, "checked": [], "unmet": ["无出院标准定义"]}
+        return {
+            "all_met": False,
+            "checked": [],
+            "unmet": ["无出院标准定义"],
+            "met_count": 0,
+            "total_count": 0,
+            "details": [{
+                "key": "criteria_missing",
+                "label": "尚未配置出院标准",
+                "met": False,
+                "category": "records",
+                "action": "请先确认病种模板和出院标准配置",
+            }],
+        }
     
     checked = []
     unmet = []
+    details = []
     
     for c in criteria:
         cond_key = c if isinstance(c, str) else c.get("condition", "")
-        if _evaluate_criterion(cond_key, vital_signs, state):
+        met = _evaluate_criterion(cond_key, vital_signs, state)
+        if met:
             checked.append(cond_key)
         else:
             unmet.append(cond_key)
+        details.append(_criterion_detail(c, cond_key, met))
     
     return {
         "all_met": len(unmet) == 0,
         "checked": checked,
         "unmet": unmet,
+        "met_count": len(checked),
+        "total_count": len(criteria),
+        "details": details,
     }
+
+
+def _criterion_detail(criterion: object, cond_key: str, met: bool) -> dict:
+    description = criterion.get("description", "") if isinstance(criterion, dict) else ""
+    category = _criterion_category(cond_key)
+    action = {
+        "monitoring": "补充监测数据并重新评估",
+        "orders": "完成用药方案确认或相关医嘱审核",
+        "records": "补充必要临床记录",
+        "discharge": "完成出院宣教、随访或交接准备",
+    }[category]
+    return {
+        "key": cond_key,
+        "label": description or _criterion_fallback_label(cond_key),
+        "met": met,
+        "category": category,
+        "action": action,
+    }
+
+
+def _criterion_category(cond_key: str) -> str:
+    value = cond_key.lower()
+    if any(token in value for token in ("medication", "medicine", "drug", "titrated", "med_")):
+        return "orders"
+    if any(token in value for token in ("education", "self_care", "followup", "follow_up", "handoff")):
+        return "discharge"
+    if any(token in value for token in ("history", "record", "document", "physical", "exam")):
+        return "records"
+    return "monitoring"
+
+
+def _criterion_fallback_label(cond_key: str) -> str:
+    labels = {
+        "bp_stable_24h": "血压稳定达到出院要求",
+        "vital_signs_stable": "生命体征保持稳定",
+        "stable_hemodynamics": "血流动力学稳定",
+        "self_care_education_done": "完成患者自我管理教育",
+        "medication_titrated": "用药方案已确认并达到出院要求",
+        "clinical_euvolemia_24h": "容量状态稳定达到出院要求",
+    }
+    return labels.get(cond_key, "待完成的出院条件")
 
 
 def _evaluate_criterion(cond_key: str, vital_signs: list[dict], state: dict) -> bool:
@@ -215,6 +275,8 @@ async def node_admission(state: dict) -> dict:
     try:
         patient_id = state.get("patient_id", "unknown")
         logger.info("node_admission: start, patient=%s", patient_id)
+        if "intake_note" in state.get("document_chain", []):
+            return {}
         template = state.get("disease_template", {})
         if not template:
             template = load_template("hypertension")
@@ -367,6 +429,8 @@ async def node_triage(state: dict) -> dict:
     """
     patient_id = state.get("patient_id", "unknown")
     logger.info("node_triage: start, patient=%s", patient_id)
+    if "risk_assessment" in state.get("document_chain", []):
+        return {}
     template = state.get("disease_template", {})
     patient_data = state.get("patient_data", {})
     patient_history = state.get("patient_history", {})
@@ -398,7 +462,7 @@ async def node_triage(state: dict) -> dict:
     # LLM增强: 生成风险评估摘要
     if matched:
         try:
-            provider = get_ai_provider()
+            provider = get_cached_provider()
             llm_result = await provider.invoke(
                 f"基于以下匹配的风险因子生成简短临床风险评估（1-2句中文）："
                 f"病种: {template.get('name', '未知')}，风险等级: {level}，"
@@ -427,6 +491,8 @@ async def node_medication_reconciliation(state: dict) -> dict:
     from .medication_rules import detect_interactions, check_allergy_contraindications
 
     patient_id = state.get("patient_id", "")
+    if "medication_reconciliation" in state.get("document_chain", []):
+        return {}
     template = state.get("disease_template", {})
 
     pre_admission_meds = []
@@ -488,6 +554,7 @@ async def node_medication_reconciliation(state: dict) -> dict:
             "consequence": r.clinical_consequence,
             "recommendation": r.recommendation,
             "evidence": r.evidence_level,
+            "source": r.source,
         }
         for r in interactions
     ]
@@ -504,7 +571,7 @@ async def node_medication_reconciliation(state: dict) -> dict:
 
     # LLM 语义级补充: 检测规则库未覆盖的药物组合
     try:
-        provider = get_ai_provider()
+        provider = get_cached_provider()
         llm_prompt = (
             f"检查以下药物列表是否存在潜在的药物相互作用或禁忌。"
             f"出院药物: {json.dumps(all_med_names, ensure_ascii=False)}。"

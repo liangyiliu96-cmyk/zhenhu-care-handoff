@@ -6,25 +6,42 @@ requires-python = ">=3.12"  # 阶段J审计修复：统一 Python 版本
 dependencies = [
     "fastapi>=0.109",
     "uvicorn[standard]",
-    "sqlalchemy>=2.0",
+    "sqlalchemy>=2.0.51",
+    "asyncmy>=0.2.10",
     "pydantic>=2.5",
     "httpx>=0.27",
+    "PyJWT[crypto]>=2.10",
+    "cryptography>=43.0",
     "langgraph>=0.2.0",
     "langchain-core>=0.3.0",
+    "redis>=5.0.0",
+    "neo4j>=5.22,<6",
     "zhenhu-contracts",
 ]
+
+# Phase-2 待安装（langgraph-checkpoint-sqlite）：
+#   1) pip show langgraph → 读取 Version（如 0.2.x）
+#   2) pip install "langgraph-checkpoint-sqlite==<与 langgraph 主版本一致的 V>"
+#   3) 验证 import langgraph.checkpoint.sqlite 成功
+# classic 模式（默认）不依赖此包，MemorySaver 即可工作。
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "httpx>=0.27",
     "aiosqlite>=0.20",
+    "asyncmy>=0.2.10",
     "pytest-asyncio>=0.23",
+    "PyJWT[crypto]>=2.10",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "mysql_integration: requires ZHENHU_MYSQL_TEST_DATABASE_URL for a disposable MySQL schema",
+]
 pythonpath = [
     "src",
     "../../packages/clinical-contracts-py/src",

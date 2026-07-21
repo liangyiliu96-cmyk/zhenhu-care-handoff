@@ -1,0 +1,55 @@
+{
+  "disease_id": "pancreatitis",
+  "name": "急性胰腺炎",
+  "department": "消化内科",
+  "discharge_criteria": [
+    {
+      "condition": "腹痛缓解至NRS≤3",
+      "description": "可耐受口服进食"
+    },
+    {
+      "condition": "经口进食后腹痛无复发>24-48h",
+      "description": "胰腺休息后恢复饮食"
+    },
+    {
+      "condition": "并发症(坏死/囊肿/感染)已排除或控制",
+      "description": "CT复查WON稳定"
+    },
+    {
+      "condition": "血流动力学稳定>48h(SIRS无恶化)",
+      "description": "体温正常+生命体征稳定"
+    }
+  ],
+  "complication_monitoring": [
+    {
+      "complication": "胰腺坏死(无菌/感染)",
+      "monitor": "CT q5-7d+体温+WBC+CRP/PCT"
+    },
+    {
+      "complication": "胰周液体积聚/WON",
+      "monitor": "CT随访/腹胀/进食不耐受"
+    },
+    {
+      "complication": "SIRS/器官衰竭",
+      "monitor": "SOFA q24h/SpO2/Cr/UO"
+    },
+    {
+      "complication": "腹腔间隔室综合征",
+      "monitor": "IAP膀胱压>20mmHg"
+    }
+  ],
+  "nursing_checklist": [
+    "NRS疼痛q4h+阿片类监测",
+    "生命体征q2-4h+SpO2",
+    "NPO至腹痛缓解→低速EN鼻肠管",
+    "IAP膀胱压q8h(SAP)+腹围",
+    "24h出入量+每日体重",
+    "血糖q4-6h(内分泌损伤)"
+  ],
+  "round_template": {
+    "subjective": "腹痛/恶心/腹胀/进食耐受",
+    "objective": "生命体征/SIRS/IAP/EN耐受/血糖/Cr/CRP",
+    "assessment": "严重度(MAP/SAP)/器官功能/营养",
+    "plan": "EN计划/抗生素(感染)/引流/器官支持"
+  }
+}

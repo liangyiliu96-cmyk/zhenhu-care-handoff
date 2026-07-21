@@ -1,0 +1,16 @@
+data/
+backups/
+*.db
+.env
+
+# Reproducible local test and runtime artifacts
+tmp*/
+runtime-*.log
+pytest_*.txt
+qa_*.txt
+*_output.txt
+*_result.txt
+test_result.txt
+*.db-wal
+*.db-shm
+*.db-journal

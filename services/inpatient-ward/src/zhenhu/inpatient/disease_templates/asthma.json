@@ -1,0 +1,55 @@
+{
+  "disease_id": "asthma",
+  "name": "支气管哮喘",
+  "department": "呼吸科",
+  "discharge_criteria": [
+    {
+      "condition": "急性发作症状完全缓解或稳定",
+      "description": "呼吸困难/喘息消失,可平卧,说话成句"
+    },
+    {
+      "condition": "PEF/FEV1≥60-70%预计值或个人最佳值",
+      "description": "峰流速达到绿区"
+    },
+    {
+      "condition": "SpO2≥92%(不吸氧)",
+      "description": "无需持续氧疗"
+    },
+    {
+      "condition": "β2激动剂使用间隔≥4h",
+      "description": "缓解用药频率恢复至日常"
+    },
+    {
+      "condition": "患者掌握吸入技术及哮喘行动计划",
+      "description": "回授法确认"
+    }
+  ],
+  "complication_monitoring": [
+    {
+      "complication": "重症哮喘持续状态",
+      "monitor": "意识/说话能力/PEF/FEV1"
+    },
+    {
+      "complication": "呼吸衰竭",
+      "monitor": "SpO2/PaCO2(>45需警惕)/血气"
+    },
+    {
+      "complication": "气胸/纵隔气肿",
+      "monitor": "突发胸痛+呼吸困难加重+皮下气肿"
+    }
+  ],
+  "nursing_checklist": [
+    "呼吸状态评估q4h(频率+听诊+SpO2)",
+    "PEF监测qd-tid(早晚/发作前后)",
+    "吸入技术教育+每日回授",
+    "识别发作前兆(胸闷/咳嗽/鼻痒)",
+    "哮喘行动计划宣教(绿黄红三区)",
+    "避免诱发因素(过敏原/冷空气)"
+  ],
+  "round_template": {
+    "subjective": "夜间症状/日间活动受限/β2激动剂使用频率",
+    "objective": "PEF/FEV1/SpO2/呼吸频率/听诊",
+    "assessment": "发作控制分级(良好/部分/未控制)",
+    "plan": "ICS/LABA/口服激素/诱因规避"
+  }
+}

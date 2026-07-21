@@ -1,0 +1,47 @@
+import { apiGet, apiPatch, apiPost } from '@/core/api-client';
+import { API_TIMEOUT_CLINICAL } from '@/config/api';
+import type { PatientEvidenceGraphResponse } from '@/types/evidence-graph';
+import type { CareManagementResponse, ClinicalNoteResponse, DashboardResponse, DischargeSummaryResponse, DoctorCommandResponse, LabTrendsResponse, NursingRecordsResponse, PatientQueryResponse, RoundMutationResponse, RoundsResponse, ScoresResponse, TimelineResponse, VitalTrendsResponse, WorkflowBrief, WorkflowBriefsResponse } from '@/types/patient-dashboard';
+import type { DoctorCommandAction } from '@/utils/command-utils';
+
+const patientPath = (patientId: string, suffix: string) => `/inpatient/${encodeURIComponent(patientId)}${suffix}`;
+
+export const fetchPatientDashboard = (patientId: string) => apiGet<DashboardResponse>(patientPath(patientId, '/dashboard'));
+export const fetchPatientScores = (patientId: string) => apiGet<ScoresResponse>(patientPath(patientId, '/scores'));
+export const fetchPatientTimeline = (patientId: string) => apiGet<TimelineResponse>(patientPath(patientId, '/timeline'));
+export const fetchPatientRounds = (patientId: string) => apiGet<RoundsResponse>(patientPath(patientId, '/rounds'));
+export const generatePatientRound = (patientId: string, expectedVersion: number) => apiPost<RoundMutationResponse>(patientPath(patientId, '/rounds/generate'), { expected_version: expectedVersion }, API_TIMEOUT_CLINICAL);
+export const reviewPatientRound = (patientId: string, roundNumber: number, payload: { expected_version: number; comment?: string }) => apiPost<RoundMutationResponse>(patientPath(patientId, `/rounds/${roundNumber}/review`), payload);
+export const editPatientRound = (patientId: string, roundNumber: number, payload: { subjective: string; objective: string; assessment: string; plan: string; attention: string; expected_version: number }) => apiPost<RoundMutationResponse>(patientPath(patientId, `/rounds/${roundNumber}/edit`), payload);
+export const fetchVitalTrends = (patientId: string) => apiGet<VitalTrendsResponse>(patientPath(patientId, '/vital-trends'));
+export const fetchLabTrends = (patientId: string) => apiGet<LabTrendsResponse>(patientPath(patientId, '/lab-trends'));
+export const fetchClinicalNote = (patientId: string) => apiGet<ClinicalNoteResponse>(patientPath(patientId, '/clinical-note'));
+export const fetchNursingRecords = (patientId: string) => apiGet<NursingRecordsResponse>(patientPath(patientId, '/nursing'));
+export const fetchPatientEvidenceGraph = (patientId: string) => apiGet<PatientEvidenceGraphResponse>(patientPath(patientId, '/evidence-graph'));
+export const queryPatient = (patientId: string, question: string) => apiPost<PatientQueryResponse>(patientPath(patientId, '/query'), { question }, API_TIMEOUT_CLINICAL);
+export const fetchCareManagement = (patientId: string) => apiGet<CareManagementResponse>(patientPath(patientId, '/care-management'));
+export const fetchWorkflowBriefs = (patientId: string) => apiGet<WorkflowBriefsResponse>(patientPath(patientId, '/workflow-briefs'));
+export const generateWorkflowBrief = (patientId: string, kind: 'mdt' | 'follow_up' | 'transfer', expectedVersion: number) => apiPost<{ patient_id: string; state_version: number; brief: WorkflowBrief }>(patientPath(patientId, `/workflow-briefs/${kind}`), { expected_version: expectedVersion }, API_TIMEOUT_CLINICAL);
+export const fetchDischargeSummary = (patientId: string) => apiGet<DischargeSummaryResponse>(patientPath(patientId, '/discharge-summary'));
+export const auditDischargePdfExport = (patientId: string, exportKind: 'draft' | 'final') => apiPost<{ audit_id: string; state_version: number; export_kind: 'draft' | 'final' }>(patientPath(patientId, '/discharge-summary/export-audit'), { export_kind: exportKind });
+export const createAdmission = (patientId: string, diseaseId: string) => apiPost<{ patient_id: string; phase?: string; risk_level?: string }>(`/inpatient/admissions?patient_id=${encodeURIComponent(patientId)}&disease_id=${encodeURIComponent(diseaseId)}`);
+export const recordHistory = (patientId: string, payload: { chief_complaint: string; hpi_narrative?: string; pmh?: Record<string, string>; expected_version: number }) => apiPost(`/inpatient/admissions/${encodeURIComponent(patientId)}/history`, payload);
+export const recordPhysicalExam = (patientId: string, payload: { general?: string; chest_lungs?: string; chest_heart?: string; abdomen?: string; extremities?: string; neurological?: string; expected_version: number }) => apiPost(`/inpatient/admissions/${encodeURIComponent(patientId)}/physical-exam`, payload);
+export const recordNursing = (patientId: string, payload: { vital_signs?: Record<string, number>; intake_ml: number; output_ml: number; nursing_actions: string; alerts?: string[]; expected_version: number }) => apiPost(`/inpatient/admissions/${encodeURIComponent(patientId)}/nursing`, payload);
+export const reportVitalSigns = (patientId: string, payload: { timestamp?: string; blood_pressure?: string; systolic_mmhg?: number; diastolic_mmhg?: number; heart_rate?: number; spo2?: number; temperature?: number; expected_version: number }) => apiPost(`/inpatient/monitoring/${encodeURIComponent(patientId)}/vitals`, payload, API_TIMEOUT_CLINICAL);
+export const reportLabResult = (patientId: string, payload: { name: string; value: string | number; unit?: string; expected_version: number }) => apiPost(`/inpatient/monitoring/${encodeURIComponent(patientId)}/labs`, payload, API_TIMEOUT_CLINICAL);
+export const acknowledgeHandoff = (patientId: string) => apiPost<{ patient_id: string; handoff_acknowledged: boolean; handoff_items: number; patient_confirmation_status?: string; state_version: number; idempotent: boolean }>(`/inpatient/discharge/${encodeURIComponent(patientId)}/acknowledge-handoff`);
+export const submitDoctorCommand = (patientId: string, payload: { action: DoctorCommandAction; target?: string; reason?: string; expected_version: number }) => apiPost<DoctorCommandResponse>(patientPath(patientId, '/command'), payload);
+export const initiateDischarge = (patientId: string, payload: { reason?: string; expected_version: number }) => apiPost<DoctorCommandResponse & { handoff_items?: Array<Record<string, unknown>>; workflow_endpoint?: string; command_endpoint?: string }>(`/inpatient/discharge/${encodeURIComponent(patientId)}`, payload);
+export const createMedicationOrder = (patientId: string, payload: { medication: string; dose: string; frequency: string; route?: string; indication?: string; expected_version: number }) => apiPost(patientPath(patientId, '/care/medication-orders'), payload);
+export const createInvestigationOrder = (patientId: string, payload: { test_name: string; priority: 'routine' | 'urgent'; reason: string; timing?: string; instructions?: string; expected_version: number }) => apiPost(patientPath(patientId, '/care/investigation-orders'), payload);
+export const updateMedicationOrder = (patientId: string, orderId: string, payload: { status: 'active' | 'held' | 'discontinued' | 'cancelled'; note: string; expected_version: number }) => apiPatch(patientPath(patientId, `/care/medication-orders/${encodeURIComponent(orderId)}`), payload);
+export const updateInvestigationOrder = (patientId: string, orderId: string, payload: { status: 'scheduled' | 'completed' | 'cancelled'; note: string; expected_version: number }) => apiPatch(patientPath(patientId, `/care/investigation-orders/${encodeURIComponent(orderId)}`), payload);
+export const createMdtRequest = (patientId: string, payload: { reason: string; specialties: string[]; expected_version: number }) => apiPost(patientPath(patientId, '/care/mdt-requests'), payload);
+export const resolveMdtRequest = (patientId: string, requestId: string, payload: { decision: 'accepted' | 'deferred' | 'declined'; summary: string; expected_version: number }) => apiPatch(patientPath(patientId, `/care/mdt-requests/${encodeURIComponent(requestId)}`), payload);
+export const acknowledgeEducation = (patientId: string, payload: { topic: string; recipient: 'patient' | 'family' | 'caregiver'; teach_back?: string; expected_version: number }) => apiPost(patientPath(patientId, '/care/education-records'), payload);
+export const createFollowUpTask = (patientId: string, payload: { title: string; due_at: string; assignee?: string; expected_version: number }) => apiPost(patientPath(patientId, '/care/follow-up-tasks'), payload);
+export const updateFollowUpTask = (patientId: string, taskId: string, payload: { status: 'completed' | 'cancelled'; note: string; expected_version: number }) => apiPatch(patientPath(patientId, `/care/follow-up-tasks/${encodeURIComponent(taskId)}`), payload);
+export interface FollowUpContact { mobile_phone?: string | null; alternate_contact_name?: string | null; alternate_contact_relation?: string | null; alternate_contact_phone?: string | null; preferred_channel?: 'phone' | 'sms' | 'wechat' | null; follow_up_consent: boolean; consented_at?: string | null; withdrawn_at?: string | null; contact_version: number; }
+export const fetchFollowUpContact = (patientId: string) => apiGet<{ patient_id: string; contact: FollowUpContact }>(patientPath(patientId, '/follow-up-contact'));
+export const saveFollowUpContact = (patientId: string, payload: Omit<FollowUpContact, 'contact_version' | 'consented_at' | 'withdrawn_at'> & { expected_contact_version?: number }) => apiPost<{ patient_id: string; contact: FollowUpContact }>(`/inpatient/admissions/${encodeURIComponent(patientId)}/follow-up-contact`, payload);

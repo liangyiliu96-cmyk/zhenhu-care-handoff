@@ -1,0 +1,55 @@
+{
+  "disease_id": "pe",
+  "name": "肺栓塞",
+  "department": "呼吸科",
+  "discharge_criteria": [
+    {
+      "condition": "血流动力学稳定≥48h(HR<100/BP稳/SpO2≥92%)",
+      "description": "右室功能正常或改善"
+    },
+    {
+      "condition": "抗凝方案建立:LMWH→华法林(桥接5天+INR2-3)或NOAC",
+      "description": "治疗级抗凝已启动"
+    },
+    {
+      "condition": "可逆危险因素已明确",
+      "description": "危险因素分层:诱发/非诱发"
+    },
+    {
+      "condition": "无活动性出血+Hb稳定",
+      "description": "抗凝耐受良好"
+    }
+  ],
+  "complication_monitoring": [
+    {
+      "complication": "右室功能不全/RV failure",
+      "monitor": "UCG/BNP/TropI+q48h"
+    },
+    {
+      "complication": "大出血(抗凝)",
+      "monitor": "Hb q48-72h/INR/出血症状"
+    },
+    {
+      "complication": "复发PE",
+      "monitor": "新发胸痛/呼吸困难→CTPA"
+    },
+    {
+      "complication": "CTEPH",
+      "monitor": "3-6月随访UCG/V-Q扫描"
+    }
+  ],
+  "nursing_checklist": [
+    "生命体征+SpO2 q4h→q8h",
+    "抗凝:LMWH技术/INR/NOAC",
+    "出血风险教育+监测",
+    "早期下床(无广泛DVT)",
+    "DVT腿:抬高/测量周径qd/弹力袜",
+    "安全:避免肌注/硬牙刷"
+  ],
+  "round_template": {
+    "subjective": "胸痛/呼吸困难/咯血/心悸",
+    "objective": "HR/BP/SpO2/INR/腿围/UCG/TropI/BNP",
+    "assessment": "PESI分层/右室功能/抗凝/出血",
+    "plan": "抗凝方案/出院计划/危险因素管理/随访CTEPH"
+  }
+}

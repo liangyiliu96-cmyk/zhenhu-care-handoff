@@ -1,37 +1,283 @@
 {
   "disease_id": "aki",
   "name": "急性肾损伤",
+  "department": "肾内科",
   "vital_signs": [
-    {"name": "urine_output", "unit": "ml/h", "alert_below": 30},
-    {"name": "creatinine", "unit": "μmol/L", "alert_above": 200},
-    {"name": "potassium", "unit": "mmol/L", "alert_above": 5.5},
-    {"name": "blood_pressure", "unit": "mmHg", "alert_below": "90/60"},
-    {"name": "bun", "unit": "mmol/L", "alert_above": 15},
-    {"name": "bicarbonate", "unit": "mmol/L", "alert_below": 18}
+    {
+      "name": "urine_output",
+      "unit": "ml/h",
+      "alert_below": 30
+    },
+    {
+      "name": "creatinine",
+      "unit": "μmol/L",
+      "alert_above": 200
+    },
+    {
+      "name": "potassium",
+      "unit": "mmol/L",
+      "alert_above": 5.5
+    },
+    {
+      "name": "blood_pressure",
+      "unit": "mmHg",
+      "alert_below": "90/60"
+    },
+    {
+      "name": "bun",
+      "unit": "mmol/L",
+      "alert_above": 15
+    },
+    {
+      "name": "bicarbonate",
+      "unit": "mmol/L",
+      "alert_below": 18
+    }
   ],
-  "risk_factors": ["sepsis", "nephrotoxic_drugs", "contrast_exposure", "pre_existing_ckd", "dehydration", "major_surgery"],
+  "risk_factors": [
+    "sepsis",
+    "nephrotoxic_drugs",
+    "contrast_exposure",
+    "pre_existing_ckd",
+    "dehydration",
+    "major_surgery"
+  ],
   "monitoring_interval_hours": 6,
   "discharge_criteria": [
-    {"condition": "creatinine_returning_to_baseline", "description": "肌酐回落至基线水平"},
-    {"condition": "urine_output_gt_0.5ml_kg_h", "description": "尿量>0.5ml/kg/h持续6h"},
-    {"condition": "potassium_normal", "description": "血钾正常范围"},
-    {"condition": "fluid_overload_resolved", "description": "液体超负荷已纠正"},
-    {"condition": "off_renal_replacement_therapy", "description": "已脱离肾脏替代治疗"}
+    {
+      "condition": "creatinine_returning_to_baseline",
+      "description": "肌酐回落至基线水平"
+    },
+    {
+      "condition": "urine_output_gt_0.5ml_kg_h",
+      "description": "尿量>0.5ml/kg/h持续6h"
+    },
+    {
+      "condition": "potassium_normal",
+      "description": "血钾正常范围"
+    },
+    {
+      "condition": "fluid_overload_resolved",
+      "description": "液体超负荷已纠正"
+    },
+    {
+      "condition": "off_renal_replacement_therapy",
+      "description": "已脱离肾脏替代治疗"
+    }
   ],
   "handoff_instructions": [
-    {"type": "medication", "content": "出院后严格避免使用NSAIDs等肾毒性药物，按医嘱调整降压药剂量"},
-    {"type": "monitoring", "content": "每日记录尿量，每周测体重，严格限制液体入量(遵医嘱)"},
-    {"type": "followup", "content": "出院后1周肾内科复查肾功能+电解质+尿常规，评估肾功能恢复趋势"}
+    {
+      "type": "medication",
+      "content": "出院后严格避免使用NSAIDs等肾毒性药物，按医嘱调整降压药剂量"
+    },
+    {
+      "type": "monitoring",
+      "content": "每日记录尿量，每周测体重，严格限制液体入量(遵医嘱)"
+    },
+    {
+      "type": "followup",
+      "content": "出院后1周肾内科复查肾功能+电解质+尿常规，评估肾功能恢复趋势"
+    }
   ],
   "agent_config": {
     "require_doctor_review": true,
-    "discharge_knowledge_keywords": ["AKI恢复期管理", "肾毒性药物避免", "肾功能监测频率", "水电解质平衡"]
+    "discharge_knowledge_keywords": [
+      "AKI恢复期管理",
+      "肾毒性药物避免",
+      "肾功能监测频率",
+      "水电解质平衡"
+    ]
   },
   "followup_questions": [
-    {"id": "aki-fq-01", "question": "每日尿量是否正常？有无明显减少或颜色变化？", "clinical_intent": "评估肾功能恢复", "source": "ehr-kg"},
-    {"id": "aki-fq-02", "question": "有无恶心、食欲减退、乏力或肌肉抽搐？", "clinical_intent": "筛查尿毒症症状", "source": "ddx-kg"},
-    {"id": "aki-fq-03", "question": "体重有无快速增加？下肢或眼睑有无水肿？", "clinical_intent": "评估液体平衡", "source": "ehr-kg"}
+    {
+      "id": "aki-fq-01",
+      "question": "每日尿量是否正常？有无明显减少或颜色变化？",
+      "clinical_intent": "评估肾功能恢复",
+      "source": "ehr-kg"
+    },
+    {
+      "id": "aki-fq-02",
+      "question": "有无恶心、食欲减退、乏力或肌肉抽搐？",
+      "clinical_intent": "筛查尿毒症症状",
+      "source": "ddx-kg"
+    },
+    {
+      "id": "aki-fq-03",
+      "question": "体重有无快速增加？下肢或眼睑有无水肿？",
+      "clinical_intent": "评估液体平衡",
+      "source": "ehr-kg"
+    }
   ],
-  "mdt_roles": ["肾内科", "营养师", "临床药师"],
-  "mdt_threshold": "high"
+  "mdt_roles": [
+    "肾内科",
+    "营养师",
+    "临床药师"
+  ],
+  "mdt_threshold": "high",
+  "history_template": {
+    "chief_complaint_required": true,
+    "hpi_focus": [
+      "oliguria",
+      "fluid_balance",
+      "nephrotoxic_agents",
+      "contrast_exposure",
+      "hypotension",
+      "sepsis",
+      "recent_surgery"
+    ],
+    "pmh_relevant": [
+      "CKD",
+      "hypertension",
+      "diabetes",
+      "heart_failure",
+      "liver_disease"
+    ],
+    "fh_relevant": [
+      "renal_disease",
+      "stone_disease"
+    ],
+    "sh_required": [
+      "NSAID_use",
+      "herbal_medicine",
+      "smoking",
+      "alcohol",
+      "contrast_history"
+    ],
+    "allergy_required": true,
+    "ros_focus_systems": [
+      "renal",
+      "cardiovascular",
+      "respiratory",
+      "dermatologic"
+    ]
+  },
+  "pe_template": {
+    "required_systems": [
+      "vital_signs",
+      "cardiovascular",
+      "respiratory",
+      "abdominal"
+    ],
+    "focus_items": [
+      "volume_status",
+      "JVP",
+      "lung_auscultation",
+      "skin_turgor",
+      "mucous_membranes",
+      "peripheral_edema"
+    ],
+    "neurological_if_indicated": false,
+    "fundoscopy": false
+  },
+  "medication_protocol": {
+    "fluid_resuscitation": [
+      "crystalloid_bolus_prn"
+    ],
+    "diuretic_trial": [
+      "furosemide_if_fluid_overload"
+    ],
+    "stop_nephrotoxins": [
+      "NSAIDs",
+      "ACEI_ARB_temporary_hold",
+      "aminoglycosides",
+      "contrast"
+    ],
+    "contraindicated": [
+      "nephrotoxic_drugs_during_recovery"
+    ],
+    "titration": "每日评估容量状态、尿量和肌酐趋势调整输液量和利尿剂"
+  },
+  "contraindications": [
+    "NSAIDs绝对禁用",
+    "氨基糖苷类禁用",
+    "造影剂禁用于AKI恢复期"
+  ],
+  "severity_grading": {
+    "system": "KDIGO AKI",
+    "grades": [
+      {
+        "grade": 1,
+        "criteria": "Cr升高1.5-1.9倍或≥26.5μmol/L",
+        "risk": "中危"
+      },
+      {
+        "grade": 2,
+        "criteria": "Cr升高2.0-2.9倍",
+        "risk": "高危"
+      },
+      {
+        "grade": 3,
+        "criteria": "Cr升高≥3.0倍或≥353.6μmol/L或需RRT",
+        "risk": "极高危"
+      }
+    ]
+  },
+  "complication_monitoring": [
+    {
+      "complication": "急性肺水肿",
+      "watch": [
+        "SpO2<92%",
+        "双肺啰音",
+        "粉红色泡沫痰"
+      ]
+    },
+    {
+      "complication": "高钾血症",
+      "watch": [
+        "K+>6.0",
+        "ECG改变",
+        "肌无力"
+      ]
+    },
+    {
+      "complication": "尿毒症急症",
+      "watch": [
+        "心包摩擦音",
+        "意识改变",
+        "出血倾向"
+      ]
+    }
+  ],
+  "lab_reference": {
+    "白细胞": {
+      "low": 3.5,
+      "high": 9.5
+    },
+    "血红蛋白": {
+      "low": 120,
+      "high": 175
+    },
+    "血小板": {
+      "low": 100,
+      "high": 300
+    },
+    "肌酐": {
+      "low": 44,
+      "high": 104
+    },
+    "血糖": {
+      "low": 3.9,
+      "high": 6.1
+    },
+    "钾": {
+      "low": 3.5,
+      "high": 5.3
+    },
+    "钠": {
+      "low": 135,
+      "high": 145
+    },
+    "CRP": {
+      "low": 0,
+      "high": 8
+    },
+    "尿素氮": {
+      "low": 2.9,
+      "high": 8.2
+    },
+    "eGFR": {
+      "low": 60,
+      "high": 120
+    }
+  }
 }

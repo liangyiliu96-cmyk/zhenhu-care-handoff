@@ -1,6 +1,10 @@
 """FHIR 操作 API 端点。
 
 POST /fhir/Consent              — 创建患者同意记录
+POST /fhir/Observation          — 创建体征/检验 Observation
+POST /fhir/Condition            — 创建诊断 Condition
+POST /fhir/AuditEvent           — 创建审计事件（INSERT-only）
+POST /fhir/MedicationRequest    — 创建用药申请
 GET  /fhir/AuditEvent           — 查询审计事件
 """
 
@@ -10,18 +14,32 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from zhenhu.fhir.models import Consent, FHIRAuditEvent, Patient, get_session
+from zhenhu.fhir.models import (
+    Consent,
+    Condition,
+    Encounter,
+    FHIRAuditEvent,
+    MedicationRequest,
+    Observation,
+    Patient,
+    get_session,
+)
 from zhenhu.fhir.schemas import (
     AuditEventAgent,
     AuditEventAgentWho,
     AuditEventBundleEntry,
     AuditEventBundleResponse,
+    AuditEventCreateRequest,
     AuditEventEntity,
     AuditEventEntityReference,
     AuditEventResource,
     AuditEventType,
+    ConditionCreateRequest,
     ConsentCreateRequest,
     ConsentCreateResponse,
+    FhirCreateResponse,
+    MedicationRequestCreateRequest,
+    ObservationCreateRequest,
     UnifiedResponse,
 )
 
@@ -223,3 +241,201 @@ async def get_audit_events(
 
     data = AuditEventBundleResponse(resourceType="Bundle", entry=entries)
     return UnifiedResponse(request_id=request_id, data=data, error=None)
+
+
+# ============================================================================
+# Observation / Condition / AuditEvent / MedicationRequest POST 端点
+# (对接 inpatient-ward fhir_sync 模块)
+# ============================================================================
+
+
+def _extract_patient_id(subject_reference: str) -> str:
+    """从 'Patient/xxx' 引用中提取 patient_id。"""
+    if "/" in subject_reference:
+        return subject_reference.split("/", 1)[1]
+    return subject_reference
+
+
+def _code_display(payload: dict) -> str:
+    """从 coding 字典中提取 display 文本。"""
+    coding_list = payload.get("coding", [])
+    if not coding_list:
+        coding_list = [payload] if isinstance(payload, dict) else []
+    for entry in coding_list:
+        if isinstance(entry, dict) and entry.get("display"):
+            return entry["display"]
+    return payload.get("text", "")
+
+
+async def _ensure_patient(session: AsyncSession, patient_id: str) -> Patient | None:
+    """查找或创建患者记录（fhir-adapter 侧）。"""
+    result = await session.execute(
+        select(Patient).where(Patient.patient_id == patient_id)
+    )
+    patient = result.scalar_one_or_none()
+    if patient is None:
+        # 如果不存在，创建最小 Patient 记录
+        patient = Patient(patient_id=patient_id, name=patient_id, gender="unknown")
+        session.add(patient)
+        await session.flush()
+    return patient
+
+
+@router.post("/Observation", status_code=201)
+async def create_observation(
+    body: ObservationCreateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[FhirCreateResponse]:
+    """接收 inpatient-ward 体征/PE发现，创建 FHIR Observation。
+
+    对接: inpatient-ward → agent/fhir_sync.py → sync_observation()
+    """
+    patient_id = _extract_patient_id(body.subject.reference)
+    actor = request.headers.get("X-User-Role", "system")
+    request_id = getattr(request.state, "request_id", "unknown")
+
+    patient = await _ensure_patient(session, patient_id)
+    display = _code_display(body.code)
+    value = body.valueQuantity.get("value") if body.valueQuantity else None
+    unit = body.valueQuantity.get("unit", "") if body.valueQuantity else ""
+
+    obs = Observation(
+        patient_id=patient.patient_id,
+        code="auto",
+        display=display or "vital_sign",
+        value=str(value) if value is not None else None,
+        unit=unit,
+    )
+    session.add(obs)
+    await session.flush()
+
+    await _record_audit(session, patient.patient_id, "Observation", obs.observation_id, "C", actor)
+    await session.commit()
+
+    return UnifiedResponse(
+        request_id=request_id,
+        data=FhirCreateResponse(resource_id=obs.observation_id, resource_type="Observation"),
+    )
+
+
+@router.post("/Condition", status_code=201)
+async def create_condition(
+    body: ConditionCreateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[FhirCreateResponse]:
+    """接收 inpatient-ward DDx/诊断，创建 FHIR Condition。
+
+    对接: inpatient-ward → agent/fhir_sync.py → sync_condition()
+    """
+    patient_id = _extract_patient_id(body.subject.reference)
+    actor = request.headers.get("X-User-Role", "system")
+    request_id = getattr(request.state, "request_id", "unknown")
+
+    patient = await _ensure_patient(session, patient_id)
+    display = _code_display(body.code)
+    code = ""
+    coding = body.code.get("coding", [])
+    if coding and isinstance(coding[0], dict):
+        code = coding[0].get("code", "")
+
+    condition = Condition(
+        patient_id=patient.patient_id,
+        code=code,
+        display=display or "diagnosis",
+        severity="moderate",
+    )
+    session.add(condition)
+    await session.flush()
+
+    await _record_audit(session, patient.patient_id, "Condition", condition.condition_id, "C", actor)
+    await session.commit()
+
+    return UnifiedResponse(
+        request_id=request_id,
+        data=FhirCreateResponse(resource_id=condition.condition_id, resource_type="Condition"),
+    )
+
+
+@router.post("/AuditEvent", status_code=201)
+async def create_audit_event(
+    body: AuditEventCreateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[FhirCreateResponse]:
+    """接收 inpatient-ward 临床审核动作，创建 FHIR AuditEvent（INSERT-only）。
+
+    对接: inpatient-ward → agent/fhir_sync.py → sync_audit_event()
+    幂等: 通过 Idempotency-Key header 去重。
+    """
+    request_id = getattr(request.state, "request_id", "unknown")
+
+    # 从 entity[0].what.reference 提取 patient_id
+    patient_id = "unknown"
+    if body.entity and body.entity[0].what:
+        ref = body.entity[0].what.get("reference", "")
+        patient_id = _extract_patient_id(ref) if ref else "unknown"
+
+    actor = "system"
+    if body.agent:
+        who = body.agent[0].who
+        if who and who.identifier:
+            actor = who.identifier.get("value", "system")
+
+    audit = FHIRAuditEvent(
+        patient_id=patient_id,
+        entity_type="AuditEvent",
+        entity_id=request_id,
+        action=body.action,
+        actor=actor,
+    )
+    session.add(audit)
+    await session.commit()
+
+    return UnifiedResponse(
+        request_id=request_id,
+        data=FhirCreateResponse(resource_id=audit.audit_id, resource_type="AuditEvent"),
+    )
+
+
+@router.post("/MedicationRequest", status_code=201)
+async def create_medication_request(
+    body: MedicationRequestCreateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[FhirCreateResponse]:
+    """接收 inpatient-ward 用药申请，创建 FHIR MedicationRequest。
+
+    对接: inpatient-ward 照护管理 → 用药订单创建/更新。
+    """
+    patient_id = _extract_patient_id(body.subject.reference)
+    actor = request.headers.get("X-User-Role", "system")
+    request_id = getattr(request.state, "request_id", "unknown")
+
+    patient = await _ensure_patient(session, patient_id)
+
+    medication_display = ""
+    dosage = ""
+    if body.medicationCodeableConcept:
+        medication_display = _code_display(body.medicationCodeableConcept)
+    if body.dosageInstruction:
+        dosage = str(body.dosageInstruction[0]) if body.dosageInstruction else ""
+
+    med_req = MedicationRequest(
+        patient_id=patient.patient_id,
+        medication_code="auto",
+        medication_display=medication_display or "medication",
+        dosage=dosage[:255],
+        status=body.status or "active",
+    )
+    session.add(med_req)
+    await session.flush()
+
+    await _record_audit(session, patient.patient_id, "MedicationRequest", med_req.med_request_id, "C", actor)
+    await session.commit()
+
+    return UnifiedResponse(
+        request_id=request_id,
+        data=FhirCreateResponse(resource_id=med_req.med_request_id, resource_type="MedicationRequest"),
+    )

@@ -1,39 +1,287 @@
 {
   "disease_id": "gi_bleeding",
   "name": "消化道出血",
+  "department": "消化内科",
   "vital_signs": [
-    {"name": "blood_pressure", "unit": "mmHg", "alert_below": "90/60"},
-    {"name": "heart_rate", "unit": "次/分", "alert_above": 110},
-    {"name": "hemoglobin", "unit": "g/dL", "alert_below": 7},
-    {"name": "spo2", "unit": "%", "alert_below": 94},
-    {"name": "platelet", "unit": "×10⁹/L", "alert_below": 50},
-    {"name": "inr", "unit": "", "alert_above": 2.0},
-    {"name": "bun", "unit": "mmol/L", "alert_above": 15}
+    {
+      "name": "blood_pressure",
+      "unit": "mmHg",
+      "alert_below": "90/60"
+    },
+    {
+      "name": "heart_rate",
+      "unit": "次/分",
+      "alert_above": 110
+    },
+    {
+      "name": "hemoglobin",
+      "unit": "g/dL",
+      "alert_below": 7
+    },
+    {
+      "name": "spo2",
+      "unit": "%",
+      "alert_below": 94
+    },
+    {
+      "name": "platelet",
+      "unit": "×10⁹/L",
+      "alert_below": 50
+    },
+    {
+      "name": "inr",
+      "unit": "",
+      "alert_above": 2.0
+    },
+    {
+      "name": "bun",
+      "unit": "mmol/L",
+      "alert_above": 15
+    }
   ],
-  "risk_factors": ["active_hematemesis", "hemodynamic_instability", "age_gt_60", "comorbidity_cirrhosis", "inr_gt_1.5", "rebleeding_risk"],
+  "risk_factors": [
+    "active_hematemesis",
+    "hemodynamic_instability",
+    "age_gt_60",
+    "comorbidity_cirrhosis",
+    "inr_gt_1.5",
+    "rebleeding_risk"
+  ],
   "monitoring_interval_hours": 4,
   "discharge_criteria": [
-    {"condition": "no_active_bleeding_72h", "description": "72h无活动性出血"},
-    {"condition": "hemoglobin_stable", "description": "血红蛋白稳定(≥24h无下降)"},
-    {"condition": "oral_intake_tolerated", "description": "能耐受经口进食"},
-    {"condition": "hemodynamics_stable", "description": "血流动力学稳定"},
-    {"condition": "endoscopic_hemostasis_confirmed", "description": "内镜下止血已确认"},
-    {"condition": "ppi_therapy_established", "description": "PPI治疗方案已建立"}
+    {
+      "condition": "no_active_bleeding_72h",
+      "description": "72h无活动性出血"
+    },
+    {
+      "condition": "hemoglobin_stable",
+      "description": "血红蛋白稳定(≥24h无下降)"
+    },
+    {
+      "condition": "oral_intake_tolerated",
+      "description": "能耐受经口进食"
+    },
+    {
+      "condition": "hemodynamics_stable",
+      "description": "血流动力学稳定"
+    },
+    {
+      "condition": "endoscopic_hemostasis_confirmed",
+      "description": "内镜下止血已确认"
+    },
+    {
+      "condition": "ppi_therapy_established",
+      "description": "PPI治疗方案已建立"
+    }
   ],
   "handoff_instructions": [
-    {"type": "medication", "content": "出院后继续服用PPI抑酸药8-12周，根除HP治疗(如阳性)完整服药14天"},
-    {"type": "monitoring", "content": "观察大便颜色，出现黑便、呕血或头晕乏力立即急诊"},
-    {"type": "followup", "content": "出院后4周消化内科复查胃镜+血常规，评估溃疡愈合和HP根除效果"}
+    {
+      "type": "medication",
+      "content": "出院后继续服用PPI抑酸药8-12周，根除HP治疗(如阳性)完整服药14天"
+    },
+    {
+      "type": "monitoring",
+      "content": "观察大便颜色，出现黑便、呕血或头晕乏力立即急诊"
+    },
+    {
+      "type": "followup",
+      "content": "出院后4周消化内科复查胃镜+血常规，评估溃疡愈合和HP根除效果"
+    }
   ],
   "agent_config": {
     "require_doctor_review": true,
-    "discharge_knowledge_keywords": ["消化道出血二级预防", "PPI疗程", "HP根除方案", "NSAIDs使用禁忌"]
+    "discharge_knowledge_keywords": [
+      "消化道出血二级预防",
+      "PPI疗程",
+      "HP根除方案",
+      "NSAIDs使用禁忌"
+    ]
   },
   "followup_questions": [
-    {"id": "gib-fq-01", "question": "大便颜色是否已恢复正常？有无再次出现黑便？", "clinical_intent": "评估再出血风险", "source": "ehr-kg"},
-    {"id": "gib-fq-02", "question": "有无头晕、乏力、活动后气促？", "clinical_intent": "评估贫血程度", "source": "ehr-kg"},
-    {"id": "gib-fq-03", "question": "是否避免饮酒和NSAIDs类药物？", "clinical_intent": "评估危险因素控制", "source": "ehr-kg"}
+    {
+      "id": "gib-fq-01",
+      "question": "大便颜色是否已恢复正常？有无再次出现黑便？",
+      "clinical_intent": "评估再出血风险",
+      "source": "ehr-kg"
+    },
+    {
+      "id": "gib-fq-02",
+      "question": "有无头晕、乏力、活动后气促？",
+      "clinical_intent": "评估贫血程度",
+      "source": "ehr-kg"
+    },
+    {
+      "id": "gib-fq-03",
+      "question": "是否避免饮酒和NSAIDs类药物？",
+      "clinical_intent": "评估危险因素控制",
+      "source": "ehr-kg"
+    }
   ],
-  "mdt_roles": ["消化内科", "内镜中心", "输血科"],
-  "mdt_threshold": "high"
+  "mdt_roles": [
+    "消化内科",
+    "内镜中心",
+    "输血科"
+  ],
+  "mdt_threshold": "high",
+  "history_template": {
+    "chief_complaint_required": true,
+    "hpi_focus": [
+      "melena",
+      "hematemesis",
+      "abdominal_pain",
+      "NSAID_use",
+      "anticoagulant_use",
+      "antiplatelet_use",
+      "prior_ulcer",
+      "alcohol"
+    ],
+    "pmh_relevant": [
+      "PUD",
+      "cirrhosis",
+      "esophagitis",
+      "gastritis",
+      "H_pylori",
+      "varices"
+    ],
+    "fh_relevant": [
+      "PUD",
+      "GI_malignancy",
+      "coagulation_disorder"
+    ],
+    "sh_required": [
+      "alcohol",
+      "smoking",
+      "NSAID_use",
+      "diet",
+      "anticoagulation_adherence"
+    ],
+    "allergy_required": true,
+    "ros_focus_systems": [
+      "gastrointestinal",
+      "cardiovascular",
+      "hematologic",
+      "constitutional"
+    ]
+  },
+  "pe_template": {
+    "required_systems": [
+      "vital_signs",
+      "cardiovascular",
+      "abdominal"
+    ],
+    "focus_items": [
+      "abdominal_tenderness",
+      "bowel_sounds",
+      "rectal_exam",
+      "orthostatic_vitals",
+      "melena_check",
+      "skin_pallor"
+    ],
+    "neurological_if_indicated": false,
+    "fundoscopy": false
+  },
+  "medication_protocol": {
+    "acid_suppression": [
+      "PPI_high_dose_IV_then_oral"
+    ],
+    "endoscopic": [
+      "内镜下止血(注射/热凝/夹闭)"
+    ],
+    "adjunct": [
+      "octreotide_variceal",
+      "prokinetics"
+    ],
+    "contraindicated": [
+      "NSAIDs",
+      "anticoagulants_during_active_bleeding",
+      "antiplatelet_prn"
+    ],
+    "titration": "出血控制后PPI口服8-12周，根据内镜结果决定抗栓药恢复时机"
+  },
+  "contraindications": [
+    "NSAIDs绝对禁用: 加重消化道黏膜损伤",
+    "活动性出血期抗凝/抗血小板暂停",
+    "大剂量激素禁用"
+  ],
+  "severity_grading": {
+    "system": "Glasgow-Blatchford",
+    "grades": [
+      {
+        "grade": "低危",
+        "score": "0-1",
+        "risk": "低危可门诊"
+      },
+      {
+        "grade": "中危",
+        "score": "2-6",
+        "risk": "中危需住院"
+      },
+      {
+        "grade": "高危",
+        "score": "≥7",
+        "risk": "高危需紧急内镜"
+      }
+    ]
+  },
+  "complication_monitoring": [
+    {
+      "complication": "再出血",
+      "watch": [
+        "再次呕血/黑便",
+        "Hb下降>2g/dL",
+        "HR增快>110"
+      ]
+    },
+    {
+      "complication": "穿孔",
+      "watch": [
+        "突发剧烈腹痛",
+        "腹膜刺激征",
+        "游离气体"
+      ]
+    },
+    {
+      "complication": "失血性休克",
+      "watch": [
+        "SBP<90",
+        "HR>110",
+        "肢端冷",
+        "尿少"
+      ]
+    }
+  ],
+  "lab_reference": {
+    "白细胞": {
+      "low": 3.5,
+      "high": 9.5
+    },
+    "血红蛋白": {
+      "low": 70,
+      "high": 175
+    },
+    "血小板": {
+      "low": 100,
+      "high": 300
+    },
+    "肌酐": {
+      "low": 44,
+      "high": 104
+    },
+    "血糖": {
+      "low": 3.9,
+      "high": 6.1
+    },
+    "钾": {
+      "low": 3.5,
+      "high": 5.3
+    },
+    "钠": {
+      "low": 135,
+      "high": 145
+    },
+    "CRP": {
+      "low": 0,
+      "high": 8
+    }
+  }
 }

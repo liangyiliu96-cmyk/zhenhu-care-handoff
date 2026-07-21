@@ -1,39 +1,308 @@
 {
   "disease_id": "tumor_chemo",
   "name": "肿瘤化疗后",
+  "department": "肿瘤科",
   "vital_signs": [
-    {"name": "temperature", "unit": "℃", "alert_above": 38.3, "note": "粒缺伴发热为急症"},
-    {"name": "neutrophil_count", "unit": "×10⁹/L", "alert_below": 0.5},
-    {"name": "platelet", "unit": "×10⁹/L", "alert_below": 20},
-    {"name": "spo2", "unit": "%", "alert_below": 94},
-    {"name": "wbc", "unit": "×10⁹/L", "alert_below": 2.0},
-    {"name": "hemoglobin", "unit": "g/dL", "alert_below": 8},
-    {"name": "creatinine", "unit": "μmol/L", "alert_above": 133}
+    {
+      "name": "temperature",
+      "unit": "℃",
+      "alert_above": 38.3,
+      "note": "粒缺伴发热为急症"
+    },
+    {
+      "name": "neutrophil_count",
+      "unit": "×10⁹/L",
+      "alert_below": 0.5
+    },
+    {
+      "name": "platelet",
+      "unit": "×10⁹/L",
+      "alert_below": 20
+    },
+    {
+      "name": "spo2",
+      "unit": "%",
+      "alert_below": 94
+    },
+    {
+      "name": "wbc",
+      "unit": "×10⁹/L",
+      "alert_below": 2.0
+    },
+    {
+      "name": "hemoglobin",
+      "unit": "g/dL",
+      "alert_below": 8
+    },
+    {
+      "name": "creatinine",
+      "unit": "μmol/L",
+      "alert_above": 133
+    }
   ],
-  "risk_factors": ["febrile_neutropenia", "thrombocytopenia_bleeding", "mucositis_grade3", "nausea_vomiting_grade3", "tumor_lysis_syndrome_risk", "prior_chemo_cycles_gt_3"],
+  "risk_factors": [
+    "febrile_neutropenia",
+    "thrombocytopenia_bleeding",
+    "mucositis_grade3",
+    "nausea_vomiting_grade3",
+    "tumor_lysis_syndrome_risk",
+    "prior_chemo_cycles_gt_3"
+  ],
   "monitoring_interval_hours": 8,
   "discharge_criteria": [
-    {"condition": "neutrophil_recovery_gt_1.0", "description": "中性粒细胞恢复>1.0×10⁹/L"},
-    {"condition": "afebrile_48h", "description": "体温正常>48h"},
-    {"condition": "oral_intake_adequate", "description": "经口摄入充足"},
-    {"condition": "mucositis_improving", "description": "口腔黏膜炎改善"},
-    {"condition": "platelet_stable_or_rising", "description": "血小板稳定或回升"},
-    {"condition": "pain_controlled", "description": "疼痛控制良好"}
+    {
+      "condition": "neutrophil_recovery_gt_1.0",
+      "description": "中性粒细胞恢复>1.0×10⁹/L"
+    },
+    {
+      "condition": "afebrile_48h",
+      "description": "体温正常>48h"
+    },
+    {
+      "condition": "oral_intake_adequate",
+      "description": "经口摄入充足"
+    },
+    {
+      "condition": "mucositis_improving",
+      "description": "口腔黏膜炎改善"
+    },
+    {
+      "condition": "platelet_stable_or_rising",
+      "description": "血小板稳定或回升"
+    },
+    {
+      "condition": "pain_controlled",
+      "description": "疼痛控制良好"
+    }
   ],
   "handoff_instructions": [
-    {"type": "medication", "content": "出院后按医嘱服用升白针+止吐药，出现发热(T>38℃)立即返院不可拖延"},
-    {"type": "monitoring", "content": "每日测体温，观察口腔黏膜、皮肤瘀斑和出血点，避免去人群密集场所"},
-    {"type": "followup", "content": "出院后按化疗周期返院，每次化疗前复查血常规+肝肾功能+肿瘤标志物"}
+    {
+      "type": "medication",
+      "content": "出院后按医嘱服用升白针+止吐药，出现发热(T>38℃)立即返院不可拖延"
+    },
+    {
+      "type": "monitoring",
+      "content": "每日测体温，观察口腔黏膜、皮肤瘀斑和出血点，避免去人群密集场所"
+    },
+    {
+      "type": "followup",
+      "content": "出院后按化疗周期返院，每次化疗前复查血常规+肝肾功能+肿瘤标志物"
+    }
   ],
   "agent_config": {
     "require_doctor_review": true,
-    "discharge_knowledge_keywords": ["化疗后骨髓抑制管理", "粒缺伴发热处理", "止吐方案", "肿瘤标志物监测"]
+    "discharge_knowledge_keywords": [
+      "化疗后骨髓抑制管理",
+      "粒缺伴发热处理",
+      "止吐方案",
+      "肿瘤标志物监测"
+    ]
   },
   "followup_questions": [
-    {"id": "che-fq-01", "question": "每日体温是否正常？有无寒战或咽痛？", "clinical_intent": "筛查粒缺伴感染", "source": "ehr-kg"},
-    {"id": "che-fq-02", "question": "口腔有无溃疡疼痛？进食是否受影响？", "clinical_intent": "评估黏膜炎程度", "source": "ehr-kg"},
-    {"id": "che-fq-03", "question": "恶心呕吐是否可控？止吐药效果如何？", "clinical_intent": "评估化疗耐受性", "source": "ehr-kg"}
+    {
+      "id": "che-fq-01",
+      "question": "每日体温是否正常？有无寒战或咽痛？",
+      "clinical_intent": "筛查粒缺伴感染",
+      "source": "ehr-kg"
+    },
+    {
+      "id": "che-fq-02",
+      "question": "口腔有无溃疡疼痛？进食是否受影响？",
+      "clinical_intent": "评估黏膜炎程度",
+      "source": "ehr-kg"
+    },
+    {
+      "id": "che-fq-03",
+      "question": "恶心呕吐是否可控？止吐药效果如何？",
+      "clinical_intent": "评估化疗耐受性",
+      "source": "ehr-kg"
+    }
   ],
-  "mdt_roles": ["肿瘤内科", "营养师", "心理科", "疼痛科"],
-  "mdt_threshold": "high"
+  "mdt_roles": [
+    "肿瘤内科",
+    "营养师",
+    "心理科",
+    "疼痛科"
+  ],
+  "mdt_threshold": "high",
+  "history_template": {
+    "chief_complaint_required": true,
+    "hpi_focus": [
+      "chemo_regimen",
+      "cycle_number",
+      "nausea_vomiting",
+      "mucositis",
+      "fever",
+      "fatigue",
+      "neuropathy",
+      "weight_loss"
+    ],
+    "pmh_relevant": [
+      "cancer_type",
+      "cancer_stage",
+      "prior_chemo",
+      "radiation",
+      "bone_marrow_suppression",
+      "tumor_lysis_syndrome"
+    ],
+    "fh_relevant": [
+      "cancer",
+      "hereditary_cancer_syndrome",
+      "BRCA",
+      "Lynch"
+    ],
+    "sh_required": [
+      "smoking",
+      "alcohol",
+      "nutrition_status",
+      "caregiver",
+      "performance_status"
+    ],
+    "allergy_required": true,
+    "ros_focus_systems": [
+      "hematologic",
+      "gastrointestinal",
+      "dermatologic",
+      "neurological",
+      "constitutional",
+      "psychiatric"
+    ]
+  },
+  "pe_template": {
+    "required_systems": [
+      "vital_signs",
+      "oral_mucosa",
+      "dermatologic",
+      "vascular",
+      "lymphatic"
+    ],
+    "focus_items": [
+      "oral_mucosa_inspection",
+      "skin_rash",
+      "central_line_site",
+      "lymph_nodes",
+      "neurological_sensory",
+      "temperature",
+      "bleeding_signs"
+    ],
+    "neurological_if_indicated": true,
+    "fundoscopy": false
+  },
+  "medication_protocol": {
+    "antiemetic": [
+      "NK1_antagonist",
+      "5-HT3_antagonist",
+      "dexamethasone"
+    ],
+    "growth_factors": [
+      "G-CSF_for_neutropenia",
+      "TPO_agonist"
+    ],
+    "supportive": [
+      "bisphosphonate",
+      "pain_management"
+    ],
+    "contraindicated": [
+      "live_vaccines",
+      "NSAIDs_if_thrombocytopenia"
+    ],
+    "titration": "每周期化疗后评估毒性分级(CTCAE)调整下周期剂量"
+  },
+  "contraindications": [
+    "活疫苗禁用: 免疫功能低下期",
+    "NSAIDs慎用: 血小板减少/肾功能不全",
+    "强CYP3A4抑制剂慎用: 与部分化疗药相互作用"
+  ],
+  "severity_grading": {
+    "system": "CTCAE毒性分级",
+    "grades": [
+      {
+        "grade": 1,
+        "description": "轻度不良反应",
+        "risk": "低危"
+      },
+      {
+        "grade": 2,
+        "description": "中度不良反应",
+        "risk": "中危"
+      },
+      {
+        "grade": 3,
+        "description": "重度需住院",
+        "risk": "高危"
+      },
+      {
+        "grade": 4,
+        "description": "危及生命",
+        "risk": "极高危"
+      }
+    ]
+  },
+  "complication_monitoring": [
+    {
+      "complication": "粒缺伴发热",
+      "watch": [
+        "T≥38.3℃",
+        "中性粒细胞<0.5",
+        "寒战",
+        "口腔黏膜炎"
+      ]
+    },
+    {
+      "complication": "肿瘤溶解综合征",
+      "watch": [
+        "K+>6.0",
+        "磷升高",
+        "Ca<2.1",
+        "Cr骤升",
+        "尿酸>476"
+      ]
+    },
+    {
+      "complication": "严重血小板减少出血",
+      "watch": [
+        "PLT<20",
+        "皮肤瘀斑增多",
+        "牙龈/鼻出血"
+      ]
+    }
+  ],
+  "lab_reference": {
+    "白细胞": {
+      "low": 3.5,
+      "high": 9.5
+    },
+    "血红蛋白": {
+      "low": 120,
+      "high": 175
+    },
+    "血小板": {
+      "low": 100,
+      "high": 300
+    },
+    "肌酐": {
+      "low": 44,
+      "high": 104
+    },
+    "血糖": {
+      "low": 3.9,
+      "high": 6.1
+    },
+    "钾": {
+      "low": 3.5,
+      "high": 5.3
+    },
+    "钠": {
+      "low": 135,
+      "high": 145
+    },
+    "CRP": {
+      "low": 0,
+      "high": 8
+    },
+    "中性粒细胞": {
+      "low": 1.5,
+      "high": 7.5
+    }
+  }
 }

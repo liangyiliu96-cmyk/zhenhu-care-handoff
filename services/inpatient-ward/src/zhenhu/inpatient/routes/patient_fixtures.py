@@ -1,5 +1,52 @@
 """模拟患者数据——供开发测试使用。每个患者包含完整入院→出院链路数据。"""
 
+from copy import deepcopy
+
+
+DASHBOARD_CARE_FIXTURE_ID = "demo-dashboard-care"
+
+
+def build_dashboard_care_fixture(template: dict) -> dict:
+    """Return one self-contained doctor-workbench fixture without invoking the Agent."""
+    disease_template = deepcopy(template)
+    disease_template["lab_reference"] = {
+        "creatinine": {"low": 44, "high": 133},
+        "potassium": {"low": 3.5, "high": 5.5},
+    }
+    return {
+        "patient_id": DASHBOARD_CARE_FIXTURE_ID,
+        "phase": "monitoring",
+        "current_step": "monitoring",
+        "patient_data": {"name": "演示患者-李安宁", "age": 72, "gender": "female"},
+        "patient_history": {"comorbidities": ["heart_failure", "hypertension"], "medications": ["呋塞米", "氯化钾"]},
+        "history_data": {"chief_complaint": "活动后气促加重伴下肢水肿 3 天", "hpi_narrative": "慢性心衰基础上容量负荷增加。", "pmh": {"heart_failure": "3 年"}},
+        "pe_data": {"pe_narrative": "双下肢轻度水肿，双肺底少量湿啰音。"},
+        "allergies": ["青霉素"],
+        "disease_template": disease_template,
+        "vital_signs": [
+            {"timestamp": "2026-07-18T08:00:00+08:00", "blood_pressure": "108/70", "systolic_mmhg": 108, "diastolic_mmhg": 70, "heart_rate": 88, "spo2": 94, "temperature": 36.7},
+            {"timestamp": "2026-07-18T14:00:00+08:00", "blood_pressure": "112/72", "systolic_mmhg": 112, "diastolic_mmhg": 72, "heart_rate": 80, "spo2": 96, "temperature": 36.5},
+            {"timestamp": "2026-07-19T08:00:00+08:00", "blood_pressure": "116/74", "systolic_mmhg": 116, "diastolic_mmhg": 74, "heart_rate": 74, "spo2": 97, "temperature": 36.4},
+        ],
+        "lab_results": [
+            {"name": "creatinine", "value": 156, "unit": "μmol/L"},
+            {"name": "potassium", "value": 3.3, "unit": "mmol/L"},
+            {"name": "creatinine", "value": 148, "unit": "μmol/L"},
+            {"name": "potassium", "value": 3.8, "unit": "mmol/L"},
+        ],
+        "medication_adjustments": [{"medication": "呋塞米", "dose": "20 mg", "frequency": "bid", "route": "IV", "indication": "容量管理", "action": "调整剂量", "source": "doctor"}],
+        "medication_orders": [{"id": "demo-order-furosemide", "medication": "呋塞米", "dose": "20 mg", "frequency": "bid", "route": "IV", "indication": "容量管理", "status": "draft", "status_note": "等待医师确认"}],
+        "mdt_requests": [{"id": "demo-mdt-heart-failure", "reason": "心肾综合征风险评估", "specialties": ["心内科", "肾内科"], "status": "requested", "decision": None, "summary": "", "resolved_at": None}],
+        "education_records": [{"id": "demo-education-sodium", "topic": "限钠与每日体重监测", "recipient": "patient", "teach_back": "患者可复述每日称重要求", "acknowledged": True}],
+        "follow_up_tasks": [{"id": "demo-follow-up-weight", "title": "出院后体重和症状随访", "due_at": "2026-07-26T09:00:00+08:00", "assignee": "心衰随访护士", "status": "pending", "note": "", "completed_at": None}],
+        "latest_round": {"subjective": "气促较昨日缓解", "assessment": "容量负荷改善中", "plan": "继续利尿并监测电解质"},
+        "ddx_list": [{"diagnosis": "急性失代偿性心力衰竭", "likelihood": "high"}],
+        "discharge_criteria_check": {"all_met": False, "met_count": 2, "total_count": 4},
+        "ai_recommendation": "复查肾功能和电解质，评估利尿剂反应。",
+        "last_updated": "2026-07-19T08:00:00+08:00",
+        "round_count": 1,
+    }
+
 PATIENTS = {
     "pat-htn-001": {
         "name": "高血压患者-张建国",
@@ -8,14 +55,18 @@ PATIENTS = {
         "patient_data": {
             "age": 65, "gender": "male", "bmi": 28, "pain_score": 2,
             "pain_location": "无", "reduced_mobility": False,
+            "chief_complaint": "反复头晕3年，加重伴头痛1周",
         },
         "patient_history": {
             "smoking": True, "family_history_cvd": True,
             "comorbidities": ["hypertension", "obesity"],
             "prior_hospitalization": True,
             "medications": ["氨氯地平", "厄贝沙坦"],
+            "pmh": {"hypertension": "10年, 最高180/110mmHg", "dyslipidemia": "2年"},
+            "fh": {"father": "hypertension, CVD", "mother": "hypertension"},
+            "sh": {"smoking": "20支/日×15年", "alcohol": "偶尔", "diet_salt": "偏咸", "exercise": "少"},
         },
-        "allergies": [],
+        "allergies": ["青霉素"],
         "vital_signs_sequence": [
             # 入院时偏高→用药后逐步稳定
             {"blood_pressure": "175/105", "systolic_mmhg": 175, "diastolic_mmhg": 105, "heart_rate": 88, "spo2": 97, "temperature": 36.6},
@@ -40,14 +91,18 @@ PATIENTS = {
         "patient_data": {
             "age": 72, "gender": "female", "bmi": 26, "pain_score": 1,
             "reduced_mobility": True,
+            "chief_complaint": "活动后气促3年，加重伴双下肢水肿2周",
         },
         "patient_history": {
             "smoking": False,
             "comorbidities": ["heart_failure", "hypertension", "ckd_stage3"],
             "prior_hospitalization": True,
             "medications": ["呋塞米", "螺内酯", "培哚普利", "美托洛尔", "达格列净"],
+            "pmh": {"heart_failure": "3年, NYHA III级", "hypertension": "5年", "CKD_stage3": "2年, eGFR 45"},
+            "fh": {"mother": "heart_failure", "father": "hypertension"},
+            "sh": {"smoking": "无", "alcohol": "无", "sodium_intake": "低盐饮食", "fluid_restriction": "每日限水1.5L", "daily_weight": "依从"},
         },
-        "allergies": ["青霉素过敏"],
+        "allergies": ["青霉素"],
         "vital_signs_sequence": [
             {"blood_pressure": "100/65", "systolic_mmhg": 100, "diastolic_mmhg": 65, "heart_rate": 95, "spo2": 93, "temperature": 36.8, "weight": 72.5},
             {"blood_pressure": "105/68", "systolic_mmhg": 105, "diastolic_mmhg": 68, "heart_rate": 88, "spo2": 94, "temperature": 36.6, "weight": 71.8},
@@ -71,6 +126,7 @@ PATIENTS = {
         "patient_data": {
             "age": 58, "gender": "male", "bmi": 31, "pain_score": 0,
             "reduced_mobility": False,
+            "chief_complaint": "多饮多尿8年，乏力纳差伴恶心3天",
         },
         "patient_history": {
             "smoking": True,
@@ -78,8 +134,11 @@ PATIENTS = {
             "prior_hospitalization": True,
             "hypoglycemia_history": True,
             "medications": ["二甲双胍", "格列美脲", "胰岛素"],
+            "pmh": {"diabetes_T2DM": "8年, 胰岛素治疗2年", "hypertension": "3年, 厄贝沙坦控制", "obesity": "多年", "neuropathy": "足底麻木1年"},
+            "fh": {"mother": "diabetes", "father": "hypertension, obesity"},
+            "sh": {"smoking": "15支/日×20年", "alcohol": "偶尔", "diet": "饮食控制不佳", "exercise": "少", "self_monitoring": "偶尔测血糖"},
         },
-        "allergies": [],
+        "allergies": ["磺胺类"],
         "vital_signs_sequence": [
             {"blood_glucose_fasting": 14.2, "blood_pressure": "145/90", "systolic_mmhg": 145, "diastolic_mmhg": 90, "heart_rate": 85, "spo2": 98, "temperature": 36.7},
             {"blood_glucose_fasting": 12.5, "blood_pressure": "140/88", "systolic_mmhg": 140, "diastolic_mmhg": 88, "heart_rate": 82, "spo2": 98, "temperature": 36.5},
@@ -105,14 +164,18 @@ PATIENTS = {
         "patient_data": {
             "age": 62, "gender": "male", "bmi": 27, "pain_score": 3,
             "pain_location": "胸骨后", "reduced_mobility": True,
+            "chief_complaint": "PCI术后3天，胸闷再发2小时",
         },
         "patient_history": {
             "smoking": True,
             "comorbidities": ["coronary_artery_disease", "hypertension", "hyperlipidemia"],
             "prior_hospitalization": True,
             "medications": ["阿司匹林", "氯吡格雷", "阿托伐他汀", "美托洛尔"],
+            "pmh": {"CAD": "2年, PCI(1枚DES支架)3天前", "hypertension": "5年", "hyperlipidemia": "3年, LDL 3.5"},
+            "fh": {"father": "CAD, 55岁心梗", "brother": "hyperlipidemia"},
+            "sh": {"smoking": "20支/日×30年", "alcohol": "少量", "diet_fat": "喜油腻", "exercise": "少", "stress": "工作压力大"},
         },
-        "allergies": [],
+        "allergies": ["阿司匹林"],
         "vital_signs_sequence": [
             {"blood_pressure": "150/95", "systolic_mmhg": 150, "diastolic_mmhg": 95, "heart_rate": 92, "spo2": 96, "temperature": 36.7, "troponin": 0.12, "ldl": 3.5},
             {"blood_pressure": "145/90", "systolic_mmhg": 145, "diastolic_mmhg": 90, "heart_rate": 85, "spo2": 97, "temperature": 36.5, "troponin": 0.08, "ldl": 3.5},
@@ -137,14 +200,18 @@ PATIENTS = {
         "patient_data": {
             "age": 70, "gender": "female", "bmi": 24, "pain_score": 1,
             "pain_location": "无", "reduced_mobility": True,
+            "chief_complaint": "突发左侧肢体无力伴言语含糊3小时",
         },
         "patient_history": {
             "smoking": False,
             "comorbidities": ["stroke", "hypertension", "atrial_fibrillation"],
             "prior_hospitalization": True,
             "medications": ["氯吡格雷", "阿托伐他汀", "氨氯地平", "华法林"],
+            "pmh": {"stroke": "急性缺血性卒中, NIHSS 8", "hypertension": "10年", "atrial_fibrillation": "3年, 华法林抗凝"},
+            "fh": {"mother": "stroke, 68岁", "sister": "hypertension"},
+            "sh": {"smoking": "无", "alcohol": "无", "drug_abuse": "无", "functional_status": "发病前独立自理"},
         },
-        "allergies": ["磺胺类过敏"],
+        "allergies": ["磺胺类"],
         "vital_signs_sequence": [
             {"blood_pressure": "175/100", "systolic_mmhg": 175, "diastolic_mmhg": 100, "heart_rate": 82, "spo2": 96, "temperature": 36.8, "nihss_score": 8, "gcs": 14, "blood_glucose": 8.5},
             {"blood_pressure": "168/95", "systolic_mmhg": 168, "diastolic_mmhg": 95, "heart_rate": 80, "spo2": 97, "temperature": 36.6, "nihss_score": 7, "gcs": 14, "blood_glucose": 7.8},
@@ -168,12 +235,16 @@ PATIENTS = {
         "patient_data": {
             "age": 68, "gender": "male", "bmi": 23, "pain_score": 1,
             "pain_location": "无", "reduced_mobility": True,
+            "chief_complaint": "反复咳嗽咳痰12年，气促加重3天伴黄痰",
         },
         "patient_history": {
             "smoking": True,
             "comorbidities": ["copd", "hypertension", "osteoporosis"],
             "prior_hospitalization": True,
             "medications": ["噻托溴铵", "沙美特罗替卡松", "茶碱缓释片"],
+            "pmh": {"COPD": "12年, GOLD III级, 每年急性加重2-3次", "hypertension": "5年", "osteoporosis": "2年"},
+            "fh": {"father": "COPD, 肺心病", "mother": "无殊"},
+            "sh": {"smoking": "20支/日×40年(已戒1年)", "occupational_exposure": "煤矿工人30年", "biomass_fuel": "无"},
         },
         "allergies": [],
         "vital_signs_sequence": [
@@ -199,14 +270,18 @@ PATIENTS = {
         "patient_data": {
             "age": 55, "gender": "female", "bmi": 25, "pain_score": 4,
             "pain_location": "右下胸", "reduced_mobility": True,
+            "chief_complaint": "发热咳嗽咳黄痰5天，右侧胸痛2天",
         },
         "patient_history": {
             "smoking": False,
             "comorbidities": ["community_acquired_pneumonia", "asthma"],
             "prior_hospitalization": False,
             "medications": ["头孢曲松", "阿奇霉素", "沙丁胺醇"],
+            "pmh": {"asthma": "10年, 沙丁胺醇按需使用", "CAP": "首次"},
+            "fh": {"mother": "asthma", "father": "无殊"},
+            "sh": {"smoking": "无", "alcohol": "偶尔", "living_conditions": "与家人同住", "recent_travel": "无"},
         },
-        "allergies": ["头孢类过敏史待确认"],
+        "allergies": ["头孢类"],
         "vital_signs_sequence": [
             {"temperature": 39.2, "spo2": 90, "respiratory_rate": 30, "heart_rate": 105, "blood_pressure": "105/65", "systolic_mmhg": 105, "diastolic_mmhg": 65},
             {"temperature": 38.5, "spo2": 91, "respiratory_rate": 28, "heart_rate": 100, "blood_pressure": "108/68", "systolic_mmhg": 108, "diastolic_mmhg": 68},
@@ -231,14 +306,18 @@ PATIENTS = {
         "patient_data": {
             "age": 60, "gender": "male", "bmi": 28, "pain_score": 1,
             "pain_location": "无", "reduced_mobility": True,
+            "chief_complaint": "双下肢水肿进行性加重1月，伴乏力纳差",
         },
         "patient_history": {
             "smoking": False,
             "comorbidities": ["ckd_stage3", "diabetes", "hypertension", "anemia"],
             "prior_hospitalization": True,
             "medications": ["厄贝沙坦", "呋塞米", "碳酸氢钠", "促红素"],
+            "pmh": {"CKD_stage3": "3年, 糖尿病肾病, eGFR 35", "diabetes_T2DM": "12年, 胰岛素治疗", "hypertension": "10年", "anemia": "肾性贫血1年"},
+            "fh": {"mother": "diabetes, CKD", "father": "hypertension"},
+            "sh": {"smoking": "无", "alcohol": "无", "diet_protein": "低蛋白饮食", "diet_potassium": "限钾", "diet_phosphorus": "限磷", "fluid_restriction": "遵医嘱"},
         },
-        "allergies": ["造影剂过敏"],
+        "allergies": ["造影剂"],
         "vital_signs_sequence": [
             {"blood_pressure": "155/92", "systolic_mmhg": 155, "diastolic_mmhg": 92, "heart_rate": 80, "spo2": 97, "temperature": 36.6, "egfr": 35, "potassium": 5.6, "hemoglobin": 8.5, "bicarbonate": 17, "calcium": 2.05, "phosphorus": 1.85, "weight": 78.0},
             {"blood_pressure": "150/90", "systolic_mmhg": 150, "diastolic_mmhg": 90, "heart_rate": 78, "spo2": 97, "temperature": 36.5, "egfr": 36, "potassium": 5.3, "hemoglobin": 8.5, "bicarbonate": 18, "calcium": 2.08, "phosphorus": 1.82, "weight": 77.5},
@@ -263,14 +342,18 @@ PATIENTS = {
         "patient_data": {
             "age": 45, "gender": "male", "bmi": 26, "pain_score": 2,
             "pain_location": "腰部酸胀", "reduced_mobility": False,
+            "chief_complaint": "冠脉造影后尿量减少3天，腰部酸胀不适",
         },
         "patient_history": {
             "smoking": True,
             "comorbidities": ["aki", "hypertension", "coronary_artery_disease"],
             "prior_hospitalization": True,
             "medications": ["呋塞米", "氨氯地平", "阿司匹林"],
+            "pmh": {"AKI": "造影剂相关, KDIGO 2期", "hypertension": "3年", "CAD": "1年, PCI术后"},
+            "fh": {"father": "hypertension, CAD", "mother": "无殊"},
+            "sh": {"smoking": "10支/日×15年", "NSAID_use": "偶用布洛芬", "herbal_medicine": "无", "contrast_history": "1月前冠脉CTA造影"},
         },
-        "allergies": ["造影剂过敏"],
+        "allergies": ["造影剂"],
         "vital_signs_sequence": [
             {"urine_output": 20, "creatinine_vs": 280, "potassium": 5.8, "blood_pressure": "95/62", "systolic_mmhg": 95, "diastolic_mmhg": 62, "bun": 18, "bicarbonate": 16, "heart_rate": 88, "spo2": 97, "temperature": 36.8, "weight": 80.0},
             {"urine_output": 25, "creatinine_vs": 260, "potassium": 5.6, "blood_pressure": "98/65", "systolic_mmhg": 98, "diastolic_mmhg": 65, "bun": 17, "bicarbonate": 17, "heart_rate": 85, "spo2": 97, "temperature": 36.6, "weight": 79.5},
@@ -294,12 +377,16 @@ PATIENTS = {
         "patient_data": {
             "age": 58, "gender": "male", "bmi": 22, "pain_score": 3,
             "pain_location": "右上腹", "reduced_mobility": True,
+            "chief_complaint": "腹胀进行性加重2月，伴乏力、食欲减退、睡眠倒错2天",
         },
         "patient_history": {
             "smoking": False,
             "comorbidities": ["cirrhosis", "hepatitis_b", "portal_hypertension", "ascites"],
             "prior_hospitalization": True,
             "medications": ["螺内酯", "呋塞米", "恩替卡韦", "乳果糖", "利福昔明"],
+            "pmh": {"cirrhosis": "乙肝肝硬化, Child-Pugh B级, 确诊5年", "hepatitis_B": "慢性, 携带20年, 恩替卡韦治疗5年", "ascites": "反复发作, 曾行腹腔穿刺3次", "portal_hypertension": "内镜见食管静脉曲张中度"},
+            "fh": {"mother": "hepatitis_B携带者", "father": "肝癌去世"},
+            "sh": {"alcohol": "戒酒5年(曾饮白酒250g/日×15年)", "IVDU": "无", "tattoos": "无", "sexual_history": "无高风险行为"},
         },
         "allergies": [],
         "vital_signs_sequence": [
@@ -326,12 +413,16 @@ PATIENTS = {
         "patient_data": {
             "age": 50, "gender": "male", "bmi": 24, "pain_score": 5,
             "pain_location": "上腹部", "reduced_mobility": True,
+            "chief_complaint": "黑便3天，上腹痛加重伴头晕乏力1天",
         },
         "patient_history": {
             "smoking": True,
             "comorbidities": ["duodenal_ulcer", "hypertension"],
             "prior_hospitalization": True,
             "medications": ["奥美拉唑", "铝碳酸镁", "氨氯地平"],
+            "pmh": {"duodenal_ulcer": "5年, 反复发作, H.pylori阳性", "hypertension": "3年"},
+            "fh": {"father": "PUD", "mother": "无殊"},
+            "sh": {"alcohol": "白酒100g/日×10年", "smoking": "20支/日×20年", "NSAID_use": "近期因关节痛服用布洛芬", "diet": "不规律, 喜辛辣"},
         },
         "allergies": [],
         "vital_signs_sequence": [
@@ -358,12 +449,16 @@ PATIENTS = {
         "patient_data": {
             "age": 35, "gender": "female", "bmi": 20, "pain_score": 0,
             "pain_location": "无", "reduced_mobility": False,
+            "chief_complaint": "心悸手抖伴体重下降3月，加重1周",
         },
         "patient_history": {
             "smoking": False,
             "comorbidities": ["hyperthyroidism", "mild_anxiety"],
             "prior_hospitalization": False,
             "medications": ["甲巯咪唑", "普萘洛尔"],
+            "pmh": {"hyperthyroidism": "Graves病, 初发, TSH<0.01", "mild_anxiety": "1年, 未用药"},
+            "fh": {"mother": "Graves病", "sister": "桥本甲状腺炎"},
+            "sh": {"iodine_intake": "无特殊(未服用含碘药物/补充剂)", "stress": "近期工作压力大", "smoking": "无", "medication_adherence": "尚可"},
         },
         "allergies": [],
         "vital_signs_sequence": [
@@ -390,12 +485,16 @@ PATIENTS = {
         "patient_data": {
             "age": 45, "gender": "female", "bmi": 26, "pain_score": 5,
             "pain_location": "右上腹切口", "reduced_mobility": True,
+            "chief_complaint": "腹腔镜胆囊切除术后第3天，切口疼痛，已排气未排便",
         },
         "patient_history": {
             "smoking": False,
             "comorbidities": ["cholecystolithiasis", "mild_hypertension"],
             "prior_hospitalization": False,
             "medications": ["头孢呋辛", "对乙酰氨基酚", "氨氯地平"],
+            "pmh": {"cholecystolithiasis": "间断右上腹痛2年，本次行LC", "mild_hypertension": "1年, 氨氯地平控制良好"},
+            "fh": {"mother": "cholecystolithiasis", "father": "hypertension"},
+            "sh": {"smoking": "无", "alcohol": "偶尔", "functional_status": "术前独立自理", "caregiver_support": "丈夫陪护"},
         },
         "allergies": [],
         "vital_signs_sequence": [
@@ -421,12 +520,16 @@ PATIENTS = {
         "patient_data": {
             "age": 55, "gender": "female", "bmi": 22, "pain_score": 4,
             "pain_location": "全身酸痛", "reduced_mobility": True,
+            "chief_complaint": "乳腺癌化疗第3周期后发热2天，最高38.8°C，伴咽痛乏力",
         },
         "patient_history": {
             "smoking": False,
             "comorbidities": ["breast_cancer", "post_chemotherapy_bone_marrow_suppression", "mild_anemia"],
             "prior_hospitalization": True,
             "medications": ["G-CSF", "昂丹司琼", "对乙酰氨基酚", "曲妥珠单抗"],
+            "pmh": {"breast_cancer": "Luminal B型, 改良根治术后, 辅助化疗AC-T方案第3周期", "bone_marrow_suppression": "粒缺, ANC 0.3", "mild_anemia": "化疗相关, Hb 7.5"},
+            "fh": {"mother": "乳腺癌(50岁诊断)", "maternal_aunt": "卵巢癌"},
+            "sh": {"smoking": "无", "alcohol": "无", "nutrition_status": "食欲减退, 体重下降3kg", "caregiver": "女儿陪护", "performance_status": "ECOG 2"},
         },
         "allergies": [],
         "vital_signs_sequence": [
@@ -442,6 +545,156 @@ PATIENTS = {
             {"name": "wbc", "value": 1.5, "unit": "×10⁹/L"},
             {"name": "hemoglobin", "value": 7.5, "unit": "g/dL"},
             {"name": "platelet", "value": 18, "unit": "×10⁹/L"},
+        ],
+        "expected_discharge": True,
+    },
+
+    # ═══════════════════════════════════════════════════════════
+    # 新增 4 科室患者 (2026-07-18)
+    # ═══════════════════════════════════════════════════════════
+
+    "pat-hipfx-001": {
+        "name": "髋部骨折患者-陈大山",
+        "description": "78岁男性，跌倒致左髋疼痛活动受限2天，X线示股骨颈骨折",
+        "disease_id": "hip_fracture",
+        "patient_data": {
+            "age": 78, "gender": "male", "bmi": 22, "pain_score": 8,
+            "pain_location": "左髋关节", "reduced_mobility": True,
+            "chief_complaint": "跌倒后左髋部持续性剧痛2天，不能站立",
+        },
+        "patient_history": {
+            "smoking": False, "fall_history": True,
+            "comorbidities": ["hip_fracture", "osteoporosis", "hypertension"],
+            "prior_hospitalization": False,
+            "medications": ["阿仑膦酸钠", "钙片", "维生素D"],
+            "pmh": {"osteoporosis": "5年", "hypertension": "3年", "fall": "近1年跌倒2次"},
+            "fh": {"mother": "osteoporosis, hip_fracture"},
+            "sh": {"living_situation": "与老伴同居", "mobility": "术前可独立行走"},
+        },
+        "allergies": [],
+        "vital_signs_sequence": [
+            {"systolic_mmhg": 155, "diastolic_mmhg": 88, "heart_rate": 95, "spo2": 96, "temperature": 37.2, "respiratory_rate": 18, "pain_score": 8},
+            {"systolic_mmhg": 148, "diastolic_mmhg": 85, "heart_rate": 88, "spo2": 97, "temperature": 37.0, "respiratory_rate": 16, "pain_score": 6},
+            {"systolic_mmhg": 140, "diastolic_mmhg": 82, "heart_rate": 82, "spo2": 98, "temperature": 36.8, "respiratory_rate": 16, "pain_score": 4},
+            {"systolic_mmhg": 135, "diastolic_mmhg": 80, "heart_rate": 78, "spo2": 98, "temperature": 36.6, "respiratory_rate": 15, "pain_score": 3},
+            {"systolic_mmhg": 132, "diastolic_mmhg": 78, "heart_rate": 76, "spo2": 98, "temperature": 36.5, "respiratory_rate": 15, "pain_score": 2},
+            {"systolic_mmhg": 130, "diastolic_mmhg": 78, "heart_rate": 74, "spo2": 98, "temperature": 36.5, "respiratory_rate": 14, "pain_score": 3},
+            {"systolic_mmhg": 128, "diastolic_mmhg": 76, "heart_rate": 72, "spo2": 98, "temperature": 36.5, "respiratory_rate": 14, "pain_score": 2},
+        ],
+        "lab_results": [
+            {"name": "血红蛋白", "value": 108, "unit": "g/L"},
+            {"name": "白细胞", "value": 7.2, "unit": "×10⁹/L"},
+            {"name": "D-二聚体", "value": 2.1, "unit": "mg/L"},
+        ],
+        "expected_discharge": True,
+    },
+
+    "pat-an-001": {
+        "name": "重度贫血患者-刘铁柱",
+        "description": "68岁男性，乏力气短1月加重1周入院，血常规Hb 62g/L",
+        "disease_id": "severe_anemia",
+        "patient_data": {
+            "age": 68, "gender": "male", "bmi": 20, "pain_score": 0,
+            "pain_location": "无", "reduced_mobility": True,
+            "chief_complaint": "乏力、活动后气促1月，加重1周",
+        },
+        "patient_history": {
+            "smoking": False, "family_history_cvd": False,
+            "comorbidities": ["severe_anemia", "ckd_stage3", "hypertension"],
+            "prior_hospitalization": True,
+            "medications": ["硫酸亚铁", "叶酸", "氨氯地平"],
+            "pmh": {"anemia": "1年, Hb最低65g/L", "CKD_stage3": "3年, eGFR 40", "hypertension": "5年"},
+            "fh": {"mother": "anemia of unknown origin"},
+            "sh": {"dietary": "素食20年", "alcohol": "无", "NSAID_use": "无", "menstrual_history": "男性"},
+        },
+        "allergies": [],
+        "vital_signs_sequence": [
+            {"systolic_mmhg": 105, "diastolic_mmhg": 65, "heart_rate": 105, "spo2": 94, "temperature": 36.5, "respiratory_rate": 20},
+            {"systolic_mmhg": 108, "diastolic_mmhg": 68, "heart_rate": 98, "spo2": 95, "temperature": 36.5, "respiratory_rate": 18},
+            {"systolic_mmhg": 112, "diastolic_mmhg": 70, "heart_rate": 92, "spo2": 96, "temperature": 36.4, "respiratory_rate": 16},
+            {"systolic_mmhg": 115, "diastolic_mmhg": 72, "heart_rate": 88, "spo2": 97, "temperature": 36.5, "respiratory_rate": 16},
+            {"systolic_mmhg": 118, "diastolic_mmhg": 74, "heart_rate": 84, "spo2": 97, "temperature": 36.5, "respiratory_rate": 15},
+            {"systolic_mmhg": 120, "diastolic_mmhg": 75, "heart_rate": 80, "spo2": 98, "temperature": 36.4, "respiratory_rate": 15},
+            {"systolic_mmhg": 122, "diastolic_mmhg": 76, "heart_rate": 78, "spo2": 98, "temperature": 36.5, "respiratory_rate": 14},
+        ],
+        "lab_results": [
+            {"name": "血红蛋白", "value": 62, "unit": "g/L"},
+            {"name": "铁蛋白", "value": 8, "unit": "ng/mL"},
+            {"name": "肌酐", "value": 145, "unit": "μmol/L"},
+        ],
+        "expected_discharge": True,
+    },
+
+    "pat-sp-001": {
+        "name": "脓毒症患者-周明危",
+        "description": "72岁女性，发热寒战3天，血培养大肠杆菌阳性，qSOFA=2",
+        "disease_id": "sepsis",
+        "patient_data": {
+            "age": 72, "gender": "female", "bmi": 24, "pain_score": 3,
+            "pain_location": "全腹不适", "reduced_mobility": True,
+            "chief_complaint": "发热寒战3天，尿频尿痛1周",
+        },
+        "patient_history": {
+            "smoking": False,
+            "comorbidities": ["sepsis", "diabetes", "hypertension"],
+            "prior_hospitalization": True,
+            "medications": ["胰岛素", "氨氯地平", "头孢曲松(入院后启用)"],
+            "pmh": {"diabetes": "10年, 口服药+胰岛素", "hypertension": "5年", "UTI": "反复尿路感染2年"},
+            "fh": {"mother": "diabetes", "father": "hypertension"},
+            "sh": {"smoking": "无", "alcohol": "无", "recent_travel": "无", "animal_exposure": "养猫"},
+        },
+        "allergies": ["青霉素"],
+        "vital_signs_sequence": [
+            {"systolic_mmhg": 85, "diastolic_mmhg": 55, "heart_rate": 115, "spo2": 89, "temperature": 39.5, "respiratory_rate": 24, "gcs": 14},
+            {"systolic_mmhg": 90, "diastolic_mmhg": 58, "heart_rate": 108, "spo2": 92, "temperature": 38.8, "respiratory_rate": 22, "gcs": 15},
+            {"systolic_mmhg": 95, "diastolic_mmhg": 60, "heart_rate": 100, "spo2": 94, "temperature": 38.0, "respiratory_rate": 20, "gcs": 15},
+            {"systolic_mmhg": 100, "diastolic_mmhg": 65, "heart_rate": 95, "spo2": 95, "temperature": 37.5, "respiratory_rate": 18, "gcs": 15},
+            {"systolic_mmhg": 108, "diastolic_mmhg": 70, "heart_rate": 88, "spo2": 96, "temperature": 37.0, "respiratory_rate": 16, "gcs": 15},
+            {"systolic_mmhg": 115, "diastolic_mmhg": 72, "heart_rate": 84, "spo2": 97, "temperature": 36.8, "respiratory_rate": 15, "gcs": 15},
+            {"systolic_mmhg": 120, "diastolic_mmhg": 75, "heart_rate": 80, "spo2": 97, "temperature": 36.5, "respiratory_rate": 15, "gcs": 15},
+        ],
+        "lab_results": [
+            {"name": "白细胞", "value": 18.2, "unit": "×10⁹/L"},
+            {"name": "乳酸", "value": 3.5, "unit": "mmol/L"},
+            {"name": "PCT", "value": 12.5, "unit": "ng/mL"},
+            {"name": "肌酐", "value": 115, "unit": "μmol/L"},
+        ],
+        "expected_discharge": True,
+    },
+
+    "pat-dl-001": {
+        "name": "谵妄患者-赵奶奶",
+        "description": "82岁女性，术后3天出现定向力障碍、夜间躁动，CAM阳性",
+        "disease_id": "delirium",
+        "patient_data": {
+            "age": 82, "gender": "female", "bmi": 19, "pain_score": 5,
+            "pain_location": "右髋术后", "reduced_mobility": True,
+            "chief_complaint": "家属代诉术后3天出现胡言乱语、日夜颠倒",
+        },
+        "patient_history": {
+            "smoking": False, "fall_history": True,
+            "comorbidities": ["delirium", "dementia_mild", "hypertension", "osteoporosis"],
+            "prior_hospitalization": True,
+            "medications": ["多奈哌齐", "氨氯地平", "对乙酰氨基酚", "地西泮(入院前)"],
+            "pmh": {"dementia": "轻度阿尔茨海默 2年, MMSE 22", "hypertension": "10年", "osteoporosis": "5年", "hip_fracture": "术后3天"},
+            "fh": {"mother": "dementia", "father": "hypertension"},
+            "sh": {"living_situation": "与女儿同住", "caregiver": "女儿", "baseline_ADL": "可独立进食如厕"},
+        },
+        "allergies": ["磺胺类"],
+        "vital_signs_sequence": [
+            {"systolic_mmhg": 145, "diastolic_mmhg": 85, "heart_rate": 92, "spo2": 94, "temperature": 37.8, "respiratory_rate": 18, "gcs": 13},
+            {"systolic_mmhg": 140, "diastolic_mmhg": 82, "heart_rate": 88, "spo2": 95, "temperature": 37.5, "respiratory_rate": 16, "gcs": 14},
+            {"systolic_mmhg": 138, "diastolic_mmhg": 80, "heart_rate": 84, "spo2": 96, "temperature": 37.2, "respiratory_rate": 16, "gcs": 14},
+            {"systolic_mmhg": 135, "diastolic_mmhg": 78, "heart_rate": 82, "spo2": 96, "temperature": 37.0, "respiratory_rate": 15, "gcs": 15},
+            {"systolic_mmhg": 132, "diastolic_mmhg": 78, "heart_rate": 78, "spo2": 97, "temperature": 36.8, "respiratory_rate": 15, "gcs": 15},
+            {"systolic_mmhg": 130, "diastolic_mmhg": 76, "heart_rate": 76, "spo2": 97, "temperature": 36.5, "respiratory_rate": 14, "gcs": 15},
+            {"systolic_mmhg": 128, "diastolic_mmhg": 76, "heart_rate": 74, "spo2": 98, "temperature": 36.5, "respiratory_rate": 14, "gcs": 15},
+        ],
+        "lab_results": [
+            {"name": "白细胞", "value": 8.5, "unit": "×10⁹/L"},
+            {"name": "钠", "value": 148, "unit": "mmol/L"},
+            {"name": "肌酐", "value": 78, "unit": "μmol/L"},
+            {"name": "TSH", "value": 2.1, "unit": "mIU/L"},
         ],
         "expected_discharge": True,
     },

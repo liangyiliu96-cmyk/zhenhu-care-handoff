@@ -1,11 +1,28 @@
 {
   "disease_id": "copd",
   "name": "慢性阻塞性肺病",
+  "department": "呼吸科",
   "vital_signs": [
-    {"name": "spo2", "unit": "%", "alert_below": 88},
-    {"name": "respiratory_rate", "unit": "次/分", "alert_above": 28},
-    {"name": "heart_rate", "unit": "bpm", "alert_above": 110},
-    {"name": "paco2", "unit": "mmHg", "alert_above": 50}
+    {
+      "name": "spo2",
+      "unit": "%",
+      "alert_below": 88
+    },
+    {
+      "name": "respiratory_rate",
+      "unit": "次/分",
+      "alert_above": 28
+    },
+    {
+      "name": "heart_rate",
+      "unit": "bpm",
+      "alert_above": 110
+    },
+    {
+      "name": "paco2",
+      "unit": "mmHg",
+      "alert_above": 50
+    }
   ],
   "risk_factors": [
     "age_gt_65",
@@ -15,25 +32,234 @@
   ],
   "monitoring_interval_hours": 6,
   "discharge_criteria": [
-    {"condition": "spo2_stable_above_88", "description": "SpO2稳定在88%以上(无吸氧)"},
-    {"condition": "respiratory_rate_lt_24", "description": "呼吸频率<24次/分"},
-    {"condition": "no_acute_exacerbation_72h", "description": "72小时无急性加重"},
-    {"condition": "inhaler_technique_verified", "description": "吸入药物技术已核验"}
+    {
+      "condition": "spo2_stable_above_88",
+      "description": "SpO2稳定在88%以上(无吸氧)"
+    },
+    {
+      "condition": "respiratory_rate_lt_24",
+      "description": "呼吸频率<24次/分"
+    },
+    {
+      "condition": "no_acute_exacerbation_72h",
+      "description": "72小时无急性加重"
+    },
+    {
+      "condition": "inhaler_technique_verified",
+      "description": "吸入药物技术已核验"
+    }
   ],
   "handoff_instructions": [
-    {"type": "medication", "content": "出院后继续使用长效支气管扩张剂(LABA/LAMA)，按需使用短效SABA"},
-    {"type": "monitoring", "content": "每日监测指氧饱和度，低于90%立即就医"},
-    {"type": "followup", "content": "出院后2周呼吸科复查肺功能"}
+    {
+      "type": "medication",
+      "content": "出院后继续使用长效支气管扩张剂(LABA/LAMA)，按需使用短效SABA"
+    },
+    {
+      "type": "monitoring",
+      "content": "每日监测指氧饱和度，低于90%立即就医"
+    },
+    {
+      "type": "followup",
+      "content": "出院后2周呼吸科复查肺功能"
+    }
   ],
   "agent_config": {
     "require_doctor_review": true,
-    "discharge_knowledge_keywords": ["COPD稳定期管理", "吸入剂使用教学", "肺康复训练", "长期氧疗指征"]
+    "discharge_knowledge_keywords": [
+      "COPD稳定期管理",
+      "吸入剂使用教学",
+      "肺康复训练",
+      "长期氧疗指征"
+    ]
   },
   "followup_questions": [
-    {"id": "copd-fq-01", "question": "近3天气喘或呼吸困难是否加重？", "clinical_intent": "评估急性加重风险", "source": "ehr-kg"},
-    {"id": "copd-fq-02", "question": "是否按时使用吸入药物？吸入方法是否正确？", "clinical_intent": "评估依从性和吸入技术", "source": "ehr-kg"},
-    {"id": "copd-fq-03", "question": "每日痰量和颜色有无变化？", "clinical_intent": "筛查感染征象", "source": "ddx-kg"}
+    {
+      "id": "copd-fq-01",
+      "question": "近3天气喘或呼吸困难是否加重？",
+      "clinical_intent": "评估急性加重风险",
+      "source": "ehr-kg"
+    },
+    {
+      "id": "copd-fq-02",
+      "question": "是否按时使用吸入药物？吸入方法是否正确？",
+      "clinical_intent": "评估依从性和吸入技术",
+      "source": "ehr-kg"
+    },
+    {
+      "id": "copd-fq-03",
+      "question": "每日痰量和颜色有无变化？",
+      "clinical_intent": "筛查感染征象",
+      "source": "ddx-kg"
+    }
   ],
-  "mdt_roles": ["呼吸内科", "康复师", "营养师"],
-  "mdt_threshold": "high"
+  "mdt_roles": [
+    "呼吸内科",
+    "康复师",
+    "营养师"
+  ],
+  "mdt_threshold": "high",
+  "history_template": {
+    "chief_complaint_required": true,
+    "hpi_focus": [
+      "dyspnea_grade",
+      "exacerbation_triggers",
+      "sputum",
+      "cough",
+      "smoking_pack_years",
+      "inhaler_use",
+      "exercise_tolerance"
+    ],
+    "pmh_relevant": [
+      "COPD",
+      "asthma",
+      "respiratory_infections",
+      "osteoporosis",
+      "depression"
+    ],
+    "fh_relevant": [
+      "COPD",
+      "alpha1_antitrypsin_deficiency",
+      "respiratory_disease"
+    ],
+    "sh_required": [
+      "smoking",
+      "occupational_exposure",
+      "biomass_fuel",
+      "living_conditions"
+    ],
+    "allergy_required": true,
+    "ros_focus_systems": [
+      "respiratory",
+      "ENT",
+      "cardiovascular",
+      "constitutional"
+    ]
+  },
+  "pe_template": {
+    "required_systems": [
+      "vital_signs",
+      "respiratory",
+      "ENT",
+      "cardiovascular"
+    ],
+    "focus_items": [
+      "chest_inspection",
+      "chest_shape",
+      "accessory_muscles",
+      "breath_sounds",
+      "wheezing",
+      "rhonchi",
+      "cyanosis",
+      "clubbing"
+    ],
+    "neurological_if_indicated": false,
+    "fundoscopy": false
+  },
+  "medication_protocol": {
+    "first_line": [
+      "LABA_LAMA_fixed_combination"
+    ],
+    "second_line": [
+      "ICS_LABA",
+      "roflumilast"
+    ],
+    "rescue": [
+      "SABA"
+    ],
+    "contraindicated": [
+      "non_selective_beta_blocker",
+      "high_dose_opioids"
+    ],
+    "titration": "根据症状和急性加重史调整，GOLD组别升级治疗"
+  },
+  "contraindications": [
+    "非选择性β阻滞剂禁用: 加重支气管痉挛",
+    "高剂量阿片类禁用: 呼吸抑制风险"
+  ],
+  "severity_grading": {
+    "system": "GOLD",
+    "grades": [
+      {
+        "grade": 1,
+        "fev1": "≥80%pred",
+        "risk": "低危"
+      },
+      {
+        "grade": 2,
+        "fev1": "50-79%pred",
+        "risk": "中危"
+      },
+      {
+        "grade": 3,
+        "fev1": "30-49%pred",
+        "risk": "高危"
+      },
+      {
+        "grade": 4,
+        "fev1": "<30%pred",
+        "risk": "极高危"
+      }
+    ]
+  },
+  "complication_monitoring": [
+    {
+      "complication": "急性呼吸衰竭",
+      "watch": [
+        "SpO2<88%",
+        "PaCO2>50",
+        "呼吸频率>30",
+        "辅助呼吸肌参与"
+      ]
+    },
+    {
+      "complication": "自发性气胸",
+      "watch": [
+        "突发胸痛",
+        "呼吸困难加剧",
+        "患侧呼吸音消失"
+      ]
+    },
+    {
+      "complication": "肺心病失代偿",
+      "watch": [
+        "下肢水肿加重",
+        "颈静脉怒张",
+        "肝大压痛"
+      ]
+    }
+  ],
+  "lab_reference": {
+    "白细胞": {
+      "low": 3.5,
+      "high": 9.5
+    },
+    "血红蛋白": {
+      "low": 120,
+      "high": 175
+    },
+    "血小板": {
+      "low": 100,
+      "high": 300
+    },
+    "肌酐": {
+      "low": 44,
+      "high": 104
+    },
+    "血糖": {
+      "low": 3.9,
+      "high": 6.1
+    },
+    "钾": {
+      "low": 3.5,
+      "high": 5.3
+    },
+    "钠": {
+      "low": 135,
+      "high": 145
+    },
+    "CRP": {
+      "low": 0,
+      "high": 8
+    }
+  }
 }

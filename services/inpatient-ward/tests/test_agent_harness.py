@@ -5,6 +5,7 @@ import pytest, asyncio
 from zhenhu.inpatient.agent.harness import (
     check_source_type,
     fallback_to_template,
+    validate_llm_output,
     validate_handoff_items,
 )
 
@@ -51,6 +52,92 @@ def test_fallback_empty_template():
     assert result["handoff_items"] == []
 
 
+def test_validate_llm_output_keeps_only_valid_handoff_items():
+    valid, errors = validate_llm_output("handoff", [
+        {"type": "followup", "content": "七日内心内科复诊并携带血压记录"},
+        {"type": "unsupported", "content": "this must be rejected"},
+        "not-an-object",
+    ])
+
+    assert valid == [{"type": "followup", "content": "七日内心内科复诊并携带血压记录"}]
+    assert len(errors) == 2
+
+
+def test_validate_llm_output_rejects_unsafe_medication_draft():
+    valid, errors = validate_llm_output("medication_adjustment", [
+        {"drug_name": "阿司匹林", "action": "hold", "rationale": "活动性出血风险需要医生确认"},
+        {"drug_name": "", "action": "increase", "rationale": "short"},
+    ])
+
+    assert valid[0]["action"] == "hold"
+    assert valid[0]["requires_doctor_confirmation"] is True
+    assert len(errors) == 1
+
+
+def test_validate_llm_output_rejects_invalid_ddx_reviewer_addition():
+    valid, errors = validate_llm_output("ddx", [
+        {"diagnosis": "肺炎", "likelihood": "high", "icd10": "J18.9"},
+        {"diagnosis": "", "likelihood": "certain"},
+    ])
+
+    assert valid == [{"diagnosis": "肺炎", "likelihood": "high", "icd10": "J18.9"}]
+    assert len(errors) == 1
+
+
+def test_check_source_type_ignores_non_finite_score():
+    result = check_source_type([{"score": float("nan")}, {"score": 0.8}], threshold=0.6)
+
+    assert result == {"source_type": "source_knowledge", "count": 1}
+
+
+def test_loop_collect_routes_lab_event_to_lab_knowledge(monkeypatch):
+    from zhenhu.inpatient.agent import loop
+
+    calls = []
+
+    async def fake_collect(query, caller, top_k=3):
+        calls.append((query, caller, top_k))
+        return []
+
+    async def fake_api_data(state):
+        return {}
+
+    monkeypatch.setattr("zhenhu.inpatient.agent.llm_utils._rag_collect", fake_collect)
+    monkeypatch.setattr("zhenhu.inpatient.agent.clinical_external.collect_api_data", fake_api_data)
+
+    asyncio.run(loop._loop_collect({
+        "phase": "monitoring",
+        "event_type": "lab",
+        "disease_template": {"name": "肺炎"},
+    }))
+
+    assert calls == [("肺炎 lab_review", "lab_review", 3)]
+
+
+def test_loop_collect_routes_vitals_event_to_monitoring_knowledge(monkeypatch):
+    from zhenhu.inpatient.agent import loop
+
+    calls = []
+
+    async def fake_collect(query, caller, top_k=3):
+        calls.append((query, caller, top_k))
+        return []
+
+    async def fake_api_data(state):
+        return {}
+
+    monkeypatch.setattr("zhenhu.inpatient.agent.llm_utils._rag_collect", fake_collect)
+    monkeypatch.setattr("zhenhu.inpatient.agent.clinical_external.collect_api_data", fake_api_data)
+
+    asyncio.run(loop._loop_collect({
+        "phase": "monitoring",
+        "event_type": "vitals",
+        "disease_template": {"name": "心力衰竭"},
+    }))
+
+    assert calls == [("心力衰竭 monitoring", "monitoring", 3)]
+
+
 class TestBridge:
     """臻护桥接测试(无真实服务时返回降级状态)。"""
 
@@ -83,6 +170,18 @@ def test_validate_missing_field():
     valid, errors = validate_handoff_items(items)
     assert len(errors) == 1
 
+
+def test_validate_rejects_unknown_handoff_type_and_non_object_items():
+    items = [
+        {"type": "supplement", "content": "This must not enter the handoff."},
+        "not-an-object",
+    ]
+
+    valid, errors = validate_handoff_items(items)
+
+    assert valid == []
+    assert len(errors) == 2
+
 def test_source_score_boundary():
     results = [{"score": 0.59}]
     result = check_source_type(results, threshold=0.6)
@@ -94,13 +193,41 @@ def test_source_score_exact_threshold():
     assert result["source_type"] == "source_knowledge"
 
 
+def test_source_score_accepts_numeric_strings_and_ignores_invalid_scores():
+    results = [{"score": "0.8"}, {"score": "not-a-number"}]
+
+    result = check_source_type(results, threshold=0.6)
+
+    assert result == {"source_type": "source_knowledge", "count": 1}
+
+
+def test_fallback_discards_malformed_template_instructions():
+    template = {
+        "handoff_instructions": [
+            {"type": "followup", "content": "Please return to cardiology within seven days."},
+            {"type": "supplement", "content": "Unsupported instruction type."},
+            "not-an-instruction",
+        ]
+    }
+
+    result = fallback_to_template(template)
+
+    assert result["handoff_items"] == [
+        {
+            "type": "followup",
+            "content": "Please return to cardiology within seven days.",
+            "source": "disease_template_fallback",
+        }
+    ]
+
+
 # ============================================================================
 # 事件驱动路由测试
 # ============================================================================
 
 
 def test_event_routing_after_monitoring_discharge():
-    """查房完成+approved → discharge。"""
+    """查房完成+approved → stroke_antithrombotic（v1.3: 出院签字前卒中抗栓检查）。"""
     from zhenhu.inpatient.agent.graph import after_monitoring
 
     state = {
@@ -113,12 +240,12 @@ def test_event_routing_after_monitoring_discharge():
         "risk_level": "low",
     }
     result = after_monitoring(state)
-    assert result == "discharge"
+    assert result == "stroke_antithrombotic"
 
 
 def test_event_routing_after_monitoring_stay():
-    """查房完成+未approved+无新体征→结束循环(防无限loop)。"""
-    from zhenhu.inpatient.agent.graph import after_monitoring, END
+    """查房完成后进入监测节点，由其后置路由结束本轮。"""
+    from zhenhu.inpatient.agent.graph import after_monitoring
 
     state = {
         "document_chain": ["intake_note", "risk_assessment", "daily_round_note"],
@@ -130,7 +257,7 @@ def test_event_routing_after_monitoring_stay():
         "risk_level": "low",
     }
     result = after_monitoring(state)
-    assert result == END  # 无体征+查房已完成→安全退出
+    assert result == "monitoring"
 
 
 def test_event_routing_after_monitoring_to_triage():
@@ -152,6 +279,21 @@ def test_event_routing_after_monitoring_default():
     state = {"document_chain": [], "discharge_decision": "approved"}
     result = after_monitoring(state)
     assert result == "monitoring"
+
+
+def test_monitoring_result_discharge_ignores_pre_monitoring_medication_route():
+    """监测已批准出院时不能重新进入调药分流。"""
+    from zhenhu.inpatient.agent.graph import after_monitoring_result
+
+    state = {
+        "discharge_decision": "approved",
+        "disease_template": {
+            "vital_signs": [{"name": "heart_rate", "alert_above": 100}],
+        },
+        "vital_signs": [{"heart_rate": 120}],
+    }
+
+    assert after_monitoring_result(state) == "stroke_antithrombotic"
 
 
 # ============================================================================
@@ -225,6 +367,57 @@ def test_agent_loop_traces_limit():
     for i in range(150):
         loop._traces.append(type("obj", (object,), {"turn_id": str(i)})())
     assert len(loop.traces) == 100
+
+
+def test_turn_journal_is_bounded_and_does_not_keep_clinical_text():
+    from zhenhu.inpatient.agent.loop import _append_turn_journal
+
+    result = {"document_chain": ["monitoring"], "agent_turn_journal": []}
+    input_state = {
+        "patient_id": "patient-1", "state_version": 4, "phase": "monitoring",
+        "vital_signs": [{"spo2": 91, "free_text": "must not be journaled"}],
+        "lab_results": [], "medication_adjustments": [], "document_chain": ["monitoring"],
+    }
+    for index in range(35):
+        result = _append_turn_journal(
+            result, turn_id=f"turn-{index}", entry_strategy="monitoring:vitals",
+            input_state=input_state, latency_ms=21, collect_ctx={"rag_hits": {"monitoring": [{}]}},
+        )
+
+    journal = result["agent_turn_journal"]
+    assert len(journal) == 30
+    assert journal[-1]["rag_hit_count"] == 1
+    assert "free_text" not in str(journal)
+
+
+def test_nursing_monitoring_does_not_start_a_new_discharge_workflow(monkeypatch):
+    """护理录入可刷新出院条件，但不能自行进入交接/签字链路。"""
+    from zhenhu.inpatient.agent import nodes_handoff, nodes_monitoring
+    from zhenhu.inpatient.agent.loop import PatientAgentLoop
+
+    async def monitoring_ready_for_discharge(_state):
+        return {
+            "phase": "monitoring",
+            "discharge_decision": "approved",
+            "discharge_criteria_check": {"all_met": True},
+        }
+
+    async def handoff_must_not_run(_state):
+        raise AssertionError("nursing entry must not initiate handoff")
+
+    monkeypatch.setattr(nodes_monitoring, "node_monitoring", monitoring_ready_for_discharge)
+    monkeypatch.setattr(nodes_handoff, "node_handoff", handoff_must_not_run)
+
+    result = asyncio.run(PatientAgentLoop().plan_monitoring_turn({
+        "patient_id": "nursing-fast-path",
+        "phase": "monitoring",
+        "disease_template": {},
+        "vital_signs": [{"spo2": 98, "heart_rate": 74}],
+        "discharge_decision": None,
+    }, event_type="nursing", collect=False))
+
+    assert result["discharge_criteria_check"]["all_met"] is True
+    assert result.get("discharge_decision") is None
 
 
 def test_audit_hook():

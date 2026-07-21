@@ -1,0 +1,31 @@
+groups:
+  - name: zhenhu-inpatient-ward
+    rules:
+      - alert: ZhenhuHighHttpErrorRate
+        expr: sum(rate(zhenhu_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(zhenhu_http_requests_total[5m])), 1) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Inpatient ward HTTP 5xx rate exceeds 5%"
+      - alert: ZhenhuHighHttpLatency
+        expr: histogram_quantile(0.95, sum by (le) (rate(zhenhu_http_request_duration_seconds_bucket[5m]))) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Inpatient ward p95 HTTP latency exceeds 2 seconds"
+      - alert: ZhenhuRagKnowledgeUnavailable
+        expr: sum(zhenhu_rag_documents) == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No RAG knowledge documents are available"
+      - alert: ZhenhuStateStoreUnavailable
+        expr: zhenhu_state_store_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Patient workflow state-store backend is unavailable"

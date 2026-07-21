@@ -1,0 +1,90 @@
+{
+  "disease_id": "hip_fracture",
+  "name": "髋部骨折",
+  "department": "骨科",
+  "vital_signs": [
+    { "name": "systolic_mmhg", "unit": "mmHg", "alert_above": 160, "alert_below": 90 },
+    { "name": "diastolic_mmhg", "unit": "mmHg", "alert_above": 100, "alert_below": 60 },
+    { "name": "heart_rate", "unit": "bpm", "alert_above": 110, "alert_below": 50 },
+    { "name": "spo2", "unit": "%", "alert_below": 92 },
+    { "name": "temperature", "unit": "℃", "alert_above": 38.0 },
+    { "name": "pain_score", "unit": "NRS", "alert_above": 7 },
+    { "name": "respiratory_rate", "unit": "/min", "alert_above": 24 }
+  ],
+  "risk_factors": [
+    "age_gt_70", "post_operative", "immobility", "VTE_risk",
+    "osteoporosis", "fall_risk", "anemia"
+  ],
+  "monitoring_interval_hours": 4,
+  "discharge_criteria": [
+    { "condition": "pain_controlled_nrs_le_3", "description": "疼痛控制NRS≤3" },
+    { "condition": "mobilization_achieved", "description": "可借助助行器下床活动" },
+    { "condition": "wound_clean", "description": "伤口愈合良好无感染" },
+    { "condition": "VTE_prophylaxis_completed", "description": "VTE预防措施到位" },
+    { "condition": "vital_stable", "description": "生命体征平稳" }
+  ],
+  "handoff_instructions": [
+    { "type": "medication", "content": "出院后继续抗凝(利伐沙班/低分子肝素)按规定疗程，不可自行停药" },
+    { "type": "monitoring", "content": "每日观察伤口有无红肿渗液，定期换药" },
+    { "type": "followup", "content": "术后2周骨科门诊拆线复查X线，同时开始康复理疗" }
+  ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["髋部骨折术后康复", "VTE预防", "防跌倒", "骨质疏松治疗"]
+  },
+  "followup_questions": [
+    { "id": "hf-fq-01", "question": "伤口有无红肿、渗液或疼痛加重？", "clinical_intent": "筛查手术部位感染", "source": "ehr-kg" },
+    { "id": "hf-fq-02", "question": "每日下床活动有无困难？疼痛程度如何？", "clinical_intent": "评估功能恢复", "source": "ehr-kg" },
+    { "id": "hf-fq-03", "question": "是否按时服用抗凝药物？有无牙龈出血或皮下瘀斑？", "clinical_intent": "监测抗凝安全", "source": "ddx-kg" }
+  ],
+  "mdt_roles": ["骨科", "康复师", "麻醉科", "老年科"],
+  "mdt_threshold": "high",
+  "history_template": {
+    "chief_complaint_required": true,
+    "hpi_focus": ["injury_mechanism", "fall_details", "pain_onset", "immobility_duration", "pre_injury_functional_status"],
+    "pmh_relevant": ["osteoporosis", "previous_fractures", "hypertension", "diabetes", "CKD", "stroke"],
+    "fh_relevant": ["osteoporosis", "hip_fracture", "falls"],
+    "sh_required": ["smoking", "alcohol", "living_situation", "mobility_aids", "home_hazards"],
+    "allergy_required": true,
+    "ros_focus_systems": ["musculoskeletal", "neurological", "cardiovascular", "integumentary"]
+  },
+  "pe_template": {
+    "required_systems": ["vital_signs", "musculoskeletal", "neurological", "cardiovascular"],
+    "focus_items": ["hip_range_of_motion", "leg_length", "neurovascular_distal", "gait_assessment", "skin_integrity", "pain_assessment"],
+    "neurological_if_indicated": true,
+    "fundoscopy": false
+  },
+  "medication_protocol": {
+    "anticoagulation": ["rivaroxaban", "enoxaparin", "fondaparinux"],
+    "analgesia": ["acetaminophen", "tramadol", "oxycodone_PRN"],
+    "osteoporosis": ["calcium_vitaminD", "bisphosphonate", "denosumab"],
+    "contraindicated": ["NSAID_Rx_long_term_elderly", "opioid_continuous_gt_3d_Rx_without_bowel_regimen"],
+    "titration": "术后24h启动VTE预防，疼痛管理阶梯用药"
+  },
+  "contraindications": ["抗凝禁忌: 活动性出血/血小板<50/近期颅内出血", "NSAIDs禁忌: CKD G4-5/活动性消化道溃疡"],
+  "severity_grading": {
+    "system": "Garden分型",
+    "grades": [
+      { "grade": "I", "garden_type": "不完全/无移位", "risk": "低危" },
+      { "grade": "II", "garden_type": "完全骨折无移位", "risk": "中危" },
+      { "grade": "III", "garden_type": "部分移位", "risk": "中高危" },
+      { "grade": "IV", "garden_type": "完全移位", "risk": "高危" }
+    ]
+  },
+  "complication_monitoring": [
+    { "complication": "深静脉血栓", "watch": ["下肢肿胀疼痛", "Homans征阳性", "D-二聚体升高"] },
+    { "complication": "肺栓塞", "watch": ["突发胸痛呼吸困难", "SpO2骤降", "咯血"] },
+    { "complication": "手术部位感染", "watch": ["伤口红肿热痛", "体温>38℃", "WBC升高"] },
+    { "complication": "假体脱位", "watch": ["突发剧痛", "患肢短缩外旋", "无法活动"] }
+  ],
+  "lab_reference": {
+    "血红蛋白": { "low": 100, "high": 175 },
+    "白细胞": { "low": 3.5, "high": 11.0 },
+    "血小板": { "low": 100, "high": 300 },
+    "D-二聚体": { "low": 0, "high": 0.5 },
+    "肌酐": { "low": 44, "high": 104 },
+    "钾": { "low": 3.5, "high": 5.3 },
+    "钠": { "low": 135, "high": 145 },
+    "CRP": { "low": 0, "high": 10 }
+  }
+}

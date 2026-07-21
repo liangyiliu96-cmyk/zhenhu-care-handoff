@@ -6,8 +6,11 @@ Phase5+ 已实现: HTTP桥接 + 退避重试 + 熔断器保护。三个桥接函
 
 import os
 import asyncio
+import logging
 
 import httpx
+
+logger = logging.getLogger("zhenhu.inpatient")
 
 # 阶段K: 统一从 contracts 导入, 环境变量驱动的服务地址
 from zhenhu.contracts import ServiceConfig
@@ -61,8 +64,8 @@ async def bridge_discharge_to_zhenhu(handoff_items: list[dict], patient_id: str,
             )
             if resp.status_code in (200, 201):
                 return resp.json()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("bridge_discharge_to_zhenhu failed: %s", str(e)[:120])
     return {"status": "bridge_unavailable", "case_id": None, "bridge_error": "臻护workflow-engine不可达，病例未创建，请手动重试"}
 
 
@@ -82,8 +85,8 @@ async def bridge_search_knowledge(query: str, top_k: int = 10) -> list[dict]:
             )
             if resp.status_code == 200:
                 return resp.json().get("data", {}).get("results", [])
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("bridge_search_knowledge failed: %s", str(e)[:120])
     return []
 
 
@@ -113,8 +116,8 @@ async def bridge_patient_summary(patient_id: str) -> dict:
                             age = today.year - bd.year
                             if today.month < bd.month or (today.month == bd.month and today.day < bd.day):
                                 age -= 1
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning("bridge_patient_summary date parse failed: %s", str(e)[:80])
                 return {
                     "name": (
                         data.get("name", [{}])[0].get("text", "***")
@@ -125,8 +128,8 @@ async def bridge_patient_summary(patient_id: str) -> dict:
                     "age": age,
                     "discharge_to": "home",
                 }
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("bridge_patient_summary failed: %s", str(e)[:120])
     return {"name": "***", "gender": "unknown", "age": None, "discharge_to": "home"}
 
 

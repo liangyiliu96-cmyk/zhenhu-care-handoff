@@ -1,0 +1,92 @@
+{
+  "disease_id": "sepsis",
+  "name": "脓毒症",
+  "department": "感染科",
+  "vital_signs": [
+    { "name": "temperature", "unit": "℃", "alert_above": 38.3, "alert_below": 36.0 },
+    { "name": "heart_rate", "unit": "bpm", "alert_above": 100, "alert_below": 50 },
+    { "name": "respiratory_rate", "unit": "/min", "alert_above": 22 },
+    { "name": "systolic_mmhg", "unit": "mmHg", "alert_below": 90 },
+    { "name": "diastolic_mmhg", "unit": "mmHg", "alert_below": 60 },
+    { "name": "spo2", "unit": "%", "alert_below": 90 },
+    { "name": "gcs", "unit": "分", "alert_below": 13 }
+  ],
+  "risk_factors": [
+    "qsofa_positive", "lactate_gt_2", "immunocompromised",
+    "age_gt_65", "indwelling_catheter", "recent_surgery",
+    "CKD_comorbidity", "diabetes_comorbidity"
+  ],
+  "monitoring_interval_hours": 2,
+  "discharge_criteria": [
+    { "condition": "qsofa_negative", "description": "qSOFA<2分(脓毒症控制)" },
+    { "condition": "lactate_normalized", "description": "血乳酸<2mmol/L" },
+    { "condition": "afebrile_24h", "description": "体温正常>24h" },
+    { "condition": "hemodynamic_stable_off_pressors", "description": "停用血管活性药物后血流动力学稳定" },
+    { "condition": "source_control_achieved", "description": "感染源已控制(引流/清创完成)" }
+  ],
+  "handoff_instructions": [
+    { "type": "medication", "content": "出院后按疗程完成口服抗生素，不可因症状缓解提前停药" },
+    { "type": "monitoring", "content": "每日监测体温，关注有无寒战、乏力加重等感染复发征象" },
+    { "type": "followup", "content": "出院后1周感染科门诊复查血常规+CRP+PCT，评估感染控制情况" }
+  ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["脓毒症管理指南", "抗生素降阶梯", "感染源控制", "液体复苏"]
+  },
+  "followup_questions": [
+    { "id": "sp-fq-01", "question": "近日有无发热、寒战或乏力加重？", "clinical_intent": "筛查感染复发", "source": "ehr-kg" },
+    { "id": "sp-fq-02", "question": "抗生素是否按时按量服用？有无腹泻或皮疹？", "clinical_intent": "评估用药依从性和不良反应", "source": "ddx-kg" },
+    { "id": "sp-fq-03", "question": "食欲和体力恢复情况如何？", "clinical_intent": "评估全身状态恢复", "source": "ehr-kg" }
+  ],
+  "mdt_roles": ["ICU", "感染科", "呼吸科", "临床药师"],
+  "mdt_threshold": "high",
+  "history_template": {
+    "chief_complaint_required": true,
+    "hpi_focus": ["fever_onset", "chills", "suspected_source", "antibiotic_history", "mental_status_change", "urine_output"],
+    "pmh_relevant": ["diabetes", "CKD", "immunosuppression", "COPD", "cirrhosis", "recent_hospitalization"],
+    "fh_relevant": [],
+    "sh_required": ["smoking", "alcohol", "recent_travel", "animal_exposure", "drug_use"],
+    "allergy_required": true,
+    "ros_focus_systems": ["general", "respiratory", "cardiovascular", "renal", "neurological", "integumentary"]
+  },
+  "pe_template": {
+    "required_systems": ["vital_signs", "respiratory", "cardiovascular", "abdominal", "integumentary"],
+    "focus_items": ["mental_status", "capillary_refill", "skin_mottling", "lung_auscultation", "abdominal_tenderness", "urine_output"],
+    "neurological_if_indicated": true,
+    "fundoscopy": false
+  },
+  "medication_protocol": {
+    "antibiotic_empiric": ["piperacillin_tazobactam", "meropenem", "cefepime", "vancomycin"],
+    "vasopressor": ["norepinephrine", "vasopressin", "epinephrine"],
+    "supportive": ["IV_fluids_crystalloid", "low_dose_corticosteroid_Rx_refractory_shock"],
+    "contraindicated": ["etomidate_Rx_sepsis_intubation", "hydroxyethyl_starch"],
+    "titration": "1h内完成血培养+乳酸+抗生素, 3h内完成30ml/kg液体复苏"
+  },
+  "contraindications": ["禁用羟乙基淀粉", "肾功能不全慎用万古霉素/氨基糖苷类"],
+  "severity_grading": {
+    "system": "Sepsis-3分级",
+    "grades": [
+      { "grade": "脓毒症", "criteria": "SOFA≥2分或qSOFA≥2", "risk": "中高危" },
+      { "grade": "脓毒性休克", "criteria": "需血管活性药物维持MAP≥65+Lactate>2", "risk": "极高危" }
+    ]
+  },
+  "complication_monitoring": [
+    { "complication": "脓毒性休克", "watch": ["MAP<65", "Lactate>4", "尿量<0.5ml/kg/h", "毛细血管再充盈>3s"] },
+    { "complication": "ARDS", "watch": ["SpO2<90% despite O2", "RR>30", "双肺弥漫浸润影"] },
+    { "complication": "AKI", "watch": ["尿量<0.5ml/kg/h×6h", "肌酐上升>26.5μmol/L"] },
+    { "complication": "DIC", "watch": ["广泛出血倾向", "PLT进行性下降", "PT/APTT延长"] }
+  ],
+  "lab_reference": {
+    "白细胞": { "low": 3.5, "high": 12.0 },
+    "中性粒细胞%": { "low": 40, "high": 85 },
+    "血小板": { "low": 100, "high": 300 },
+    "乳酸": { "low": 0, "high": 2.0 },
+    "PCT": { "low": 0, "high": 0.5 },
+    "CRP": { "low": 0, "high": 10 },
+    "肌酐": { "low": 44, "high": 104 },
+    "胆红素": { "low": 0, "high": 21 },
+    "INR": { "low": 0.8, "high": 1.2 },
+    "钾": { "low": 3.5, "high": 5.3 },
+    "钠": { "low": 135, "high": 145 }
+  }
+}

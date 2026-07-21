@@ -9,48 +9,55 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 echo "=== 臻护平台启动 ==="
 
 # 环境变量默认值
-export SKIP_BRIDGE="${SKIP_BRIDGE:-true}"
+export SKIP_BRIDGE="${SKIP_BRIDGE:-false}"
 export DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-}"
+export FHIR_ADAPTER_URL="${FHIR_ADAPTER_URL:-http://127.0.0.1:8300/fhir}"
 
-echo "SKIP_BRIDGE=$SKIP_BRIDGE (跳过外部HTTP服务)"
+# Python 路径: 使各服务能找到自己的 zhenhu 包 + 共享 contracts 包
+export PYTHONPATH="$ROOT/services/inpatient-ward/src:$ROOT/services/fhir-adapter/src:$ROOT/packages/clinical-contracts-py/src"
+
+echo "SKIP_BRIDGE=$SKIP_BRIDGE (false=启用FHIR同步)"
 echo "DEEPSEEK_API_KEY=$([ -n "$DEEPSEEK_API_KEY" ] && echo '已设置' || echo '未设置(使用规则引擎)')"
+echo "FHIR_ADAPTER_URL=$FHIR_ADAPTER_URL"
 
 # 1. workflow-engine (8100)
 echo ""
-echo "[1/4] 启动 workflow-engine (8100)..."
+echo "[1/5] 启动 workflow-engine (8100)..."
 cd "$ROOT/services/workflow-engine"
-$PYTHON -m uvicorn zhenhu.workflow.main:app --host 0.0.0.0 --port 8100 &
+PYTHONPATH="$ROOT/services/workflow-engine/src:$PYTHONPATH" $PYTHON -m uvicorn zhenhu.workflow.main:app --host 0.0.0.0 --port 8100 &
 sleep 2
 
 # 2. knowledge-orchestrator (8200)
-echo "[2/4] 启动 knowledge-orchestrator (8200)..."
+echo "[2/5] 启动 knowledge-orchestrator (8200)..."
 cd "$ROOT/services/knowledge-orchestrator"
-$PYTHON -m uvicorn zhenhu.knowledge.main:app --host 0.0.0.0 --port 8200 &
+PYTHONPATH="$ROOT/services/knowledge-orchestrator/src:$PYTHONPATH" $PYTHON -m uvicorn zhenhu.knowledge.main:app --host 0.0.0.0 --port 8200 &
 sleep 2
 
 # 3. fhir-adapter (8300)
-echo "[3/4] 启动 fhir-adapter (8300)..."
+echo "[3/5] 启动 fhir-adapter (8300)..."
 cd "$ROOT/services/fhir-adapter"
-$PYTHON -m uvicorn zhenhu.fhir.main:app --host 0.0.0.0 --port 8300 &
+$PYTHON -m uvicorn zhenhu.fhir.main:app --host 127.0.0.1 --port 8300 &
 sleep 2
 
-# 4. inpatient-ward (8400)
-echo "[4/4] 启动 inpatient-ward (8400)..."
+# 4. inpatient-ward (8000) — FHIR 同步已接入
+echo "[4/5] 启动 inpatient-ward (8000)..."
 cd "$ROOT/services/inpatient-ward"
-$PYTHON -m uvicorn zhenhu.inpatient.main:app --host 0.0.0.0 --port 8400 &
+$PYTHON -m uvicorn zhenhu.inpatient.main:app --host 127.0.0.1 --port 8000 &
 sleep 3
 
 # 健康检查
 echo ""
 echo "=== 健康检查 ==="
-for port in 8100 8200 8300 8400; do
+for port in 8100 8200 8300 8000; do
     status=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$port/health" 2>/dev/null || echo "DOWN")
     echo "  :$port -> $status"
 done
 
 echo ""
 echo "=== 臻护平台已启动 ==="
-echo "  inpatient-ward  API: http://localhost:8400"
-echo "  API文档(Swagger): http://localhost:8400/docs"
-echo "  Metrics:          http://localhost:8400/metrics"
+echo "  inpatient-ward  API: http://localhost:8000"
+echo "  fhir-adapter     : http://localhost:8300"
+echo "  API文档(Swagger) : http://localhost:8000/docs"
+echo "  Metrics          : http://localhost:8000/metrics"
+echo "  FHIR 适配器文档   : http://localhost:8300/docs"
 echo "  停止:             kill %1 %2 %3 %4"

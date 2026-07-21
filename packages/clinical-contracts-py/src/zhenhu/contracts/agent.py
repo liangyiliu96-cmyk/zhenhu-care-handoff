@@ -8,6 +8,7 @@ from datetime import datetime
 import time
 import asyncio
 import json
+import os
 
 T = TypeVar("T")
 
@@ -83,6 +84,28 @@ class CircuitBreaker:
                 self._state = "OPEN"
             raise
 
+    def is_open(self) -> bool:
+        """检查熔断器是否处于 OPEN 状态。"""
+        return self._state == "OPEN"
+
+    def remaining_cooldown(self) -> float:
+        """返回剩余冷却时间(s), 0 表示已恢复。"""
+        if self._state != "OPEN":
+            return 0.0
+        return max(0.0, self._last_failure + self.recovery_timeout - time.monotonic())
+
+    def reset(self):
+        """手动重置熔断器。"""
+        self._failure_count = 0
+        self._state = "CLOSED"
+
+    def record_failure(self):
+        """记录一次失败，达到阈值自动 OPEN。"""
+        self._failure_count += 1
+        self._last_failure = time.monotonic()
+        if self._failure_count >= self.failure_threshold:
+            self._state = "OPEN"
+
 
 class CircuitBreakerOpenError(Exception):
     pass
@@ -144,7 +167,67 @@ class RuleBasedProvider:
     async def invoke(self, prompt: str, context: dict | None = None) -> dict:
         ctx = context or {}
 
-        # 1. 风险分析场景
+        # 1. 鉴别诊断场景 (P0-3: DDx fallback)
+        if "鉴别诊断" in prompt or "ddx" in prompt.lower() or "DDx" in prompt:
+            template = ctx.get("disease_template", {})
+            disease_id = template.get("disease_id", "")
+            disease_name = template.get("name", disease_id)
+            # 基于病种模板生成标准鉴别诊断
+            ddx_map = {
+                "copd": [
+                    {"diagnosis": "慢性阻塞性肺病急性加重", "icd10": "J44.1", "likelihood": "high",
+                     "key_findings": ["呼吸困难加重", "痰量增加", "低氧血症"],
+                     "rationale": "临床表现典型，符合COPD急性加重诊断标准"},
+                    {"diagnosis": "社区获得性肺炎", "icd10": "J18.9", "likelihood": "moderate",
+                     "key_findings": ["发热", "脓痰", "肺部浸润影"],
+                     "rationale": "需排除合并感染可能，影像学有助于鉴别"},
+                    {"diagnosis": "充血性心力衰竭", "icd10": "I50.9", "likelihood": "moderate",
+                     "key_findings": ["端坐呼吸", "下肢水肿", "肺部啰音"],
+                     "rationale": "呼吸困难需与心源性鉴别，NT-proBNP有助于区分"},
+                    {"diagnosis": "肺栓塞", "icd10": "I26.9", "likelihood": "low",
+                     "key_findings": ["突发胸痛", "低氧", "D-dimer升高"],
+                     "rationale": "虽非典型，需排除隐匿性肺栓塞"},
+                ],
+                "stroke": [
+                    {"diagnosis": "急性缺血性脑卒中", "icd10": "I63.9", "likelihood": "high",
+                     "key_findings": ["突发言语障碍", "肢体无力", "NIHSS评分异常"],
+                     "rationale": "急性起病+局灶性神经功能缺损，符合缺血性卒中特征"},
+                    {"diagnosis": "短暂性脑缺血发作", "icd10": "G45.9", "likelihood": "moderate",
+                     "key_findings": ["症状<24h缓解", "无影像学新发梗死"],
+                     "rationale": "症状已缓解但需排查TIA，ABCD2评分评估风险"},
+                    {"diagnosis": "颅内出血", "icd10": "I61.9", "likelihood": "moderate",
+                     "key_findings": ["头痛", "意识障碍", "高血压"],
+                     "rationale": "需CT排除出血性卒中，尤其合并高血压急症时"},
+                    {"diagnosis": "低血糖发作", "icd10": "E16.2", "likelihood": "low",
+                     "key_findings": ["血糖<3.9", "出汗", "意识模糊"],
+                     "rationale": "代谢性原因需排除，尤其糖尿病患者"},
+                ],
+                "heart_failure": [
+                    {"diagnosis": "急性失代偿性心力衰竭", "icd10": "I50.9", "likelihood": "high",
+                     "key_findings": ["呼吸困难", "肺部啰音", "颈静脉怒张", "下肢水肿"],
+                     "rationale": "典型心衰表现，BNP升高+超声可确诊"},
+                    {"diagnosis": "COPD急性加重", "icd10": "J44.1", "likelihood": "moderate",
+                     "key_findings": ["喘息", "咳嗽咳痰", "既往COPD病史"],
+                     "rationale": "呼吸系统疾病需鉴别，尤其吸烟史患者"},
+                    {"diagnosis": "急性冠脉综合征", "icd10": "I24.9", "likelihood": "moderate",
+                     "key_findings": ["胸痛", "心电图异常", "肌钙蛋白升高"],
+                     "rationale": "心衰常由ACS诱发，需动态监测心肌标志物"},
+                    {"diagnosis": "肺栓塞", "icd10": "I26.9", "likelihood": "low",
+                     "key_findings": ["突发呼吸困难", "胸痛", "D-dimer升高"],
+                     "rationale": "突发低氧需排查，Wells评分+D-dimer筛查"},
+                ],
+            }
+            ddx_list = ddx_map.get(disease_id, [
+                {"diagnosis": f"{disease_name}(确认诊断)", "icd10": "", "likelihood": "high",
+                 "key_findings": ["根据入院检查"],
+                 "rationale": "根据临床表现和入院检查结果初步确认"},
+                {"diagnosis": "相关鉴别诊断(需进一步评估)", "icd10": "", "likelihood": "moderate",
+                 "key_findings": ["请结合具体临床表现"],
+                 "rationale": "需结合更多临床信息进一步鉴别"},
+            ])
+            return {"ddx_list": ddx_list, "source_type": "source_knowledge"}
+
+        # 2. 风险分析场景
         if "analyse" in prompt.lower() or "风险" in prompt:
             template = ctx.get("disease_template", {})
             risks = []
@@ -196,7 +279,7 @@ class DeepSeekProvider:
     """DeepSeek V4 提供者 — 对接 deepseek-v4-flash / v4-pro 模型。
 
     OpenAI 兼容 API: POST https://api.deepseek.com/chat/completions
-    用法: set_ai_provider(DeepSeekProvider(api_key="sk-xxx", model="deepseek-v4-flash"))
+    用法: set_ai_provider(DeepSeekProvider(api_key="sk-xxx", model="deepseek-v4-pro"))
     """
 
     BASE_URL = "https://api.deepseek.com/chat/completions"
@@ -204,7 +287,7 @@ class DeepSeekProvider:
     def __init__(
         self,
         api_key: str = "",
-        model: str = "deepseek-v4-flash",
+        model: str = "deepseek-v4-pro",
         temperature: float = 0.3,
         max_tokens: int = 2048,
     ):
@@ -274,3 +357,78 @@ def get_ai_provider() -> AIProvider:
 def set_ai_provider(provider: AIProvider) -> None:
     global _default_provider
     _default_provider = provider
+
+
+# ═══════════════════════════════════════════════════════════
+# v0.3: Ollama 本地 LLM Provider
+# ═══════════════════════════════════════════════════════════
+
+class OllamaProvider:
+    """Ollama 本地 LLM 提供者 — 零成本、零网络依赖。
+
+    适用场景: DeepSeek 限流/断网时的本地备用, 或简单任务直接本地执行。
+    推荐模型: qwen2.5:7b (中文)、llama3.1:8b (英文)
+    """
+
+    def __init__(self, model: str = "qwen2.5:7b", base_url: str = "http://localhost:11434",
+                 temperature: float = 0.3):
+        self.model = model
+        self.base_url = base_url
+        self.temperature = temperature
+
+    async def invoke(self, prompt: str, context: dict | None = None) -> dict:
+        """调用 Ollama API。首次调用需加载模型(~10-30s), 后续2-5s。"""
+        import httpx
+        import json as _json
+
+        context_text = _json.dumps(context or {}, ensure_ascii=False, default=str)[:2000]
+        structured_prompt = (
+            "You are a clinical drafting assistant. Return one valid JSON object only. "
+            "Do not make autonomous clinical decisions and do not omit uncertainty.\n\n"
+            f"Context: {context_text}\n\nRequest: {prompt}"
+        )
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
+                resp = await client.post(
+                    f"{self.base_url.rstrip('/')}/api/generate",
+                    json={
+                        "model": self.model,
+                        "prompt": structured_prompt,
+                        "format": "json",
+                        "stream": False,
+                        "keep_alive": os.environ.get("OLLAMA_KEEP_ALIVE", "30m"),
+                        "options": {"temperature": self.temperature},
+                    },
+                )
+        except Exception as exc:
+            return {"error": f"Ollama unavailable: {str(exc)[:160]}", "source_type": "source_none"}
+
+        if resp.status_code != 200:
+            return {"error": f"Ollama error {resp.status_code}", "source_type": "source_none"}
+
+        raw_response = resp.json().get("response", "")
+        try:
+            result = _json.loads(raw_response)
+            if not isinstance(result, dict):
+                return {"answer": raw_response, "source_type": "source_knowledge"}
+            result.setdefault("source_type", "source_knowledge")
+            return result
+        except (_json.JSONDecodeError, ValueError):
+            return {"answer": raw_response, "source_type": "source_knowledge"}
+
+    async def stream(self, prompt: str, context: dict | None = None):
+        import httpx, json as _json
+        async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
+            async with client.stream(
+                "POST", f"{self.base_url}/api/generate",
+                json={"model": self.model, "prompt": prompt, "stream": True,
+                      "options": {"temperature": self.temperature}},
+            ) as resp:
+                async for line in resp.aiter_lines():
+                    if line.strip():
+                        try:
+                            chunk = _json.loads(line)
+                            if chunk.get("response"):
+                                yield {"token": chunk["response"]}
+                        except _json.JSONDecodeError:
+                            pass

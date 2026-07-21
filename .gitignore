@@ -14,6 +14,12 @@ output/
 playwright-report/
 test-results/
 .cache/
+*.tsbuildinfo
+apps/frontend/runtime-frontend.*.log
+apps/frontend/build.log
+apps/frontend/handoff-*.png
+apps/frontend/phase*.png
+apps/frontend/score-panel-qa.png
 
 # Local environment and secrets
 .env
@@ -35,3 +41,6 @@ Thumbs.db
 
 # PoC runtime data (not version-controlled)
 poc/data/
+
+# Local browser QA captures. Keep durable visual evidence under docs/ instead.
+tmp-*.png

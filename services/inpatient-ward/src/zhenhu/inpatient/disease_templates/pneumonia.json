@@ -1,36 +1,267 @@
 {
   "disease_id": "pneumonia",
   "name": "社区获得性肺炎",
+  "department": "呼吸科",
   "vital_signs": [
-    {"name": "spo2", "unit": "%", "alert_below": 92},
-    {"name": "temperature", "unit": "℃", "alert_above": 38.5},
-    {"name": "respiratory_rate", "unit": "次/分", "alert_above": 28},
-    {"name": "heart_rate", "unit": "次/分", "alert_above": 100},
-    {"name": "blood_pressure", "unit": "mmHg", "alert_below": "90/60"}
+    {
+      "name": "spo2",
+      "unit": "%",
+      "alert_below": 92
+    },
+    {
+      "name": "temperature",
+      "unit": "℃",
+      "alert_above": 38.5
+    },
+    {
+      "name": "respiratory_rate",
+      "unit": "次/分",
+      "alert_above": 28
+    },
+    {
+      "name": "heart_rate",
+      "unit": "次/分",
+      "alert_above": 100
+    },
+    {
+      "name": "blood_pressure",
+      "unit": "mmHg",
+      "alert_below": "90/60"
+    }
   ],
-  "risk_factors": ["age_gt_65", "multilobar_infiltrate", "confusion", "urea_gt_7", "comorbidity_copd"],
+  "risk_factors": [
+    "age_gt_65",
+    "multilobar_infiltrate",
+    "confusion",
+    "urea_gt_7",
+    "comorbidity_copd"
+  ],
   "monitoring_interval_hours": 6,
   "discharge_criteria": [
-    {"condition": "afebrile_48h", "description": "体温正常>48h"},
-    {"condition": "spo2_stable_above_92_no_supplemental", "description": "不吸氧下SpO2>92%稳定"},
-    {"condition": "oral_antibiotics_tolerated", "description": "能耐受口服抗生素"},
-    {"condition": "crp_declining", "description": "CRP呈下降趋势"},
-    {"condition": "chest_xray_improving", "description": "胸片炎症吸收好转"}
+    {
+      "condition": "afebrile_48h",
+      "description": "体温正常>48h"
+    },
+    {
+      "condition": "spo2_stable_above_92_no_supplemental",
+      "description": "不吸氧下SpO2>92%稳定"
+    },
+    {
+      "condition": "oral_antibiotics_tolerated",
+      "description": "能耐受口服抗生素"
+    },
+    {
+      "condition": "crp_declining",
+      "description": "CRP呈下降趋势"
+    },
+    {
+      "condition": "chest_xray_improving",
+      "description": "胸片炎症吸收好转"
+    }
   ],
   "handoff_instructions": [
-    {"type": "medication", "content": "出院后继续口服抗生素完成全程(通常7-10天)，不可提前停药"},
-    {"type": "monitoring", "content": "每日监测体温和指氧饱和度，发热或气促加重立即就医"},
-    {"type": "followup", "content": "出院后2周呼吸科复查胸片+血常规，评估炎症吸收情况"}
+    {
+      "type": "medication",
+      "content": "出院后继续口服抗生素完成全程(通常7-10天)，不可提前停药"
+    },
+    {
+      "type": "monitoring",
+      "content": "每日监测体温和指氧饱和度，发热或气促加重立即就医"
+    },
+    {
+      "type": "followup",
+      "content": "出院后2周呼吸科复查胸片+血常规，评估炎症吸收情况"
+    }
   ],
   "agent_config": {
     "require_doctor_review": true,
-    "discharge_knowledge_keywords": ["社区获得性肺炎诊疗指南", "抗生素疗程", "疫苗接种建议", "肺炎康复指导"]
+    "discharge_knowledge_keywords": [
+      "社区获得性肺炎诊疗指南",
+      "抗生素疗程",
+      "疫苗接种建议",
+      "肺炎康复指导"
+    ]
   },
   "followup_questions": [
-    {"id": "pna-fq-01", "question": "出院后体温是否持续正常？有无再次发热？", "clinical_intent": "评估感染控制", "source": "ehr-kg"},
-    {"id": "pna-fq-02", "question": "咳嗽咳痰是否逐渐减轻？痰量和颜色有无变化？", "clinical_intent": "评估炎症消退", "source": "ddx-kg"},
-    {"id": "pna-fq-03", "question": "抗生素是否按时服药？有无恶心腹泻等不良反应？", "clinical_intent": "评估用药依从性", "source": "ehr-kg"}
+    {
+      "id": "pna-fq-01",
+      "question": "出院后体温是否持续正常？有无再次发热？",
+      "clinical_intent": "评估感染控制",
+      "source": "ehr-kg"
+    },
+    {
+      "id": "pna-fq-02",
+      "question": "咳嗽咳痰是否逐渐减轻？痰量和颜色有无变化？",
+      "clinical_intent": "评估炎症消退",
+      "source": "ddx-kg"
+    },
+    {
+      "id": "pna-fq-03",
+      "question": "抗生素是否按时服药？有无恶心腹泻等不良反应？",
+      "clinical_intent": "评估用药依从性",
+      "source": "ehr-kg"
+    }
   ],
-  "mdt_roles": ["呼吸内科", "临床药师", "营养师"],
-  "mdt_threshold": "high"
+  "mdt_roles": [
+    "呼吸内科",
+    "临床药师",
+    "营养师"
+  ],
+  "mdt_threshold": "high",
+  "history_template": {
+    "chief_complaint_required": true,
+    "hpi_focus": [
+      "fever",
+      "cough",
+      "sputum_character",
+      "chest_pain",
+      "dyspnea",
+      "CURB65",
+      "recent_illness",
+      "sick_contacts"
+    ],
+    "pmh_relevant": [
+      "asthma",
+      "COPD",
+      "immunosuppression",
+      "recent_hospitalization",
+      "aspiration_risk"
+    ],
+    "fh_relevant": [
+      "pulmonary_disease",
+      "immune_deficiency"
+    ],
+    "sh_required": [
+      "smoking",
+      "alcohol",
+      "living_conditions",
+      "recent_travel"
+    ],
+    "allergy_required": true,
+    "ros_focus_systems": [
+      "respiratory",
+      "ENT",
+      "constitutional",
+      "gastrointestinal"
+    ]
+  },
+  "pe_template": {
+    "required_systems": [
+      "vital_signs",
+      "respiratory",
+      "ENT",
+      "cardiovascular"
+    ],
+    "focus_items": [
+      "lung_auscultation",
+      "percussion_dullness",
+      "respiratory_rate",
+      "cyanosis",
+      "temperature",
+      "sputum_color"
+    ],
+    "neurological_if_indicated": false,
+    "fundoscopy": false
+  },
+  "medication_protocol": {
+    "empiric": [
+      "beta_lactam_macrolide_or_respiratory_FQ"
+    ],
+    "de_escalation": [
+      "根据病原学结果和药敏调整"
+    ],
+    "contraindicated": [
+      "delayed_antibiotic_therapy"
+    ],
+    "titration": "治疗48-72h评估治疗反应，根据CURB-65和CRP趋势调整"
+  },
+  "contraindications": [
+    "氟喹诺酮类慎用: QT间期延长/肌腱病史/儿童青少年",
+    "大环内酯类慎用: 肝功能异常/QT间期延长"
+  ],
+  "severity_grading": {
+    "system": "CURB-65",
+    "grades": [
+      {
+        "grade": "低危",
+        "score": "0-1",
+        "risk": "低危可门诊"
+      },
+      {
+        "grade": "中危",
+        "score": "2",
+        "risk": "中危考虑住院"
+      },
+      {
+        "grade": "高危",
+        "score": "3-5",
+        "risk": "高危建议ICU评估"
+      }
+    ]
+  },
+  "complication_monitoring": [
+    {
+      "complication": "脓毒症/脓毒性休克",
+      "watch": [
+        "SBP<90",
+        "HR>100",
+        "乳酸>2",
+        "尿量<30ml/h"
+      ]
+    },
+    {
+      "complication": "ARDS",
+      "watch": [
+        "SpO2<89%",
+        "双侧肺泡浸润",
+        "PaO2/FiO2<300"
+      ]
+    },
+    {
+      "complication": "脓胸",
+      "watch": [
+        "持续发热>5天",
+        "胸痛固定",
+        "胸腔积液增加"
+      ]
+    }
+  ],
+  "lab_reference": {
+    "白细胞": {
+      "low": 3.5,
+      "high": 9.5
+    },
+    "血红蛋白": {
+      "low": 120,
+      "high": 175
+    },
+    "血小板": {
+      "low": 100,
+      "high": 300
+    },
+    "肌酐": {
+      "low": 44,
+      "high": 104
+    },
+    "血糖": {
+      "low": 3.9,
+      "high": 6.1
+    },
+    "钾": {
+      "low": 3.5,
+      "high": 5.3
+    },
+    "钠": {
+      "low": 135,
+      "high": 145
+    },
+    "CRP": {
+      "low": 0,
+      "high": 8
+    },
+    "降钙素原": {
+      "low": 0,
+      "high": 0.5
+    }
+  }
 }

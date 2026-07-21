@@ -6,6 +6,14 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+# v0.3: 测试环境强制设置 DeepSeek 测试 key (避免 main.py RuntimeError)
+os.environ.setdefault("DEEPSEEK_API_KEY", "test-key-for-ci")
+os.environ.setdefault("STORAGE_BACKEND", "sqlite")
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event
@@ -26,6 +34,21 @@ def _create_test_engine(db_url: str = "sqlite+aiosqlite:///:memory:"):
     return engine
 
 
+@pytest.fixture(autouse=True)
+def isolated_state_store(monkeypatch):
+    """Keep every test from writing patient states into the developer runtime DB."""
+    from zhenhu.inpatient.routes import state_store
+
+    with TemporaryDirectory() as directory:
+        backend = state_store.SQLiteBackend(str(Path(directory) / "state-store.db"))
+        monkeypatch.setattr(state_store, "_backend", backend)
+        with state_store._lock:
+            state_store._store.clear()
+        yield
+        with state_store._lock:
+            state_store._store.clear()
+
+
 @pytest.fixture
 async def client():
     """创建 AsyncClient 用于测试 FastAPI app（每次测试干净 :memory: 库）。
@@ -35,7 +58,7 @@ async def client():
     import os
     from zhenhu.inpatient.main import app  # 合并迁入: 替换旧 app.src.zhenhu 路径
     from zhenhu.inpatient.models import Base  # 合并迁入: 替换旧 app.db.base 路径
-    import zhenhu.inpatient.models as m
+    import zhenhu.inpatient.main as m
 
     # 强制使用 :memory: 数据库
     os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
@@ -44,11 +67,12 @@ async def client():
     m.async_session_factory = async_sessionmaker(m.async_engine, class_=AsyncSession, expire_on_commit=False)
 
     async with m.async_engine.begin() as conn:
-        await conn.run_sync(m.Base.metadata.create_all)
+        await conn.run_sync(Base.metadata.create_all)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
     async with m.async_engine.begin() as conn:
-        await conn.run_sync(m.Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.drop_all)
+    await m.async_engine.dispose()

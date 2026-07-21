@@ -1,36 +1,292 @@
 {
   "disease_id": "hyperthyroidism",
   "name": "甲状腺功能亢进",
+  "department": "内分泌科",
   "vital_signs": [
-    {"name": "heart_rate", "unit": "次/分", "alert_above": 110},
-    {"name": "blood_pressure", "unit": "mmHg", "alert_above": "150/90"},
-    {"name": "temperature", "unit": "℃", "alert_above": 38.0},
-    {"name": "weight", "unit": "kg", "note": "体重持续下降需警惕"},
-    {"name": "wbc", "unit": "×10⁹/L", "alert_below": 3.0, "note": "警惕抗甲状腺药物致粒细胞缺乏"}
+    {
+      "name": "heart_rate",
+      "unit": "次/分",
+      "alert_above": 110
+    },
+    {
+      "name": "systolic_mmhg",
+      "unit": "mmHg",
+      "alert_above": 150,
+      "alert_below": null
+    },
+    {
+      "name": "diastolic_mmhg",
+      "unit": "mmHg",
+      "alert_above": 90,
+      "alert_below": null
+    },
+    {
+      "name": "temperature",
+      "unit": "℃",
+      "alert_above": 38.0
+    },
+    {
+      "name": "weight",
+      "unit": "kg",
+      "note": "体重持续下降需警惕"
+    },
+    {
+      "name": "wbc",
+      "unit": "×10⁹/L",
+      "alert_below": 3.0,
+      "note": "警惕抗甲状腺药物致粒细胞缺乏"
+    }
   ],
-  "risk_factors": ["atrial_fibrillation", "thyroid_storm_risk", "agranulocytosis_risk", "large_goiter_with_compression", "orbitopathy_moderate_severe"],
+  "risk_factors": [
+    "atrial_fibrillation",
+    "thyroid_storm_risk",
+    "agranulocytosis_risk",
+    "large_goiter_with_compression",
+    "orbitopathy_moderate_severe"
+  ],
   "monitoring_interval_hours": 12,
   "discharge_criteria": [
-    {"condition": "heart_rate_controlled_lt_100", "description": "静息心率控制<100次/分"},
-    {"condition": "thyroid_function_improving", "description": "甲状腺功能指标改善"},
-    {"condition": "antithyroid_drug_tolerated", "description": "抗甲状腺药物耐受良好"},
-    {"condition": "afebrile", "description": "无发热"},
-    {"condition": "weight_stable_or_gaining", "description": "体重稳定或回升"}
+    {
+      "condition": "heart_rate_controlled_lt_100",
+      "description": "静息心率控制<100次/分"
+    },
+    {
+      "condition": "thyroid_function_improving",
+      "description": "甲状腺功能指标改善"
+    },
+    {
+      "condition": "antithyroid_drug_tolerated",
+      "description": "抗甲状腺药物耐受良好"
+    },
+    {
+      "condition": "afebrile",
+      "description": "无发热"
+    },
+    {
+      "condition": "weight_stable_or_gaining",
+      "description": "体重稳定或回升"
+    }
   ],
   "handoff_instructions": [
-    {"type": "medication", "content": "出院后继续抗甲状腺药物(甲巯咪唑/丙硫氧嘧啶)，每周复查血常规警惕粒细胞缺乏"},
-    {"type": "monitoring", "content": "每日自测静息心率和体重，记录心悸、手抖、多汗等症状变化"},
-    {"type": "followup", "content": "出院后2周内分泌科复查甲功+血常规+肝功能，根据结果调整药量"}
+    {
+      "type": "medication",
+      "content": "出院后继续抗甲状腺药物(甲巯咪唑/丙硫氧嘧啶)，每周复查血常规警惕粒细胞缺乏"
+    },
+    {
+      "type": "monitoring",
+      "content": "每日自测静息心率和体重，记录心悸、手抖、多汗等症状变化"
+    },
+    {
+      "type": "followup",
+      "content": "出院后2周内分泌科复查甲功+血常规+肝功能，根据结果调整药量"
+    }
   ],
   "agent_config": {
     "require_doctor_review": true,
-    "discharge_knowledge_keywords": ["甲亢药物治疗", "粒细胞缺乏识别", "甲状腺危象预警", "碘131治疗适应证"]
+    "discharge_knowledge_keywords": [
+      "甲亢药物治疗",
+      "粒细胞缺乏识别",
+      "甲状腺危象预警",
+      "碘131治疗适应证"
+    ]
   },
   "followup_questions": [
-    {"id": "ht-fq-01", "question": "服药后心慌手抖是否改善？静息心率是否<100次/分？", "clinical_intent": "评估甲亢控制", "source": "ehr-kg"},
-    {"id": "ht-fq-02", "question": "有无咽痛发热或口腔溃疡？", "clinical_intent": "筛查粒细胞缺乏", "source": "ddx-kg"},
-    {"id": "ht-fq-03", "question": "体重是否稳定或开始回升？食欲变化如何？", "clinical_intent": "评估代谢状态", "source": "ehr-kg"}
+    {
+      "id": "ht-fq-01",
+      "question": "服药后心慌手抖是否改善？静息心率是否<100次/分？",
+      "clinical_intent": "评估甲亢控制",
+      "source": "ehr-kg"
+    },
+    {
+      "id": "ht-fq-02",
+      "question": "有无咽痛发热或口腔溃疡？",
+      "clinical_intent": "筛查粒细胞缺乏",
+      "source": "ddx-kg"
+    },
+    {
+      "id": "ht-fq-03",
+      "question": "体重是否稳定或开始回升？食欲变化如何？",
+      "clinical_intent": "评估代谢状态",
+      "source": "ehr-kg"
+    }
   ],
-  "mdt_roles": ["内分泌科", "心内科", "眼科"],
-  "mdt_threshold": "high"
+  "mdt_roles": [
+    "内分泌科",
+    "心内科",
+    "眼科"
+  ],
+  "mdt_threshold": "high",
+  "history_template": {
+    "chief_complaint_required": true,
+    "hpi_focus": [
+      "palpitations",
+      "heat_intolerance",
+      "weight_loss",
+      "tremor",
+      "anxiety",
+      "eye_symptoms",
+      "menstrual_changes",
+      "diarrhea"
+    ],
+    "pmh_relevant": [
+      "Graves_disease",
+      "thyroiditis",
+      "other_autoimmune",
+      "AF",
+      "osteoporosis"
+    ],
+    "fh_relevant": [
+      "thyroid_disease",
+      "autoimmune_disease",
+      "ophthalmopathy"
+    ],
+    "sh_required": [
+      "iodine_intake",
+      "stress",
+      "smoking",
+      "medication_adherence"
+    ],
+    "allergy_required": true,
+    "ros_focus_systems": [
+      "endocrine",
+      "cardiovascular",
+      "ophthalmic",
+      "dermatologic",
+      "neurological",
+      "psychiatric"
+    ]
+  },
+  "pe_template": {
+    "required_systems": [
+      "vital_signs",
+      "endocrine",
+      "ophthalmic",
+      "dermatologic",
+      "cardiovascular"
+    ],
+    "focus_items": [
+      "thyroid_palpation",
+      "thyroid_bruit",
+      "eye_signs",
+      "tremor",
+      "heart_rate",
+      "hand_moisture",
+      "skin_texture",
+      "proximal_muscle"
+    ],
+    "neurological_if_indicated": true,
+    "fundoscopy": true
+  },
+  "medication_protocol": {
+    "antithyroid": [
+      "methimazole",
+      "propylthiouracil"
+    ],
+    "symptomatic": [
+      "beta-blocker_propranolol"
+    ],
+    "definitive": [
+      "RAI_I131",
+      "thyroidectomy_if_indicated"
+    ],
+    "contraindicated": [
+      "iodine_contrast",
+      "amiodarone"
+    ],
+    "titration": "甲巯咪唑起始剂量根据甲功严重度，每4-6周复查调整"
+  },
+  "contraindications": [
+    "甲巯咪唑禁用: 粒细胞缺乏/胆汁淤积性黄疸",
+    "丙硫氧嘧啶禁用: 严重肝功能不全",
+    "造影剂/胺碘酮禁用: 诱发甲亢危象"
+  ],
+  "severity_grading": {
+    "system": "临床综合",
+    "grades": [
+      {
+        "grade": "轻度",
+        "criteria": "HR<100,轻度症状,TSH<0.1",
+        "risk": "低危"
+      },
+      {
+        "grade": "中度",
+        "criteria": "HR100-120,明显症状,FT4升高",
+        "risk": "中危"
+      },
+      {
+        "grade": "重度",
+        "criteria": "HR>120,显著体重下降,心律失常",
+        "risk": "高危"
+      }
+    ]
+  },
+  "complication_monitoring": [
+    {
+      "complication": "甲亢危象",
+      "watch": [
+        "T>39℃",
+        "HR>140",
+        "意识改变",
+        "恶心呕吐腹泻"
+      ]
+    },
+    {
+      "complication": "粒细胞缺乏",
+      "watch": [
+        "发热咽痛",
+        "WBC<3.0",
+        "中性粒细胞<0.5"
+      ]
+    },
+    {
+      "complication": "甲亢性心脏病",
+      "watch": [
+        "新发房颤",
+        "心衰体征",
+        "HR持续>110"
+      ]
+    }
+  ],
+  "lab_reference": {
+    "白细胞": {
+      "low": 3.5,
+      "high": 9.5
+    },
+    "血红蛋白": {
+      "low": 120,
+      "high": 175
+    },
+    "血小板": {
+      "low": 100,
+      "high": 300
+    },
+    "肌酐": {
+      "low": 44,
+      "high": 104
+    },
+    "血糖": {
+      "low": 3.9,
+      "high": 6.1
+    },
+    "钾": {
+      "low": 3.5,
+      "high": 5.3
+    },
+    "钠": {
+      "low": 135,
+      "high": 145
+    },
+    "CRP": {
+      "low": 0,
+      "high": 8
+    },
+    "TSH": {
+      "low": 0.4,
+      "high": 4.0
+    },
+    "FT4": {
+      "low": 10,
+      "high": 25
+    }
+  }
 }

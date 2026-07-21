@@ -1,14 +1,50 @@
 {
   "disease_id": "ckd",
   "name": "慢性肾病",
+  "department": "肾内科",
   "vital_signs": [
-    {"name": "egfr", "unit": "ml/min", "alert_below": 30},
-    {"name": "potassium", "unit": "mmol/L", "alert_above": 5.5},
-    {"name": "hemoglobin", "unit": "g/dL", "alert_below": 8},
-    {"name": "blood_pressure", "unit": "mmHg", "alert_above": "140/90"},
-    {"name": "bicarbonate", "unit": "mmol/L", "alert_below": 18},
-    {"name": "calcium", "unit": "mmol/L", "alert_below": 2.1},
-    {"name": "phosphorus", "unit": "mmol/L", "alert_above": 1.78}
+    {
+      "name": "egfr",
+      "unit": "ml/min",
+      "alert_below": 30
+    },
+    {
+      "name": "potassium",
+      "unit": "mmol/L",
+      "alert_above": 5.5
+    },
+    {
+      "name": "hemoglobin",
+      "unit": "g/dL",
+      "alert_below": 8
+    },
+    {
+      "name": "systolic_mmhg",
+      "unit": "mmHg",
+      "alert_above": 140,
+      "alert_below": null
+    },
+    {
+      "name": "diastolic_mmhg",
+      "unit": "mmHg",
+      "alert_above": 90,
+      "alert_below": null
+    },
+    {
+      "name": "bicarbonate",
+      "unit": "mmol/L",
+      "alert_below": 18
+    },
+    {
+      "name": "calcium",
+      "unit": "mmol/L",
+      "alert_below": 2.1
+    },
+    {
+      "name": "phosphorus",
+      "unit": "mmol/L",
+      "alert_above": 1.78
+    }
   ],
   "risk_factors": [
     "diabetes_comorbidity",
@@ -18,25 +54,257 @@
   ],
   "monitoring_interval_hours": 8,
   "discharge_criteria": [
-    {"condition": "egfr_stable", "description": "eGFR稳定或改善"},
-    {"condition": "potassium_normal", "description": "血钾正常范围"},
-    {"condition": "fluid_balance_achieved", "description": "液体平衡达标"},
-    {"condition": "renal_diet_education_done", "description": "肾病饮食教育已完成"}
+    {
+      "condition": "egfr_stable",
+      "description": "eGFR稳定或改善"
+    },
+    {
+      "condition": "potassium_normal",
+      "description": "血钾正常范围"
+    },
+    {
+      "condition": "fluid_balance_achieved",
+      "description": "液体平衡达标"
+    },
+    {
+      "condition": "renal_diet_education_done",
+      "description": "肾病饮食教育已完成"
+    }
   ],
   "handoff_instructions": [
-    {"type": "medication", "content": "出院后继续控制血压血糖，避免使用肾毒性药物(NSAIDs等)"},
-    {"type": "monitoring", "content": "每周自测体重，每日记录尿量，限制液体入量"},
-    {"type": "followup", "content": "出院后2周肾内科复查肾功能+电解质，评估透析时机"}
+    {
+      "type": "medication",
+      "content": "出院后继续控制血压血糖，避免使用肾毒性药物(NSAIDs等)"
+    },
+    {
+      "type": "monitoring",
+      "content": "每周自测体重，每日记录尿量，限制液体入量"
+    },
+    {
+      "type": "followup",
+      "content": "出院后2周肾内科复查肾功能+电解质，评估透析时机"
+    }
   ],
   "agent_config": {
     "require_doctor_review": true,
-    "discharge_knowledge_keywords": ["CKD分期管理", "肾性贫血治疗", "CKD-MBD管理", "肾脏替代治疗时机"]
+    "discharge_knowledge_keywords": [
+      "CKD分期管理",
+      "肾性贫血治疗",
+      "CKD-MBD管理",
+      "肾脏替代治疗时机"
+    ]
   },
   "followup_questions": [
-    {"id": "ckd-fq-01", "question": "近3天体重有无快速增加(>1kg/天)？", "clinical_intent": "评估液体潴留", "source": "ehr-kg"},
-    {"id": "ckd-fq-02", "question": "是否出现恶心、食欲减退或皮肤瘙痒？", "clinical_intent": "筛查尿毒症症状", "source": "ddx-kg"},
-    {"id": "ckd-fq-03", "question": "饮食控制情况如何？是否遵医嘱限制钾、磷、蛋白摄入？", "clinical_intent": "评估饮食依从性", "source": "ehr-kg"}
+    {
+      "id": "ckd-fq-01",
+      "question": "近3天体重有无快速增加(>1kg/天)？",
+      "clinical_intent": "评估液体潴留",
+      "source": "ehr-kg"
+    },
+    {
+      "id": "ckd-fq-02",
+      "question": "是否出现恶心、食欲减退或皮肤瘙痒？",
+      "clinical_intent": "筛查尿毒症症状",
+      "source": "ddx-kg"
+    },
+    {
+      "id": "ckd-fq-03",
+      "question": "饮食控制情况如何？是否遵医嘱限制钾、磷、蛋白摄入？",
+      "clinical_intent": "评估饮食依从性",
+      "source": "ehr-kg"
+    }
   ],
-  "mdt_roles": ["肾内科", "营养师", "内分泌科"],
-  "mdt_threshold": "high"
+  "mdt_roles": [
+    "肾内科",
+    "营养师",
+    "内分泌科"
+  ],
+  "mdt_threshold": "high",
+  "history_template": {
+    "chief_complaint_required": true,
+    "hpi_focus": [
+      "edema",
+      "urine_output",
+      "foamy_urine",
+      "fatigue",
+      "dialysis_schedule",
+      "access_site",
+      "fluid_balance",
+      "pruritus"
+    ],
+    "pmh_relevant": [
+      "diabetes",
+      "hypertension",
+      "glomerulonephritis",
+      "PKD",
+      "autoimmune_disease"
+    ],
+    "fh_relevant": [
+      "CKD",
+      "PKD",
+      "diabetes",
+      "hypertension"
+    ],
+    "sh_required": [
+      "smoking",
+      "alcohol",
+      "diet_protein",
+      "diet_potassium",
+      "diet_phosphorus",
+      "fluid_restriction"
+    ],
+    "allergy_required": true,
+    "ros_focus_systems": [
+      "renal",
+      "cardiovascular",
+      "hematologic",
+      "dermatologic",
+      "musculoskeletal"
+    ]
+  },
+  "pe_template": {
+    "required_systems": [
+      "vital_signs",
+      "cardiovascular",
+      "abdominal",
+      "lower_extremities"
+    ],
+    "focus_items": [
+      "AV_fistula",
+      "bruit_thrill",
+      "peripheral_edema",
+      "renal_punch_tenderness",
+      "pericardial_friction_rub",
+      "skin_turgor"
+    ],
+    "neurological_if_indicated": false,
+    "fundoscopy": true
+  },
+  "medication_protocol": {
+    "RAAS_blockade": [
+      "ACEI/ARB"
+    ],
+    "anemia": [
+      "ESA",
+      "iron_supplement"
+    ],
+    "CKD_MBD": [
+      "phosphate_binder",
+      "active_vitamin_D",
+      "calcimimetics"
+    ],
+    "contraindicated": [
+      "NSAIDs",
+      "nephrotoxic_antibiotics"
+    ],
+    "titration": "每3个月评估eGFR趋势和蛋白尿变化调整RAAS阻滞剂"
+  },
+  "contraindications": [
+    "ACEI/ARB禁用: 双侧肾动脉狭窄/高钾>5.5/妊娠",
+    "NSAIDs绝对禁用: 任何CKD阶段",
+    "氨基糖苷类禁用: 肾毒性"
+  ],
+  "severity_grading": {
+    "system": "KDIGO CKD",
+    "grades": [
+      {
+        "grade": 1,
+        "egfr": ">90",
+        "risk": "低危"
+      },
+      {
+        "grade": 2,
+        "egfr": "60-89",
+        "risk": "低危"
+      },
+      {
+        "grade": "3a",
+        "egfr": "45-59",
+        "risk": "中危"
+      },
+      {
+        "grade": "3b",
+        "egfr": "30-44",
+        "risk": "高危"
+      },
+      {
+        "grade": 4,
+        "egfr": "15-29",
+        "risk": "高危"
+      },
+      {
+        "grade": 5,
+        "egfr": "<15或透析",
+        "risk": "极高危"
+      }
+    ]
+  },
+  "complication_monitoring": [
+    {
+      "complication": "高钾血症",
+      "watch": [
+        "K+>5.5",
+        "ECG:T波高尖",
+        "肌无力"
+      ]
+    },
+    {
+      "complication": "代谢性酸中毒",
+      "watch": [
+        "HCO3<18",
+        "深大呼吸",
+        "恶心食欲减退"
+      ]
+    },
+    {
+      "complication": "尿毒症脑病",
+      "watch": [
+        "意识改变",
+        "扑翼样震颤",
+        "心包摩擦音"
+      ]
+    }
+  ],
+  "lab_reference": {
+    "白细胞": {
+      "low": 3.5,
+      "high": 9.5
+    },
+    "血红蛋白": {
+      "low": 120,
+      "high": 175
+    },
+    "血小板": {
+      "low": 100,
+      "high": 300
+    },
+    "肌酐": {
+      "low": 44,
+      "high": 104
+    },
+    "血糖": {
+      "low": 3.9,
+      "high": 6.1
+    },
+    "钾": {
+      "low": 3.5,
+      "high": 5.3
+    },
+    "钠": {
+      "low": 135,
+      "high": 145
+    },
+    "CRP": {
+      "low": 0,
+      "high": 8
+    },
+    "尿素氮": {
+      "low": 2.9,
+      "high": 8.2
+    },
+    "eGFR": {
+      "low": 60,
+      "high": 120
+    }
+  }
 }

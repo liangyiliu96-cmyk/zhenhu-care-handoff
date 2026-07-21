@@ -51,8 +51,8 @@ def _build_initial_state(disease_id="hypertension", patient_id="e2e-test-001"):
 
 
 @pytest.mark.asyncio
-async def test_e2e_full_admission_to_confirm():
-    """完整住院流程：入院→用药核对→分诊→监测→查房→出院→交接→审核→确认。"""
+async def test_e2e_full_admission_to_confirm(monkeypatch):
+    """完整住院流程：入院→监测→交接→签字→桥接→签收与回授确认。"""
     state = _build_initial_state("hypertension", "e2e-test-001")
 
     # 1. 入院
@@ -88,23 +88,53 @@ async def test_e2e_full_admission_to_confirm():
     assert "daily_round_note" in state["document_chain"]
     assert state["latest_round"] is not None
 
-    # 6. 出院（需要discharge_decision=approved）
+    # 6. 生成交接草稿
     state["discharge_decision"] = "approved"
-    state.update(await node_discharge(state))
-    assert state["phase"] == "discharge"
-
-    # 7. 交接生成
     state.update(await node_handoff(state))
     assert state["phase"] == "handoff"
     assert len(state["handoff_items"]) > 0
 
-    # 8. 医生审核
+    # 7. 医生审核并签字
     state.update(await node_doctor_review(state))
     assert state["phase"] == "review"
+    state["discharge_sign_status"] = "signed"
 
-    # 9. 患者确认
+    async def create_case(patient_id, handoff_items, template):
+        return {"status": "ok", "case_id": "case-e2e"}
+
+    async def search_knowledge(query):
+        return []
+
+    async def patient_summary(patient_id):
+        return {"patient_id": patient_id}
+
+    monkeypatch.setattr(
+        "zhenhu.inpatient.agent.nodes_handoff._create_zhenhu_case", create_case,
+    )
+    monkeypatch.setattr(
+        "zhenhu.inpatient.hooks.zhenhu_bridge.bridge_search_knowledge", search_knowledge,
+    )
+    monkeypatch.setattr(
+        "zhenhu.inpatient.hooks.zhenhu_bridge.bridge_patient_summary", patient_summary,
+    )
+
+    # 8. 签字后执行外部出院桥接
+    state.update(await node_discharge(state))
+    assert state["phase"] == "discharge"
+    assert "discharge_bridge" in state["document_chain"]
+
+    # 9. 接收方签收并完成真实回授后确认
+    state["handoff_acknowledged"] = True
+    state["education_records"] = [{
+        "id": "education-e2e",
+        "topic": "出院用药",
+        "recipient": "patient",
+        "teach_back": "按时服药，不自行停药",
+        "acknowledged": True,
+    }]
     state.update(await node_patient_confirm(state))
     assert state["phase"] == "confirm"
+    assert state["patient_confirmation_status"] == "confirmed"
 
     # 验证关键字段贯穿
     assert state["patient_id"] == "e2e-test-001"

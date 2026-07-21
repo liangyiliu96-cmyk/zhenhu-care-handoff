@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM 模型 —— 住院协同核心临床表(12表)。合并迁入。
+"""SQLAlchemy ORM 模型 —— 住院协同核心临床表(15表)。合并迁入。
 
 自包含定义: 不依赖 app.db.tables.*, Base+TimestampMixin+全部表定义内联。
 合并迁入修正: 移除对 simulated_actor/data_import_batch 的 FK 依赖,
@@ -67,6 +67,7 @@ class ActorRole(enum.StrEnum):
     FAMILY = "family"
     CAREGIVER = "caregiver"
     DOCTOR = "doctor"
+    NURSE = "nurse"
     COORDINATOR = "coordinator"
     SUPERVISOR = "supervisor"
 
@@ -76,6 +77,7 @@ class AuditActorRole(enum.StrEnum):
     FAMILY = ActorRole.FAMILY.value
     CAREGIVER = ActorRole.CAREGIVER.value
     DOCTOR = ActorRole.DOCTOR.value
+    NURSE = ActorRole.NURSE.value
     COORDINATOR = ActorRole.COORDINATOR.value
     SUPERVISOR = ActorRole.SUPERVISOR.value
     SYSTEM = "system"
@@ -352,7 +354,7 @@ class AuditLog(Base, TimestampMixin):
     __tablename__ = "audit_logs"
     __table_args__ = (
         CheckConstraint(
-            "actor_role IN ('patient', 'family', 'caregiver', 'doctor', 'coordinator', 'supervisor', 'system')",
+            "actor_role IN ('patient', 'family', 'caregiver', 'doctor', 'nurse', 'coordinator', 'supervisor', 'system')",
             name="ck_audit_log_actor_role",
         ),
         Index("ix_audit_log_created_at", "created_at"),
@@ -377,6 +379,66 @@ class AuditLog(Base, TimestampMixin):
     target_record_id: Mapped[str | None] = mapped_column(CHAR(36), nullable=True)
     action_detail: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     session_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+
+class OutboxEvent(Base, TimestampMixin):
+    """Durable downstream event intent, delivered after the local commit."""
+
+    __tablename__ = "outbox_events"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_outbox_event_idempotency"),
+        Index("ix_outbox_event_delivery", "status", "next_attempt_at"),
+    )
+
+    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class IdempotencyRecord(Base, TimestampMixin):
+    """Durable replay record for an API write guarded by Idempotency-Key."""
+
+    __tablename__ = "idempotency_records"
+    __table_args__ = (
+        UniqueConstraint("scope", "idempotency_key", name="uq_idempotency_scope_key"),
+        Index("ix_idempotency_created_at", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True)
+    scope: Mapped[str] = mapped_column(String(512), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="processing")
+    response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_body: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+
+
+class ClinicalWorkflowState(Base, TimestampMixin):
+    """Authoritative patient workflow snapshot for transactional clinical writes."""
+
+    __tablename__ = "clinical_workflow_states"
+
+    patient_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    state_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    state_version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class FollowUpContact(Base, TimestampMixin):
+    """Encrypted contact record kept outside the clinical workflow snapshot."""
+
+    __tablename__ = "follow_up_contacts"
+
+    patient_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    encrypted_payload: Mapped[str] = mapped_column(Text, nullable=False)
+    consented: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")
+    preferred_channel: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    contact_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
 
 
 class CurrentCondition(Base, TimestampMixin):
@@ -413,26 +475,5 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
 
 
-# ============================================================================
-# 异步会话工厂 —— 独立创建，避免与 main.py 循环导入
-# ============================================================================
-
-import os as _os
-
-from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession
-from sqlalchemy.ext.asyncio import async_sessionmaker as _async_sessionmaker
-from sqlalchemy.ext.asyncio import create_async_engine as _create_async_engine
-
-_ASYNC_DATABASE_URL = _os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./zhenhu_inpatient.db")
-
-_engine = None
-
-
-def _get_engine():
-    global _engine
-    if _engine is None:
-        _engine = _create_async_engine(_ASYNC_DATABASE_URL, echo=False)
-    return _engine
-
-
-async_session_factory = _async_sessionmaker(_get_engine, class_=_AsyncSession, expire_on_commit=False)
+# P0-1 修复: 删除冗余 engine/async_session_factory —— session 统一由 main.py 管理
+# init_db() 通过 lazy import `from .main import async_engine` 使用共享 engine

@@ -1,38 +1,294 @@
 {
   "disease_id": "post_surgery",
   "name": "术后恢复",
+  "department": "普外科",
   "vital_signs": [
-    {"name": "blood_pressure", "unit": "mmHg", "alert_below": "90/60", "alert_above": "160/100"},
-    {"name": "heart_rate", "unit": "次/分", "alert_above": 110},
-    {"name": "temperature", "unit": "℃", "alert_above": 38.0},
-    {"name": "spo2", "unit": "%", "alert_below": 94},
-    {"name": "pain_score", "unit": "分", "alert_above": 7},
-    {"name": "urine_output", "unit": "ml/h", "alert_below": 30}
+    {
+      "name": "systolic_mmhg",
+      "unit": "mmHg",
+      "alert_above": 160,
+      "alert_below": 90
+    },
+    {
+      "name": "diastolic_mmhg",
+      "unit": "mmHg",
+      "alert_above": 100,
+      "alert_below": 60
+    },
+    {
+      "name": "heart_rate",
+      "unit": "次/分",
+      "alert_above": 110
+    },
+    {
+      "name": "temperature",
+      "unit": "℃",
+      "alert_above": 38.0
+    },
+    {
+      "name": "spo2",
+      "unit": "%",
+      "alert_below": 94
+    },
+    {
+      "name": "pain_score",
+      "unit": "分",
+      "alert_above": 7
+    },
+    {
+      "name": "urine_output",
+      "unit": "ml/h",
+      "alert_below": 30
+    }
   ],
-  "risk_factors": ["age_gt_70", "emergency_surgery", "asa_grade_3_plus", "operative_time_gt_3h", "comorbidity_dm_htn"],
+  "risk_factors": [
+    "age_gt_70",
+    "emergency_surgery",
+    "asa_grade_3_plus",
+    "operative_time_gt_3h",
+    "comorbidity_dm_htn"
+  ],
   "monitoring_interval_hours": 4,
   "discharge_criteria": [
-    {"condition": "vital_signs_stable_24h", "description": "生命体征稳定>24h"},
-    {"condition": "pain_controlled_via_oral", "description": "口服止痛药疼痛可控(NRS≤3)"},
-    {"condition": "wound_dry_no_infection", "description": "伤口干燥无感染征象"},
-    {"condition": "toleration_of_oral_intake", "description": "能耐受经口进食"},
-    {"condition": "mobilization_achieved", "description": "可下床活动"},
-    {"condition": "bowel_function_returned", "description": "肠道功能已恢复(排气排便)"}
+    {
+      "condition": "vital_signs_stable_24h",
+      "description": "生命体征稳定>24h"
+    },
+    {
+      "condition": "pain_controlled_via_oral",
+      "description": "口服止痛药疼痛可控(NRS≤3)"
+    },
+    {
+      "condition": "wound_dry_no_infection",
+      "description": "伤口干燥无感染征象"
+    },
+    {
+      "condition": "toleration_of_oral_intake",
+      "description": "能耐受经口进食"
+    },
+    {
+      "condition": "mobilization_achieved",
+      "description": "可下床活动"
+    },
+    {
+      "condition": "bowel_function_returned",
+      "description": "肠道功能已恢复(排气排便)"
+    }
   ],
   "handoff_instructions": [
-    {"type": "medication", "content": "出院后按医嘱服用止痛药和抗生素，伤口换药每日1次保持干燥"},
-    {"type": "monitoring", "content": "每日观察伤口有无红肿渗液，监测体温，术后2周内避免重体力活动"},
-    {"type": "followup", "content": "出院后1周外科门诊拆线复查，如有异常随时复诊"}
+    {
+      "type": "medication",
+      "content": "出院后按医嘱服用止痛药和抗生素，伤口换药每日1次保持干燥"
+    },
+    {
+      "type": "monitoring",
+      "content": "每日观察伤口有无红肿渗液，监测体温，术后2周内避免重体力活动"
+    },
+    {
+      "type": "followup",
+      "content": "出院后1周外科门诊拆线复查，如有异常随时复诊"
+    }
   ],
   "agent_config": {
     "require_doctor_review": true,
-    "discharge_knowledge_keywords": ["术后伤口护理", "VTE预防", "功能康复指导", "拆线时间与指征"]
+    "discharge_knowledge_keywords": [
+      "术后伤口护理",
+      "VTE预防",
+      "功能康复指导",
+      "拆线时间与指征"
+    ]
   },
   "followup_questions": [
-    {"id": "surg-fq-01", "question": "伤口有无红肿、渗液或异常疼痛？", "clinical_intent": "筛查手术部位感染", "source": "ehr-kg"},
-    {"id": "surg-fq-02", "question": "是否已恢复排气排便？进食后有无腹胀恶心？", "clinical_intent": "评估胃肠功能恢复", "source": "ehr-kg"},
-    {"id": "surg-fq-03", "question": "活动能力恢复如何？能否独立下床行走？", "clinical_intent": "评估功能恢复", "source": "ehr-kg"}
+    {
+      "id": "surg-fq-01",
+      "question": "伤口有无红肿、渗液或异常疼痛？",
+      "clinical_intent": "筛查手术部位感染",
+      "source": "ehr-kg"
+    },
+    {
+      "id": "surg-fq-02",
+      "question": "是否已恢复排气排便？进食后有无腹胀恶心？",
+      "clinical_intent": "评估胃肠功能恢复",
+      "source": "ehr-kg"
+    },
+    {
+      "id": "surg-fq-03",
+      "question": "活动能力恢复如何？能否独立下床行走？",
+      "clinical_intent": "评估功能恢复",
+      "source": "ehr-kg"
+    }
   ],
-  "mdt_roles": ["外科", "麻醉科", "康复师", "营养师"],
-  "mdt_threshold": "high"
+  "mdt_roles": [
+    "外科",
+    "麻醉科",
+    "康复师",
+    "营养师"
+  ],
+  "mdt_threshold": "high",
+  "history_template": {
+    "chief_complaint_required": true,
+    "hpi_focus": [
+      "surgery_date",
+      "surgery_type",
+      "wound_pain",
+      "drainage",
+      "ambulation",
+      "bowel_function",
+      "DVT_prophylaxis",
+      "pain_control"
+    ],
+    "pmh_relevant": [
+      "surgical_history",
+      "anesthesia_reactions",
+      "thromboembolism",
+      "bleeding_disorder"
+    ],
+    "fh_relevant": [
+      "thrombophilia",
+      "surgical_complications",
+      "malignant_hyperthermia"
+    ],
+    "sh_required": [
+      "smoking",
+      "alcohol",
+      "functional_status",
+      "caregiver_support"
+    ],
+    "allergy_required": true,
+    "ros_focus_systems": [
+      "surgical_site",
+      "gastrointestinal",
+      "cardiovascular",
+      "respiratory",
+      "musculoskeletal"
+    ]
+  },
+  "pe_template": {
+    "required_systems": [
+      "vital_signs",
+      "surgical_site",
+      "abdominal",
+      "vascular",
+      "lower_extremities"
+    ],
+    "focus_items": [
+      "wound_inspection",
+      "drainage_site",
+      "bowel_sounds",
+      "calf_tenderness",
+      "Homan_sign",
+      "mobility_assessment",
+      "pain_score"
+    ],
+    "neurological_if_indicated": true,
+    "fundoscopy": false
+  },
+  "medication_protocol": {
+    "analgesia": [
+      "multimodal_analgesia",
+      "opioid_sparing_protocol"
+    ],
+    "VTE_prophylaxis": [
+      "LMWH",
+      "sequential_compression"
+    ],
+    "antibiotics": [
+      "perioperative_abx_per_guideline"
+    ],
+    "contraindicated": [
+      "NSAIDs_if_bleeding_risk",
+      "early_full_anticoagulation"
+    ],
+    "titration": "根据疼痛评分调整镇痛方案，术后24-48h口服过渡"
+  },
+  "contraindications": [
+    "NSAIDs禁用: 术后活动性出血/肾功能不全",
+    "硬膜外镇痛: 注意同时抗凝药的硬膜外血肿风险"
+  ],
+  "severity_grading": {
+    "system": "ASA分级",
+    "grades": [
+      {
+        "grade": 1,
+        "description": "正常健康患者",
+        "risk": "低危"
+      },
+      {
+        "grade": 2,
+        "description": "轻度系统性疾病",
+        "risk": "中危"
+      },
+      {
+        "grade": 3,
+        "description": "重度系统性疾病",
+        "risk": "高危"
+      },
+      {
+        "grade": 4,
+        "description": "持续威胁生命的疾病",
+        "risk": "极高危"
+      }
+    ]
+  },
+  "complication_monitoring": [
+    {
+      "complication": "手术部位感染",
+      "watch": [
+        "体温>38℃",
+        "伤口红肿渗液",
+        "WBC升高"
+      ]
+    },
+    {
+      "complication": "术后出血",
+      "watch": [
+        "HR>110",
+        "SBP<90",
+        "引流量骤增",
+        "Hb下降"
+      ]
+    },
+    {
+      "complication": "DVT/PE",
+      "watch": [
+        "单侧下肢肿胀疼痛",
+        "突发胸痛呼吸困难",
+        "SpO2下降"
+      ]
+    }
+  ],
+  "lab_reference": {
+    "白细胞": {
+      "low": 3.5,
+      "high": 9.5
+    },
+    "血红蛋白": {
+      "low": 120,
+      "high": 175
+    },
+    "血小板": {
+      "low": 100,
+      "high": 300
+    },
+    "肌酐": {
+      "low": 44,
+      "high": 104
+    },
+    "血糖": {
+      "low": 3.9,
+      "high": 6.1
+    },
+    "钾": {
+      "low": 3.5,
+      "high": 5.3
+    },
+    "钠": {
+      "low": 135,
+      "high": 145
+    },
+    "CRP": {
+      "low": 0,
+      "high": 8
+    }
+  }
 }

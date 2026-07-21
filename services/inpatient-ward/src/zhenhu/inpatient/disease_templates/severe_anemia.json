@@ -1,0 +1,90 @@
+{
+  "disease_id": "severe_anemia",
+  "name": "重度贫血",
+  "department": "血液科",
+  "vital_signs": [
+    { "name": "heart_rate", "unit": "bpm", "alert_above": 110, "alert_below": 50 },
+    { "name": "systolic_mmhg", "unit": "mmHg", "alert_above": 160, "alert_below": 90 },
+    { "name": "diastolic_mmhg", "unit": "mmHg", "alert_above": 100, "alert_below": 60 },
+    { "name": "spo2", "unit": "%", "alert_below": 92 },
+    { "name": "temperature", "unit": "℃", "alert_above": 38.0 },
+    { "name": "respiratory_rate", "unit": "/min", "alert_above": 24 }
+  ],
+  "risk_factors": [
+    "hb_lt_70", "active_bleeding", "hemodynamic_instability",
+    "age_gt_65", "cardiac_comorbidity", "CKD_comorbidity"
+  ],
+  "monitoring_interval_hours": 4,
+  "discharge_criteria": [
+    { "condition": "hb_stable_or_rising", "description": "血红蛋白稳定或上升(Hb>80g/L)" },
+    { "condition": "hemodynamic_stable", "description": "血流动力学稳定(HR<100, BP正常)" },
+    { "condition": "bleeding_source_controlled", "description": "出血原因明确且已控制" },
+    { "condition": "transfusion_reaction_none", "description": "无输血反应" },
+    { "condition": "activity_tolerated", "description": "可耐受日常活动无明显气促" }
+  ],
+  "handoff_instructions": [
+    { "type": "medication", "content": "出院后继续口服铁剂/叶酸/B12，遵医嘱定期复查血常规" },
+    { "type": "monitoring", "content": "关注有无乏力加重、面色苍白、黑便、牙龈出血等" },
+    { "type": "followup", "content": "出院后1周血液科门诊复查血常规+铁代谢，明确贫血病因" }
+  ],
+  "agent_config": {
+    "require_doctor_review": true,
+    "discharge_knowledge_keywords": ["贫血诊治指南", "输血指征", "缺铁性贫血", "巨幼细胞性贫血"]
+  },
+  "followup_questions": [
+    { "id": "an-fq-01", "question": "近期有无乏力加重、头晕、活动后气促？", "clinical_intent": "评估贫血症状", "source": "ehr-kg" },
+    { "id": "an-fq-02", "question": "有无黑便、牙龈出血、皮肤瘀斑或月经过多？", "clinical_intent": "筛查活动性出血", "source": "ddx-kg" },
+    { "id": "an-fq-03", "question": "是否按时服用补铁药物？有无腹痛、恶心、便秘？", "clinical_intent": "评估铁剂依从性和耐受", "source": "ehr-kg" }
+  ],
+  "mdt_roles": ["血液科", "消化科", "营养科"],
+  "mdt_threshold": "high",
+  "history_template": {
+    "chief_complaint_required": true,
+    "hpi_focus": ["fatigue_duration", "dyspnea_on_exertion", "bleeding_history", "dietary_history", "melena", "menorrhagia"],
+    "pmh_relevant": ["anemia", "GI_bleeding", "CKD", "malignancy", "menorrhagia", "gastrectomy"],
+    "fh_relevant": ["thalassemia", "hemoglobinopathy", "colorectal_cancer"],
+    "sh_required": ["dietary", "alcohol", "NSAID_use", "menstrual_history"],
+    "allergy_required": true,
+    "ros_focus_systems": ["hematologic", "cardiovascular", "gastrointestinal", "gynecologic"]
+  },
+  "pe_template": {
+    "required_systems": ["vital_signs", "cardiovascular", "abdominal", "integumentary"],
+    "focus_items": ["conjunctiva_pallor", "nail_bed", "tachycardia", "heart_murmur", "splenomegaly", "petechiae"],
+    "neurological_if_indicated": false,
+    "fundoscopy": false
+  },
+  "medication_protocol": {
+    "iron_supplementation": ["ferrous_sulfate", "iron_sucrose_IV", "ferric_carboxymaltose"],
+    "vitamin": ["folic_acid", "vitamin_B12_IM"],
+    "ESA": ["erythropoietin_Rx_CKD_anemia"],
+    "transfusion": ["PRBC_Rx_Hb_lt_70_stable", "PRBC_Rx_Hb_lt_80_cardiac"],
+    "contraindicated": ["iron_IV_Rx_known_hypersensitivity", "ESA_Rx_uncontrolled_hypertension"],
+    "titration": "Hb<70g/L考虑输血, 稳定后口服铁剂序贯"
+  },
+  "contraindications": ["输血禁忌: 容量负荷过重/心衰未控制慎输", "铁剂IV禁忌: 过敏史"],
+  "severity_grading": {
+    "system": "WHO贫血分级",
+    "grades": [
+      { "grade": "轻", "hb_range": "110-119♀/110-129♂", "risk": "低危" },
+      { "grade": "中", "hb_range": "80-109", "risk": "中危" },
+      { "grade": "重", "hb_range": "60-79", "risk": "高危" },
+      { "grade": "极重", "hb_range": "<60", "risk": "极高危" }
+    ]
+  },
+  "complication_monitoring": [
+    { "complication": "心衰", "watch": ["心率>110", "SpO2<92%", "双肺湿啰音", "下肢水肿加重"] },
+    { "complication": "再出血", "watch": ["Hb下降>20g/L", "黑便呕血", "血压下降"] },
+    { "complication": "输血反应", "watch": ["发热寒战", "皮疹", "呼吸困难", "血红蛋白尿"] }
+  ],
+  "lab_reference": {
+    "血红蛋白": { "low": 70, "high": 175 },
+    "红细胞压积": { "low": 0.25, "high": 0.50 },
+    "MCV": { "low": 80, "high": 100 },
+    "铁蛋白": { "low": 15, "high": 300 },
+    "白细胞": { "low": 3.5, "high": 9.5 },
+    "血小板": { "low": 100, "high": 300 },
+    "肌酐": { "low": 44, "high": 104 },
+    "钾": { "low": 3.5, "high": 5.3 },
+    "CRP": { "low": 0, "high": 8 }
+  }
+}

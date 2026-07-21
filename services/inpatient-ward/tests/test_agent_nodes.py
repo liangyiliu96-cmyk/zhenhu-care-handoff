@@ -7,6 +7,12 @@ from zhenhu.inpatient.agent.nodes import (
     node_daily_round, node_medication_adjust, node_lab_review, node_transfer,
     node_medication_reconciliation,
 )
+from zhenhu.inpatient.agent.nodes_clinical import node_nursing, node_shift_summary
+from zhenhu.inpatient.agent.graph import (
+    after_discharge_bridge,
+    after_doctor_confirm,
+    after_doctor_discharge_sign,
+)
 
 def test_node_admission_initializes():
     state = {}
@@ -45,13 +51,33 @@ def test_node_monitoring_triggers_discharge():
     }))
     assert result["discharge_decision"] == "approved"
     assert result["discharge_criteria_check"]["all_met"] is True
+    assert result["discharge_criteria_check"]["met_count"] == result["discharge_criteria_check"]["total_count"]
+    assert all(item["met"] for item in result["discharge_criteria_check"]["details"])
 
-def test_node_handoff_generates_items():
-    tpl = {"handoff_instructions":[{"type":"medication","content":"降压药"}]}
+def test_node_handoff_generates_items(monkeypatch):
+    """交接节点：模板指令作为 base，不依赖 LLM；mock 掉增强调用确保确定性。"""
+    async def _noop_llm(_provider, _prompt, **_kwargs):
+        return {"source_type": "source_none", "personalized_notes": []}
+
+    monkeypatch.setattr(
+        "zhenhu.inpatient.agent.nodes_handoff.safe_llm_invoke",
+        _noop_llm,
+    )
+    tpl = {"handoff_instructions":[{"type":"medication","content":"请按医嘱规律服用降压药物"}]}
     result = asyncio.run(node_handoff({"disease_template": tpl}))
-    assert len(result["handoff_items"]) == 1
+    assert len(result["handoff_items"]) >= 1
+    assert result["handoff_items"][0]["type"] == "medication"
+    assert result["handoff_items"][0]["source"] == "disease_template"
 
-def test_node_handoff_empty_template():
+def test_node_handoff_empty_template(monkeypatch):
+    """空模板不生成任何交接事项。"""
+    async def _noop_llm(_provider, _prompt, **_kwargs):
+        return {"source_type": "source_none", "personalized_notes": []}
+
+    monkeypatch.setattr(
+        "zhenhu.inpatient.agent.nodes_handoff.safe_llm_invoke",
+        _noop_llm,
+    )
     result = asyncio.run(node_handoff({"disease_template": {}}))
     assert result["handoff_items"] == []
 
@@ -74,20 +100,27 @@ def test_node_doctor_review_all_accept():
         assert item["review_action"] == "accept"
 
 
-def test_node_doctor_review_dismiss_triggers_reevaluation():
-    """3项时第3项dismiss触发pending_reevaluation。"""
+def test_node_doctor_review_pending_stops_automatic_review(monkeypatch):
+    """外部审核未完成时不得回退为自动规则审批。"""
+    async def pending_review(items):
+        return {
+            "action": "pending",
+            "pending_review": {"review_id": "review-handoff", "status": "pending"},
+        }
+
+    monkeypatch.setattr(
+        "zhenhu.inpatient.agent.interrupt.request_doctor_review",
+        pending_review,
+    )
     state = {"handoff_items": [
         {"type": "medication", "content": "降压药方案"},
         {"type": "monitoring", "content": "每日测血压"},
         {"type": "followup", "content": "7天内复诊"},
     ]}
     result = asyncio.run(node_doctor_review(state))
-    assert result["discharge_decision"] == "pending_reevaluation"
-    assert result["handoff_items"][0]["review_action"] == "accept"
-    assert result["handoff_items"][1]["review_action"] == "accept"
-    assert result["handoff_items"][2]["review_action"] == "dismiss"
-    assert result["handoff_items"][2]["dismiss_reason"] is not None
-    assert result["handoff_items"][2]["reevaluation_pending"] is True
+    assert result["interrupt_pending"] is True
+    assert result["pending_review"]["type"] == "discharge_sign"
+    assert result["pending_review"]["payload"]["handoff_items"] == state["handoff_items"]
 
 
 def test_node_triage_mdt_on_high_risk():
@@ -121,36 +154,95 @@ def test_node_triage_no_mdt_on_medium_risk():
     assert result["risk_level"] == "medium"
     assert "mdt_required" not in result
 
-def test_node_patient_confirm_marks_all():
-    result = asyncio.run(node_patient_confirm({"handoff_items":[{"type":"m","feedback":None}]}))
-    assert result["handoff_items"][0]["feedback"] == "已理解"
+def test_node_patient_confirm_waits_for_real_teach_back():
+    result = asyncio.run(node_patient_confirm({
+        "discharge_sign_status": "signed",
+        "document_chain": ["discharge_bridge"],
+        "handoff_acknowledged": False,
+        "education_records": [],
+    }))
+    assert result["patient_confirmation_status"] == "pending"
+    assert set(result["patient_confirmation_requirements"]) == {
+        "handoff_acknowledgement", "teach_back",
+    }
+    assert "confirm_note" not in result.get("document_chain", [])
+
+
+def test_node_patient_confirm_uses_persisted_recipient_evidence():
+    result = asyncio.run(node_patient_confirm({
+        "discharge_sign_status": "signed",
+        "document_chain": ["handoff_note", "discharge_bridge"],
+        "handoff_acknowledged": True,
+        "education_records": [{
+            "id": "education-1",
+            "topic": "用药指导",
+            "recipient": "patient",
+            "teach_back": "每天早晨服药，不能自行停药",
+            "acknowledged": True,
+            "acknowledged_at": "2026-07-20T08:00:00+00:00",
+        }],
+    }))
+    assert result["patient_confirmation_status"] == "confirmed"
+    assert result["patient_confirmation_evidence"][0]["education_record_id"] == "education-1"
+    assert "confirm_note" in result["document_chain"]
 
 
 def test_node_discharge_checks_criteria():
-    """阶段K: 出院全链路自动化——无handoff_items时不触发bridge调用。"""
+    """缺少交接事项时不得伪造桥接成功。"""
     tpl = {"discharge_criteria": ["bp_stable_24h", "medication_confirmed"]}
     result = asyncio.run(node_discharge({"disease_template": tpl, "vital_signs": []}))
     assert result["phase"] == "discharge"
-    assert result["discharge_decision"] == "approved"
+    assert result["discharge_decision"] == "bridge_failed"
+    assert result["bridge_error"] == "handoff_items_missing"
 
 
-def test_node_discharge_approves_after_enough_vitals():
-    """阶段K: 出院全链路——有handoff_items时触发bridge+知识+照护视图链（无真实服务时bridge_failed）。"""
+def test_node_discharge_runs_bridge_after_handoff(monkeypatch):
+    """签字后的出院副作用成功后写入可追踪文档事件。"""
+    async def create_case(patient_id, handoff_items, template):
+        return {"status": "ok", "case_id": "case-1"}
+
+    async def search_knowledge(query):
+        return []
+
+    async def patient_summary(patient_id):
+        return {"patient_id": patient_id}
+
+    monkeypatch.setattr(
+        "zhenhu.inpatient.agent.nodes_handoff._create_zhenhu_case",
+        create_case,
+    )
+    monkeypatch.setattr(
+        "zhenhu.inpatient.hooks.zhenhu_bridge.bridge_search_knowledge",
+        search_knowledge,
+    )
+    monkeypatch.setattr(
+        "zhenhu.inpatient.hooks.zhenhu_bridge.bridge_patient_summary",
+        patient_summary,
+    )
     tpl = {
         "discharge_criteria": ["bp_stable_24h"],
         "handoff_instructions": [{"type": "medication", "content": "氨氯地平片 5mg 每日一次"}],
     }
     vs = [{}, {}, {}, {}, {}, {}]
-    items = [{"type": "medication", "content": "氨氯地平片 5mg 每日一次"}]
     result = asyncio.run(node_discharge({
         "disease_template": tpl,
         "vital_signs": vs,
-        "handoff_items": items,
+        "patient_id": "patient-1",
+        "handoff_items": tpl["handoff_instructions"],
+        "document_chain": ["discharge_signed"],
     }))
-    # 阶段K: bridge试图创建病例; 无真实服务时 decision 为 bridge_failed
-    assert "bridge_result" in result
-    assert result.get("knowledge_context") is not None
-    assert result.get("patient_summary") is not None
+    assert result["phase"] == "discharge"
+    assert result["discharge_decision"] == "approved"
+    assert "discharge_bridge" in result["document_chain"]
+
+
+def test_node_discharge_idempotent_guard():
+    """桥接完成标记存在时不得重复创建外部病例。"""
+    result = asyncio.run(node_discharge({
+        "handoff_items": [{"type": "medication", "content": "跳过"}],
+        "document_chain": ["discharge_bridge"],
+    }))
+    assert result.get("phase") == "discharge"
 
 
 def test_node_admission_loads_template():
@@ -169,6 +261,27 @@ def test_node_daily_round_adds_to_chain():
     result = asyncio.run(node_daily_round({"vital_signs": [], "lab_results": [], "medication_adjustments": [], "document_chain": [], "round_count": 0}))
     assert "daily_round_note" in result["document_chain"]
     assert result["round_count"] == 1
+    assert result["round_history"] == [result["latest_round"]]
+    assert result["latest_round"]["generation_source"] in {"rule_based", "llm_assisted"}
+    assert result["latest_round"]["review_status"] == "requires_clinician_review"
+    assert "daily_round_agent" in result["latest_round"]["source_nodes"]
+
+
+def test_node_daily_round_is_incremental_not_single_use():
+    base = {
+        "vital_signs": [{"heart_rate": 80}],
+        "lab_results": [],
+        "medication_adjustments": [],
+        "document_chain": ["daily_round_note"],
+        "round_count": 1,
+        "last_round_input_counts": {"vitals": 1, "labs": 0, "medications": 0},
+    }
+    assert asyncio.run(node_daily_round(base)) == {}
+    updated = {**base, "vital_signs": [*base["vital_signs"], {"heart_rate": 88}]}
+    result = asyncio.run(node_daily_round(updated))
+    assert result["round_count"] == 2
+    assert result["round_history"][-1]["round_number"] == 2
+    assert result["latest_round"]["round_number"] == 2
 
 
 def test_node_medication_adjust_on_alert():
@@ -190,6 +303,47 @@ def test_node_lab_review():
     result = asyncio.run(node_lab_review({"lab_results": [{"name": "K", "value": 5.8}], "reviewed_labs": [], "document_chain": []}))
     assert len(result["lab_findings"]) == 1
     assert "lab_review" in result["document_chain"]
+
+
+def test_node_lab_review_processes_later_identical_results():
+    first = {"name": "K", "value": 5.8, "unit": "mmol/L"}
+    state = {
+        "lab_results": [first, dict(first)],
+        "reviewed_labs": [first],
+        "reviewed_lab_count": 1,
+        "document_chain": ["lab_review"],
+    }
+    result = asyncio.run(node_lab_review(state))
+    assert len(result["lab_findings"]) == 1
+    assert result["reviewed_lab_count"] == 2
+
+
+def test_nursing_and_shift_summary_repeat_by_round():
+    state = {
+        "patient_id": "patient-1",
+        "round_count": 2,
+        "nursing_last_round": 1,
+        "nursing_records": [{"round_number": 1}],
+        "shift_summary_last_round": 1,
+        "shift_summaries": [{"round_number": 1}],
+        "document_chain": ["daily_round_note", "nursing_note", "shift_summary"],
+        "vital_signs": [{"heart_rate": 82, "spo2": 97}],
+        "disease_template": {"department": ""},
+    }
+    nursing = asyncio.run(node_nursing(state))
+    assert len(nursing["nursing_records"]) == 2
+    assert nursing["nursing_last_round"] == 2
+    state.update(nursing)
+    shift = asyncio.run(node_shift_summary(state))
+    assert len(shift["shift_summaries"]) == 2
+    assert shift["shift_summary_last_round"] == 2
+
+
+def test_checkpoint_and_discharge_routes_stop_at_safety_boundaries():
+    assert after_doctor_confirm({"pending_review": {"type": "doctor_confirm"}}) == "end"
+    assert after_doctor_confirm({"doctor_confirm_status": "approved"}) == "batch_scoring"
+    assert after_doctor_discharge_sign({"discharge_sign_status": "signed"}) == "discharge"
+    assert after_discharge_bridge({"discharge_decision": "bridge_failed"}) == "end"
 
 
 def test_node_transfer_high_risk():

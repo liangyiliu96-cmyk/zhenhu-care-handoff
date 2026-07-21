@@ -204,3 +204,80 @@ class PatientCareViewResponse(BaseModel):
     patient: dict = Field(default_factory=dict, description="患者基本信息")
     care_plans: list = Field(default_factory=list, description="照护计划列表")
     education: list = Field(default_factory=list, description="知识材料引用")
+
+
+# ============================================================================
+# FHIR Observation / Condition / AuditEvent / MedicationRequest — 写端点
+# ============================================================================
+
+
+class CodingEntry(BaseModel):
+    """FHIR Coding 条目。"""
+    system: str | None = Field(default=None)
+    code: str | None = Field(default=None)
+    display: str | None = Field(default=None)
+
+
+class SubjectReference(BaseModel):
+    """FHIR 资源主体引用。"""
+    reference: str = Field(..., description="如 Patient/pat-001")
+
+
+class ObservationCreateRequest(BaseModel):
+    """创建 Observation 请求体 —— 对接 inpatient-ward fhir_sync。"""
+    resourceType: str = Field(default="Observation")
+    subject: SubjectReference
+    code: dict = Field(default_factory=dict, description="coding 字典，含 system/code/display")
+    valueQuantity: dict | None = Field(default=None, description="{value, unit}")
+
+
+class ConditionCreateRequest(BaseModel):
+    """创建 Condition 请求体 —— 对接 inpatient-ward fhir_sync。"""
+    resourceType: str = Field(default="Condition")
+    subject: SubjectReference
+    code: dict = Field(default_factory=dict, description="coding 字典，含 system/code/display")
+    clinicalStatus: dict | None = Field(default=None)
+
+
+class AuditEventAgentWhoSimple(BaseModel):
+    identifier: dict = Field(default_factory=dict, description="{value: actor}")
+
+
+class AuditEventAgentSimple(BaseModel):
+    who: AuditEventAgentWhoSimple | None = Field(default=None)
+    requestor: bool = Field(default=True)
+
+
+class AuditEventEntityDetail(BaseModel):
+    type: str = ""
+    valueString: str = ""
+
+
+class AuditEventEntitySimple(BaseModel):
+    what: dict = Field(default_factory=dict, description="{reference: ...}")
+    detail: list[AuditEventEntityDetail] = Field(default_factory=list)
+
+
+class AuditEventCreateRequest(BaseModel):
+    """创建 AuditEvent 请求体 —— 对接 inpatient-ward fhir_sync。"""
+    resourceType: str = Field(default="AuditEvent")
+    type: dict = Field(default_factory=dict)
+    action: str = Field(default="C")
+    agent: list[AuditEventAgentSimple] = Field(default_factory=list)
+    entity: list[AuditEventEntitySimple] | None = Field(default=None)
+
+
+class MedicationRequestCreateRequest(BaseModel):
+    """创建 MedicationRequest 请求体 —— 对接 inpatient-ward。"""
+    resourceType: str = Field(default="MedicationRequest")
+    subject: SubjectReference
+    medicationCodeableConcept: dict | None = Field(default=None)
+    dosageInstruction: list | None = Field(default=None)
+    status: str = Field(default="active")
+
+
+class FhirCreateResponse(BaseModel):
+    """通用 FHIR 创建响应。"""
+    resource_id: str
+    resource_type: str
+    status: str = "created"

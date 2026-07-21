@@ -1,33 +1,252 @@
 {
   "disease_id": "hypertension",
   "name": "高血压",
+  "department": "心内科",
   "vital_signs": [
-    {"name": "blood_pressure", "unit": "mmHg", "alert_above": "180/120", "alert_below": "90/60"},
-    {"name": "heart_rate", "unit": "bpm", "alert_above": 110, "alert_below": 50},
-    {"name": "creatinine", "unit": "μmol/L", "alert_above": 133}
+    {
+      "name": "systolic_mmhg",
+      "unit": "mmHg",
+      "alert_above": 180,
+      "alert_below": 90
+    },
+    {
+      "name": "diastolic_mmhg",
+      "unit": "mmHg",
+      "alert_above": 120,
+      "alert_below": 60
+    },
+    {
+      "name": "heart_rate",
+      "unit": "bpm",
+      "alert_above": 110,
+      "alert_below": 50
+    },
+    {
+      "name": "creatinine",
+      "unit": "μmol/L",
+      "alert_above": 133
+    }
   ],
-  "risk_factors": ["age>60", "smoking", "family_history", "obesity", "diabetes_comorbid", "ckd_stage3_plus", "lvh_ecg"],
+  "risk_factors": [
+    "age>60",
+    "smoking",
+    "family_history",
+    "obesity",
+    "diabetes_comorbid",
+    "ckd_stage3_plus",
+    "lvh_ecg"
+  ],
   "monitoring_interval_hours": 4,
   "discharge_criteria": [
-    {"condition": "bp_stable_24h", "description": "血压24小时稳定在目标范围内(<140/90)"},
-    {"condition": "medication_confirmed", "description": "出院降压药方案已确认"},
-    {"condition": "no_acute_complication", "description": "无急性靶器官损害表现"},
-    {"condition": "oral_regimen_tolerated_24h", "description": "口服降压药方案耐受稳定24h"}
+    {
+      "condition": "bp_stable_24h",
+      "description": "血压24小时稳定在目标范围内(<140/90)"
+    },
+    {
+      "condition": "medication_confirmed",
+      "description": "出院降压药方案已确认"
+    },
+    {
+      "condition": "no_acute_complication",
+      "description": "无急性靶器官损害表现"
+    },
+    {
+      "condition": "oral_regimen_tolerated_24h",
+      "description": "口服降压药方案耐受稳定24h"
+    }
   ],
   "handoff_instructions": [
-    {"type": "medication", "content": "遵医嘱规律服用降压药,不可自行停药或调整剂量"},
-    {"type": "monitoring", "content": "每日早晚各测一次血压并记录,复查时携带记录本"},
-    {"type": "followup", "content": "出院7天内社区/门诊复诊,不适随时就诊"}
+    {
+      "type": "medication",
+      "content": "遵医嘱规律服用降压药,不可自行停药或调整剂量"
+    },
+    {
+      "type": "monitoring",
+      "content": "每日早晚各测一次血压并记录,复查时携带记录本"
+    },
+    {
+      "type": "followup",
+      "content": "出院7天内社区/门诊复诊,不适随时就诊"
+    }
   ],
   "agent_config": {
     "require_doctor_review": true,
-    "discharge_knowledge_keywords": ["降压药", "血压监测指南", "高血压出院SOP", "低盐饮食指导"]
+    "discharge_knowledge_keywords": [
+      "降压药",
+      "血压监测指南",
+      "高血压出院SOP",
+      "低盐饮食指导"
+    ]
   },
   "followup_questions": [
-    {"id": "htn-fq-01", "question": "近3天自测血压是否稳定在140/90以下？", "clinical_intent": "评估降压方案有效性", "source": "ehr-kg"},
-    {"id": "htn-fq-02", "question": "是否出现头晕、心悸或下肢水肿？", "clinical_intent": "筛查药物不良反应", "source": "ddx-kg"},
-    {"id": "htn-fq-03", "question": "降压药是否按时服用？有无漏服？", "clinical_intent": "评估依从性", "source": "ehr-kg"}
+    {
+      "id": "htn-fq-01",
+      "question": "近3天自测血压是否稳定在140/90以下？",
+      "clinical_intent": "评估降压方案有效性",
+      "source": "ehr-kg"
+    },
+    {
+      "id": "htn-fq-02",
+      "question": "是否出现头晕、心悸或下肢水肿？",
+      "clinical_intent": "筛查药物不良反应",
+      "source": "ddx-kg"
+    },
+    {
+      "id": "htn-fq-03",
+      "question": "降压药是否按时服用？有无漏服？",
+      "clinical_intent": "评估依从性",
+      "source": "ehr-kg"
+    }
   ],
-  "mdt_roles": ["心内科", "营养师", "社区医生"],
-  "mdt_threshold": "high"
+  "mdt_roles": [
+    "心内科",
+    "营养师",
+    "社区医生"
+  ],
+  "mdt_threshold": "high",
+  "history_template": {
+    "chief_complaint_required": true,
+    "hpi_focus": [
+      "onset",
+      "duration",
+      "triggers",
+      "medication_adherence"
+    ],
+    "pmh_relevant": [
+      "hypertension",
+      "diabetes",
+      "dyslipidemia",
+      "CKD"
+    ],
+    "fh_relevant": [
+      "hypertension",
+      "CVD",
+      "stroke"
+    ],
+    "sh_required": [
+      "smoking",
+      "alcohol",
+      "diet_salt",
+      "exercise"
+    ],
+    "allergy_required": true,
+    "ros_focus_systems": [
+      "cardiovascular",
+      "neurological",
+      "renal"
+    ]
+  },
+  "pe_template": {
+    "required_systems": [
+      "vital_signs",
+      "cardiovascular",
+      "respiratory",
+      "abdominal"
+    ],
+    "focus_items": [
+      "BP_both_arms",
+      "cardiac_auscultation",
+      "peripheral_edema",
+      "carotid_bruit"
+    ],
+    "neurological_if_indicated": true,
+    "fundoscopy": false
+  },
+  "medication_protocol": {
+    "first_line": [
+      "ACEI/ARB",
+      "CCB"
+    ],
+    "second_line": [
+      "thiazide_diuretic",
+      "beta-blocker"
+    ],
+    "contraindicated": [
+      "NSAIDs_high_dose"
+    ],
+    "titration": "每48h评估调整，目标<140/90"
+  },
+  "contraindications": [
+    "ACEI禁用: 双侧肾动脉狭窄/高钾血症>5.5",
+    "β-blocker禁用: 急性心衰/严重心动过缓<50"
+  ],
+  "severity_grading": {
+    "system": "2018 ESC/ESH",
+    "grades": [
+      {
+        "grade": 1,
+        "range": "140-159/90-99",
+        "risk": "低危"
+      },
+      {
+        "grade": 2,
+        "range": "160-179/100-109",
+        "risk": "中危"
+      },
+      {
+        "grade": 3,
+        "range": "≥180/≥110",
+        "risk": "高危"
+      }
+    ]
+  },
+  "complication_monitoring": [
+    {
+      "complication": "急性左心衰",
+      "watch": [
+        "SpO2<92%",
+        "新发肺部啰音",
+        "BNP>500"
+      ]
+    },
+    {
+      "complication": "高血压脑病",
+      "watch": [
+        "意识改变",
+        "视乳头水肿",
+        "剧烈头痛"
+      ]
+    },
+    {
+      "complication": "主动脉夹层",
+      "watch": [
+        "剧烈撕裂样胸痛",
+        "双上肢压差>20mmHg"
+      ]
+    }
+  ],
+  "lab_reference": {
+    "白细胞": {
+      "low": 3.5,
+      "high": 9.5
+    },
+    "血红蛋白": {
+      "low": 120,
+      "high": 175
+    },
+    "血小板": {
+      "low": 100,
+      "high": 300
+    },
+    "肌酐": {
+      "low": 44,
+      "high": 104
+    },
+    "血糖": {
+      "low": 3.9,
+      "high": 6.1
+    },
+    "钾": {
+      "low": 3.5,
+      "high": 5.3
+    },
+    "钠": {
+      "low": 135,
+      "high": 145
+    },
+    "CRP": {
+      "low": 0,
+      "high": 8
+    }
+  }
 }

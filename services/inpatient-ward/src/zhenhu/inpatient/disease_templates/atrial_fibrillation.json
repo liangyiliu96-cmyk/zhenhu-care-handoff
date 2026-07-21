@@ -1,0 +1,54 @@
+{
+  "disease_id": "atrial_fibrillation",
+  "name": "心房颤动",
+  "department": "心内科",
+  "discharge_criteria": [
+    {
+      "condition": "心室率控制(静息<80-110bpm)或转复窦律",
+      "description": "HR控制后症状改善"
+    },
+    {
+      "condition": "CHA2DS2-VASc评分完成,抗凝方案明确",
+      "description": "华法林INR目标2-3或NOAC剂量明确"
+    },
+    {
+      "condition": "可逆诱因已纠正(感染/甲亢/电解质/酒精)",
+      "description": "诱因去除"
+    },
+    {
+      "condition": "患者教育:抗凝重要性+出血风险识别",
+      "description": "Teach-back验证"
+    }
+  ],
+  "complication_monitoring": [
+    {
+      "complication": "卒中/TIA",
+      "monitor": "NIHSS/肢体无力/言语障碍q8h"
+    },
+    {
+      "complication": "心衰加重",
+      "monitor": "出入量/体重/BNP/颈静脉/肺部湿啰音"
+    },
+    {
+      "complication": "出血(抗凝相关)",
+      "monitor": "Hb q48-72h/INR/出血症状"
+    },
+    {
+      "complication": "药物致心律失常",
+      "monitor": "QRS/QTc ECG"
+    }
+  ],
+  "nursing_checklist": [
+    "每班HR+心律+BP+SpO2",
+    "出入量/体重(心衰合并者)",
+    "抗凝教育(INR/NOAC依从)",
+    "出血风险监测",
+    "跌倒预防(Morse≥45)"
+  ],
+  "round_template": {
+    "subjective": "心悸/胸闷/气促/运动耐力",
+    "objective": "HR/BP/ECG/SpO2/出入量/INR",
+    "assessment": "心率控制/症状/INR/出血风险",
+    "plan": "心率控制/抗凝/诱因管理/复律"
+  }
+}

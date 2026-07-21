@@ -1,0 +1,107 @@
+{
+  "hospital": "臻护智能协同平台",
+  "departments": {
+    "心内科": {
+      "doctors": [
+        {"name":"沈仲卿","gender":"男","title":"科主任","job_number":"D-XN-001","license_number":"Z2021001001","specialty":"心血管介入","phone":"13910657234","shift":"白班"},
+        {"name":"陆明泽","gender":"男","title":"主治医师","job_number":"D-XN-002","license_number":"Z2021001002","specialty":"心血管介入","phone":"15811483726","shift":"白班"},
+        {"name":"叶知秋","gender":"女","title":"主治医师","job_number":"D-XN-003","license_number":"Z2021001003","specialty":"心力衰竭","phone":"18605329841","shift":"白班"},
+        {"name":"裴文轩","gender":"男","title":"住院医师","job_number":"D-XN-004","license_number":"Z2021001004","specialty":"","phone":"17731209456","shift":"夜班"},
+        {"name":"顾怀瑾","gender":"男","title":"住院医师","job_number":"D-XN-005","license_number":"Z2021001005","specialty":"","phone":"15690821753","shift":"夜班"}
+      ],
+      "nurses": [
+        {"name":"宋慧敏","gender":"女","title":"护士长","job_number":"N-XN-001","license_number":"H2021001001","specialty":"CCU护理","phone":"13844170692","shift":"白班"},
+        {"name":"温雅婷","gender":"女","title":"主管护师","job_number":"N-XN-002","license_number":"H2021001002","specialty":"心血管护理","phone":"15988650147","shift":"白班"},
+        {"name":"方晓雪","gender":"女","title":"护师","job_number":"N-XN-003","license_number":"H2021001003","specialty":"","phone":"18763510289","shift":"白班"},
+        {"name":"苏曼青","gender":"女","title":"护士","job_number":"N-XN-004","license_number":"H2021001004","specialty":"","phone":"13671145820","shift":"夜班"},
+        {"name":"程若兰","gender":"女","title":"护士","job_number":"N-XN-005","license_number":"H2021001005","specialty":"","phone":"18259376140","shift":"夜班"}
+      ]
+    },
+    "呼吸科": {
+      "doctors": [
+        {"name":"聂怀远","gender":"男","title":"科主任","job_number":"D-HX-001","license_number":"Z2021002001","specialty":"呼吸危重症","phone":"13889506217","shift":"白班"},
+        {"name":"霍子谦","gender":"男","title":"主治医师","job_number":"D-HX-002","license_number":"Z2021002002","specialty":"呼吸介入","phone":"15044398125","shift":"白班"},
+        {"name":"白敬修","gender":"男","title":"住院医师","job_number":"D-HX-003","license_number":"Z2021002003","specialty":"","phone":"17629307854","shift":"夜班"}
+      ],
+      "nurses": [
+        {"name":"柳莺燕","gender":"女","title":"护士长","job_number":"N-HX-001","license_number":"H2021002001","specialty":"呼吸治疗","phone":"13567231480","shift":"白班"},
+        {"name":"阮青禾","gender":"女","title":"主管护师","job_number":"N-HX-002","license_number":"H2021002002","specialty":"呼吸护理","phone":"18802547936","shift":"白班"},
+        {"name":"童婉清","gender":"女","title":"护师","job_number":"N-HX-003","license_number":"H2021002003","specialty":"","phone":"15738965012","shift":"白班"},
+        {"name":"尹雪萍","gender":"女","title":"护士","job_number":"N-HX-004","license_number":"H2021002004","specialty":"","phone":"17381059462","shift":"夜班"}
+      ]
+    },
+    "神经内科": {
+      "doctors": [
+        {"name":"傅承宣","gender":"男","title":"科主任","job_number":"D-SJ-001","license_number":"Z2021003001","specialty":"神经介入","phone":"18523475890","shift":"白班"},
+        {"name":"谭书恒","gender":"男","title":"主治医师","job_number":"D-SJ-002","license_number":"Z2021003002","specialty":"脑血管病","phone":"16683204715","shift":"白班"},
+        {"name":"乔思远","gender":"女","title":"住院医师","job_number":"D-SJ-003","license_number":"Z2021003003","specialty":"","phone":"15190763528","shift":"夜班"}
+      ],
+      "nurses": [
+        {"name":"许念慈","gender":"女","title":"护士长","job_number":"N-SJ-001","license_number":"H2021003001","specialty":"卒中护理","phone":"13789142563","shift":"白班"},
+        {"name":"尤舒云","gender":"女","title":"主管护师","job_number":"N-SJ-002","license_number":"H2021003002","specialty":"神经康复","phone":"18930471682","shift":"白班"},
+        {"name":"卞惠然","gender":"女","title":"护师","job_number":"N-SJ-003","license_number":"H2021003003","specialty":"","phone":"13258906347","shift":"白班"},
+        {"name":"戴秋月","gender":"女","title":"护士","job_number":"N-SJ-004","license_number":"H2021003004","specialty":"","phone":"17846235190","shift":"夜班"}
+      ]
+    },
+    "肾内科": {
+      "doctors": [
+        {"name":"肖秉文","gender":"男","title":"科主任","job_number":"D-SN-001","license_number":"Z2021004001","specialty":"肾脏病理","phone":"13645987023","shift":"白班"},
+        {"name":"韦安邦","gender":"男","title":"主治医师","job_number":"D-SN-002","license_number":"Z2021004002","specialty":"血液净化","phone":"16702398145","shift":"白班"},
+        {"name":"岳景行","gender":"男","title":"住院医师","job_number":"D-SN-003","license_number":"Z2021004003","specialty":"","phone":"14567238901","shift":"夜班"}
+      ],
+      "nurses": [
+        {"name":"冯雅琴","gender":"女","title":"护士长","job_number":"N-SN-001","license_number":"H2021004001","specialty":"透析护理","phone":"18853107492","shift":"白班"},
+        {"name":"严婉儿","gender":"女","title":"主管护师","job_number":"N-SN-002","license_number":"H2021004002","specialty":"腹膜透析","phone":"13927680153","shift":"白班"},
+        {"name":"史静怡","gender":"女","title":"护师","job_number":"N-SN-003","license_number":"H2021004003","specialty":"","phone":"15298406537","shift":"白班"}
+      ]
+    },
+    "消化内科": {
+      "doctors": [
+        {"name":"米弘毅","gender":"男","title":"科主任","job_number":"D-XH-001","license_number":"Z2021005001","specialty":"消化内镜","phone":"18370295614","shift":"白班"},
+        {"name":"任思齐","gender":"男","title":"主治医师","job_number":"D-XH-002","license_number":"Z2021005002","specialty":"肝病","phone":"17756813049","shift":"白班"},
+        {"name":"苏子瞻","gender":"女","title":"住院医师","job_number":"D-XH-003","license_number":"Z2021005003","specialty":"","phone":"13489072561","shift":"夜班"}
+      ],
+      "nurses": [
+        {"name":"常玉洁","gender":"女","title":"护士长","job_number":"N-XH-001","license_number":"H2021005001","specialty":"内镜护理","phone":"15983167240","shift":"白班"},
+        {"name":"梁绮云","gender":"女","title":"主管护师","job_number":"N-XH-002","license_number":"H2021005002","specialty":"消化护理","phone":"18634712895","shift":"白班"},
+        {"name":"邱灵犀","gender":"女","title":"护师","job_number":"N-XH-003","license_number":"H2021005003","specialty":"","phone":"13790258463","shift":"白班"}
+      ]
+    },
+    "内分泌科": {
+      "doctors": [
+        {"name":"邢建民","gender":"男","title":"科主任","job_number":"D-NF-001","license_number":"Z2021006001","specialty":"糖尿病","phone":"18947261358","shift":"白班"},
+        {"name":"夏书鸿","gender":"男","title":"主治医师","job_number":"D-NF-002","license_number":"Z2021006002","specialty":"甲状腺","phone":"16352901784","shift":"白班"},
+        {"name":"贾文彬","gender":"女","title":"住院医师","job_number":"D-NF-003","license_number":"Z2021006003","specialty":"","phone":"15083749620","shift":"夜班"}
+      ],
+      "nurses": [
+        {"name":"路文君","gender":"女","title":"护士长","job_number":"N-NF-001","license_number":"H2021006001","specialty":"糖尿病教育","phone":"17629853014","shift":"白班"},
+        {"name":"花雨桐","gender":"女","title":"主管护师","job_number":"N-NF-002","license_number":"H2021006002","specialty":"糖尿病足护理","phone":"15809746283","shift":"白班"},
+        {"name":"司马琼","gender":"女","title":"护士","job_number":"N-NF-003","license_number":"H2021006003","specialty":"","phone":"13245019876","shift":"夜班"}
+      ]
+    },
+    "骨科": {
+      "doctors": [
+        {"name":"孔令仪","gender":"女","title":"科主任","job_number":"D-GK-001","license_number":"Z2021007001","specialty":"关节外科","phone":"13527198460","shift":"白班"},
+        {"name":"曹思源","gender":"男","title":"主治医师","job_number":"D-GK-002","license_number":"Z2021007002","specialty":"脊柱外科","phone":"18765902134","shift":"白班"},
+        {"name":"廖致远","gender":"男","title":"住院医师","job_number":"D-GK-003","license_number":"Z2021007003","specialty":"","phone":"17304859267","shift":"夜班"}
+      ],
+      "nurses": [
+        {"name":"石嘉禾","gender":"女","title":"护士长","job_number":"N-GK-001","license_number":"H2021007001","specialty":"骨科护理","phone":"14893627051","shift":"白班"},
+        {"name":"席若曦","gender":"女","title":"主管护师","job_number":"N-GK-002","license_number":"H2021007002","specialty":"术后康复","phone":"16730481592","shift":"白班"},
+        {"name":"桂芷若","gender":"女","title":"护师","job_number":"N-GK-003","license_number":"H2021007003","specialty":"","phone":"18057239468","shift":"白班"}
+      ]
+    },
+    "老年科": {
+      "doctors": [
+        {"name":"甘守正","gender":"男","title":"科主任","job_number":"D-LN-001","license_number":"Z2021008001","specialty":"老年医学","phone":"15267983450","shift":"白班"},
+        {"name":"武景辉","gender":"男","title":"主治医师","job_number":"D-LN-002","license_number":"Z2021008002","specialty":"认知障碍","phone":"18493027165","shift":"白班"},
+        {"name":"梅清和","gender":"女","title":"住院医师","job_number":"D-LN-003","license_number":"Z2021008003","specialty":"","phone":"13740189653","shift":"夜班"}
+      ],
+      "nurses": [
+        {"name":"纪锦瑟","gender":"女","title":"护士长","job_number":"N-LN-001","license_number":"H2021008001","specialty":"老年护理","phone":"16928347501","shift":"白班"},
+        {"name":"章采薇","gender":"女","title":"主管护师","job_number":"N-LN-002","license_number":"H2021008002","specialty":"跌倒预防","phone":"15548063297","shift":"白班"},
+        {"name":"上官慧","gender":"女","title":"护士","job_number":"N-LN-003","license_number":"H2021008003","specialty":"","phone":"18127609453","shift":"夜班"}
+      ]
+    }
+  }
+}
