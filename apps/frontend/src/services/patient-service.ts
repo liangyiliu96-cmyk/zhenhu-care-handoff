@@ -1,7 +1,7 @@
 import { apiGet, apiPatch, apiPost } from '@/core/api-client';
 import { API_TIMEOUT_CLINICAL } from '@/config/api';
 import type { PatientEvidenceGraphResponse } from '@/types/evidence-graph';
-import type { CareManagementResponse, ClinicalNoteResponse, DashboardResponse, DischargeSummaryResponse, DoctorCommandResponse, LabTrendsResponse, NursingRecordsResponse, PatientQueryResponse, RoundMutationResponse, RoundsResponse, ScoresResponse, TimelineResponse, VitalTrendsResponse, WorkflowBrief, WorkflowBriefsResponse } from '@/types/patient-dashboard';
+import type { CareManagementResponse, ClinicalNoteResponse, DashboardResponse, DischargeSummaryResponse, DoctorCommandResponse, LabTrendsResponse, NursingRecordsResponse, PatientQueryResponse, PreRoundBriefResponse, ProgressNoteDraftResponse, RoundMutationResponse, RoundsResponse, ScoresResponse, TimelineResponse, VitalTrendsResponse, WorkflowBrief, WorkflowBriefsResponse } from '@/types/patient-dashboard';
 import type { DoctorCommandAction } from '@/utils/command-utils';
 
 const patientPath = (patientId: string, suffix: string) => `/inpatient/${encodeURIComponent(patientId)}${suffix}`;
@@ -10,6 +10,8 @@ export const fetchPatientDashboard = (patientId: string) => apiGet<DashboardResp
 export const fetchPatientScores = (patientId: string) => apiGet<ScoresResponse>(patientPath(patientId, '/scores'));
 export const fetchPatientTimeline = (patientId: string) => apiGet<TimelineResponse>(patientPath(patientId, '/timeline'));
 export const fetchPatientRounds = (patientId: string) => apiGet<RoundsResponse>(patientPath(patientId, '/rounds'));
+export const fetchPreRoundBrief = (patientId: string) => apiGet<PreRoundBriefResponse>(patientPath(patientId, '/doctor-copilot/pre-round'));
+export const generateProgressNoteDraft = (patientId: string, expectedVersion: number) => apiPost<ProgressNoteDraftResponse>(patientPath(patientId, '/doctor-copilot/progress-note-draft'), { expected_version: expectedVersion }, API_TIMEOUT_CLINICAL);
 export const generatePatientRound = (patientId: string, expectedVersion: number) => apiPost<RoundMutationResponse>(patientPath(patientId, '/rounds/generate'), { expected_version: expectedVersion }, API_TIMEOUT_CLINICAL);
 export const reviewPatientRound = (patientId: string, roundNumber: number, payload: { expected_version: number; comment?: string }) => apiPost<RoundMutationResponse>(patientPath(patientId, `/rounds/${roundNumber}/review`), payload);
 export const editPatientRound = (patientId: string, roundNumber: number, payload: { subjective: string; objective: string; assessment: string; plan: string; attention: string; expected_version: number }) => apiPost<RoundMutationResponse>(patientPath(patientId, `/rounds/${roundNumber}/edit`), payload);

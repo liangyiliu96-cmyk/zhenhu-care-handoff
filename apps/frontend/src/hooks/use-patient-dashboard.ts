@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { fetchClinicalNote, fetchLabTrends, fetchNursingRecords, fetchPatientDashboard, fetchPatientEvidenceGraph, fetchPatientRounds, fetchPatientScores, fetchPatientTimeline, fetchVitalTrends } from '@/services/patient-service';
+import { fetchClinicalNote, fetchLabTrends, fetchNursingRecords, fetchPatientDashboard, fetchPatientEvidenceGraph, fetchPatientRounds, fetchPatientScores, fetchPatientTimeline, fetchPreRoundBrief, fetchVitalTrends } from '@/services/patient-service';
 
 export function usePatientDashboard(patientId?: string) {
   const enabled = Boolean(patientId);
@@ -9,6 +9,7 @@ export function usePatientDashboard(patientId?: string) {
     scores: useQuery({ queryKey: ['patient', patientId, 'scores'], queryFn: () => fetchPatientScores(patientId!), enabled, staleTime: 20_000 }),
     timeline: useQuery({ queryKey: ['patient', patientId, 'timeline'], queryFn: () => fetchPatientTimeline(patientId!), enabled, staleTime: 30_000 }),
     rounds: useQuery({ queryKey: ['patient', patientId, 'rounds'], queryFn: () => fetchPatientRounds(patientId!), enabled, staleTime: 20_000 }),
+    preRoundBrief: useQuery({ queryKey: ['patient', patientId, 'pre-round-brief'], queryFn: () => fetchPreRoundBrief(patientId!), enabled, staleTime: 15_000 }),
     vitalTrends: useQuery({ queryKey: ['patient', patientId, 'vital-trends'], queryFn: () => fetchVitalTrends(patientId!), enabled, staleTime: 20_000 }),
     labTrends: useQuery({ queryKey: ['patient', patientId, 'lab-trends'], queryFn: () => fetchLabTrends(patientId!), enabled, staleTime: 20_000 }),
     clinicalNote: useQuery({ queryKey: ['patient', patientId, 'clinical-note'], queryFn: () => fetchClinicalNote(patientId!), enabled, staleTime: 60_000 }),

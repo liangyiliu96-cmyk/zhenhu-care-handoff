@@ -26,7 +26,7 @@ def build_pre_round_brief(state: dict[str, Any]) -> dict[str, Any]:
         "patient_id": str(state.get("patient_id") or ""),
         "state_version": int(state.get("state_version") or 0),
         "attention_items": _attention_items(state),
-        "history_gaps": _history_gaps(state.get("history_data")),
+        "history_gaps": _history_gaps(state),
     }
 
 
@@ -150,11 +150,19 @@ def _attention_items(state: dict[str, Any]) -> list[dict[str, Any]]:
     return items
 
 
-def _history_gaps(history: object) -> list[dict[str, str]]:
-    recorded = history if isinstance(history, dict) else {}
+def _history_gaps(state: dict[str, Any]) -> list[dict[str, str]]:
+    recorded = state.get("history_data") if isinstance(state.get("history_data"), dict) else {}
+    patient_history = state.get("patient_history") if isinstance(state.get("patient_history"), dict) else {}
+    values = {
+        "chief_complaint": recorded.get("chief_complaint") or state.get("chief_complaint"),
+        "hpi_narrative": state.get("hpi_narrative") or recorded.get("hpi_narrative"),
+        "allergies": state.get("allergies") or recorded.get("allergies"),
+        "pmh": recorded.get("pmh") or patient_history.get("comorbidities"),
+        "ros_findings": state.get("ros_findings") or recorded.get("ros_findings"),
+    }
     gaps: list[dict[str, str]] = []
     for field, label in _HISTORY_FIELDS:
-        value = recorded.get(field)
+        value = values.get(field)
         if value not in (None, "", [], {}):
             continue
         gaps.append(

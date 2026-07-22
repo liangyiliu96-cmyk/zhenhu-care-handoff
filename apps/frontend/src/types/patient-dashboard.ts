@@ -256,3 +256,24 @@ export interface RoundMutationResponse {
   round: RoundRecord;
   idempotent?: boolean;
 }
+
+export interface PreRoundBriefResponse {
+  patient_id: string;
+  state_version: number;
+  attention_items: Array<{
+    kind: string;
+    priority: 'high' | 'medium' | 'low' | string;
+    title: string;
+    action: string;
+    facts: Array<{ source_type: string; source_id: string; observed_at?: string; field: string; value: unknown }>;
+  }>;
+  history_gaps: Array<{ field: string; label: string; status: 'needs_input' | string; prompt: string }>;
+}
+
+export interface ProgressNoteDraftResponse {
+  patient_id: string;
+  state_version: number;
+  generation_source: string;
+  write_back: string;
+  sections: Record<'subjective' | 'objective' | 'assessment' | 'plan', { text: string; status: 'draft' | 'needs_input' | string; facts: Array<Record<string, unknown>> }>;
+}

@@ -4,8 +4,9 @@ import { Activity, ArrowRight, Bot, CheckCircle2, ClipboardCheck, FlaskConical, 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { EmptyState, LoadingSkeleton } from '@/components/shared/Feedback';
-import { editPatientRound, generatePatientRound, reviewPatientRound } from '@/services/patient-service';
-import type { RoundRecord, RoundsResponse } from '@/types/patient-dashboard';
+import PreRoundBriefPanel, { type PreRoundBrief } from '@/components/clinical/PreRoundBriefPanel';
+import { editPatientRound, generatePatientRound, generateProgressNoteDraft, reviewPatientRound } from '@/services/patient-service';
+import type { ProgressNoteDraftResponse, RoundRecord, RoundsResponse } from '@/types/patient-dashboard';
 import { clinicalPhaseLabel, formatRoundValue, latestRound, roundGenerationLabel, roundReviewLabel, roundSectionRows, type RoundSection } from '@/utils/round-display';
 
 interface RoundsManagementPanelProps {
@@ -13,6 +14,9 @@ interface RoundsManagementPanelProps {
   stateVersion: number;
   loading: boolean;
   rounds?: RoundsResponse;
+  preRoundBrief?: PreRoundBrief;
+  preRoundBriefLoading?: boolean;
+  preRoundBriefError?: string;
   onOpenMonitoring: () => void;
   onOpenOrders: () => void;
 }
@@ -24,9 +28,10 @@ const SOAP_SECTIONS: Array<{ section: RoundSection; code: string; title: string;
   { section: 'plan', code: 'P', title: '诊疗计划', description: '下一步监测、检查与处置方向', color: 'primary.main' },
 ];
 
-export default function RoundsManagementPanel({ patientId, stateVersion, loading, rounds, onOpenMonitoring, onOpenOrders }: RoundsManagementPanelProps) {
+export default function RoundsManagementPanel({ patientId, stateVersion, loading, rounds, preRoundBrief, preRoundBriefLoading, preRoundBriefError, onOpenMonitoring, onOpenOrders }: RoundsManagementPanelProps) {
   const queryClient = useQueryClient();
   const [editorOpen, setEditorOpen] = useState(false);
+  const [copilotSeed, setCopilotSeed] = useState<Partial<RoundRevision> | undefined>();
   const refreshPatient = async () => {
     await queryClient.invalidateQueries({ queryKey: ['patient', patientId] });
   };
@@ -39,19 +44,33 @@ export default function RoundsManagementPanel({ patientId, stateVersion, loading
     mutationFn: (payload: RoundRevision) => editPatientRound(patientId, latestRound(rounds)?.round_number ?? rounds?.round_count ?? 1, { ...payload, expected_version: stateVersion }),
     onSuccess: async () => { await refreshPatient(); setEditorOpen(false); },
   });
+  const progressDraftMutation = useMutation({ mutationFn: () => generateProgressNoteDraft(patientId, stateVersion) });
   if (loading) return <Card variant="outlined" sx={{ borderRadius: 1, p: 2 }}><LoadingSkeleton lines={10} height={18} /></Card>;
   const latest = latestRound(rounds);
-  if (!latest) return <Card variant="outlined" sx={{ borderRadius: 1, p: 2 }}>
-    <EmptyState title="尚未生成查房摘要" description="可基于当前体征、检验、用药和病程数据生成第一轮结构化 SOAP 草稿。" />
-    <Box sx={{ display: 'flex', justifyContent: 'center', pb: 2 }}>
-      <Button variant="contained" startIcon={generateMutation.isPending ? <CircularProgress size={15} color="inherit" /> : <Bot size={16} />} disabled={generateMutation.isPending} onClick={() => generateMutation.mutate()}>{generateMutation.isPending ? '生成中...' : '生成首次查房摘要'}</Button>
-    </Box>
-    {generateMutation.error ? <Alert severity="error" sx={{ mt: 1.5 }}>{generateMutation.error instanceof Error ? generateMutation.error.message : '查房摘要生成失败'}</Alert> : null}
-  </Card>;
+  if (!latest) return <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <PreRoundBriefPanel brief={preRoundBrief} loading={preRoundBriefLoading} generating={progressDraftMutation.isPending} error={preRoundBriefError || (progressDraftMutation.error instanceof Error ? progressDraftMutation.error.message : undefined)} onGenerateDraft={() => progressDraftMutation.mutate()} />
+    {progressDraftMutation.data ? <Alert severity="info" action={<Button color="inherit" size="small" onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending}>先生成首次摘要</Button>}>已生成仅含来源事实的增量草稿。请先生成首次查房摘要，再在编辑器中补充并保存医生修订。</Alert> : null}
+    <Card variant="outlined" sx={{ borderRadius: 1, p: 2 }}>
+      <EmptyState title="尚未生成查房摘要" description="可基于当前体征、检验、用药和病程数据生成第一轮结构化 SOAP 草稿。" />
+      <Box sx={{ display: 'flex', justifyContent: 'center', pb: 2 }}>
+        <Button variant="contained" startIcon={generateMutation.isPending ? <CircularProgress size={15} color="inherit" /> : <Bot size={16} />} disabled={generateMutation.isPending} onClick={() => generateMutation.mutate()}>{generateMutation.isPending ? '生成中...' : '生成首次查房摘要'}</Button>
+      </Box>
+      {generateMutation.error ? <Alert severity="error" sx={{ mt: 1.5 }}>{generateMutation.error instanceof Error ? generateMutation.error.message : '查房摘要生成失败'}</Alert> : null}
+    </Card>
+  </Box>;
 
   const history = [...(rounds?.rounds ?? [])].reverse();
   const actionError = generateMutation.error ?? reviewMutation.error;
+  const applyProgressDraft = (draft: ProgressNoteDraftResponse) => {
+    setCopilotSeed({
+      subjective: draft.sections.subjective.status === 'draft' ? draft.sections.subjective.text : '',
+      objective: draft.sections.objective.status === 'draft' ? draft.sections.objective.text : '',
+    });
+    setEditorOpen(true);
+  };
   return <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <PreRoundBriefPanel brief={preRoundBrief} loading={preRoundBriefLoading} generating={progressDraftMutation.isPending} error={preRoundBriefError || (progressDraftMutation.error instanceof Error ? progressDraftMutation.error.message : undefined)} onGenerateDraft={() => progressDraftMutation.mutate()} />
+    {progressDraftMutation.data ? <Alert severity="info" action={<Button color="inherit" size="small" onClick={() => applyProgressDraft(progressDraftMutation.data!)}>在编辑器中补充</Button>}>已生成仅含来源事实的增量草稿。评估与计划未被自动填写。</Alert> : null}
     <Card variant="outlined" sx={{ borderRadius: 1 }}>
       <Box sx={{ px: 2, py: 1.6, display: 'flex', alignItems: 'flex-start', gap: 1.5, flexWrap: 'wrap', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Box sx={{ width: 36, height: 36, display: 'grid', placeItems: 'center', bgcolor: 'rgba(11, 100, 114, 0.09)', color: 'primary.dark', borderRadius: 1 }}><Stethoscope size={19} /></Box>
@@ -97,7 +116,7 @@ export default function RoundsManagementPanel({ patientId, stateVersion, loading
         {history.map((record, index) => <HistoryRow key={`${record.round_number ?? index}-${record.timestamp ?? index}`} record={record} latest={index === 0} onEdit={index === 0 ? () => setEditorOpen(true) : undefined} />)}
       </Box>
     </Card>
-    <RoundEditDialog open={editorOpen} record={latest} pending={editMutation.isPending} onClose={() => { if (!editMutation.isPending) { setEditorOpen(false); editMutation.reset(); } }} onSave={(revision) => editMutation.mutate(revision)} />
+    <RoundEditDialog open={editorOpen} record={latest} seed={copilotSeed} pending={editMutation.isPending} onClose={() => { if (!editMutation.isPending) { setEditorOpen(false); setCopilotSeed(undefined); editMutation.reset(); } }} onSave={(revision) => editMutation.mutate(revision)} />
   </Box>;
 }
 
@@ -123,15 +142,15 @@ function HistoryRow({ record, latest, onEdit }: { record: RoundRecord; latest: b
 
 type RoundRevision = { subjective: string; objective: string; assessment: string; plan: string; attention: string };
 
-function RoundEditDialog({ open, record, pending, onClose, onSave }: { open: boolean; record: RoundRecord; pending: boolean; onClose: () => void; onSave: (revision: RoundRevision) => void }) {
-  const [draft, setDraft] = useState<RoundRevision>(() => initialRevision(record));
-  useEffect(() => { if (open) setDraft(initialRevision(record)); }, [open, record]);
+function RoundEditDialog({ open, record, seed, pending, onClose, onSave }: { open: boolean; record: RoundRecord; seed?: Partial<RoundRevision>; pending: boolean; onClose: () => void; onSave: (revision: RoundRevision) => void }) {
+  const [draft, setDraft] = useState<RoundRevision>(() => initialRevision(record, seed));
+  useEffect(() => { if (open) setDraft(initialRevision(record, seed)); }, [open, record, seed]);
   const setField = (field: keyof RoundRevision) => (event: React.ChangeEvent<HTMLInputElement>) => setDraft((current) => ({ ...current, [field]: event.target.value }));
   const canSave = Object.values(draft).some((value) => value.trim());
   return <Dialog open={open} onClose={onClose} fullWidth maxWidth="md"><DialogTitle>编辑第 {record.round_number ?? '—'} 次查房摘要</DialogTitle><DialogContent sx={{ pt: '12px !important' }}><Alert severity="info" sx={{ mb: 1.5 }}>保存后会形成独立的医生修订版，保留原始 Agent 摘要与生成证据。</Alert><Stack spacing={1.5}><TextField autoFocus label="主观情况修订" value={draft.subjective} onChange={setField('subjective')} multiline minRows={2} /><TextField label="客观数据修订" value={draft.objective} onChange={setField('objective')} multiline minRows={2} /><TextField label="临床评估修订" value={draft.assessment} onChange={setField('assessment')} multiline minRows={3} /><TextField label="诊疗计划修订" value={draft.plan} onChange={setField('plan')} multiline minRows={3} /><TextField label="本轮医生关注点" value={draft.attention} onChange={setField('attention')} multiline minRows={2} placeholder="例如：关注低钾风险、晨间复查肾功能后再评估利尿方案" /></Stack></DialogContent><DialogActions><Button onClick={onClose} disabled={pending}>取消</Button><Button variant="contained" onClick={() => onSave(draft)} disabled={!canSave || pending} startIcon={pending ? <CircularProgress size={14} color="inherit" /> : <PencilLine size={15} />}>{pending ? '保存中...' : '保存医生修订'}</Button></DialogActions></Dialog>;
 }
 
-function initialRevision(record: RoundRecord): RoundRevision {
+function initialRevision(record: RoundRecord, seed?: Partial<RoundRevision>): RoundRevision {
   const revision = record.doctor_revision;
   return {
     subjective: revision?.subjective || formatRoundValue(record.subjective),
@@ -139,6 +158,7 @@ function initialRevision(record: RoundRecord): RoundRevision {
     assessment: revision?.assessment || formatRoundValue(record.assessment),
     plan: revision?.plan || formatRoundValue(record.plan),
     attention: revision?.attention || '',
+    ...seed,
   };
 }
 

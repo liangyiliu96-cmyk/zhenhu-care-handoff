@@ -110,6 +110,9 @@ function PatientWorkspaceContent({ patientId, section, focus, dashboard, patient
         stateVersion={dashboard.state_version}
         loading={patient.rounds.isLoading}
         rounds={patient.rounds.data}
+        preRoundBrief={patient.preRoundBrief.data}
+        preRoundBriefLoading={patient.preRoundBrief.isLoading}
+        preRoundBriefError={patient.preRoundBrief.error instanceof Error ? patient.preRoundBrief.error.message : undefined}
         onOpenMonitoring={() => navigate(patientWorkspaceRoute(patientId, 'monitoring'))}
         onOpenOrders={() => navigate(patientWorkspaceRoute(patientId, 'orders'))}
       />
@@ -170,7 +173,7 @@ function PatientWorkspaceContent({ patientId, section, focus, dashboard, patient
       />
       <AgentFlowPanel patientId={patientId} onOpenReview={(reviewType) => navigate(workbenchReviewRoute(patientId, reviewType))} />
       <AdmissionPanel loading={patient.clinicalNote.isLoading} note={patient.clinicalNote.data} />
-      <ClinicalIntakePanel patientId={patientId} stateVersion={dashboard.state_version} />
+      <ClinicalIntakePanel patientId={patientId} stateVersion={dashboard.state_version} historyGaps={patient.preRoundBrief.data?.history_gaps} />
       <TimelinePanel loading={patient.timeline.isLoading} timeline={patient.timeline.data} />
     </>}
     side={<>

@@ -58,6 +58,22 @@ def test_pre_round_brief_marks_missing_history_as_questions_not_facts():
     assert all(item["status"] == "needs_input" for item in brief["history_gaps"])
 
 
+def test_pre_round_brief_uses_canonical_state_fields_before_marking_history_gaps():
+    brief = build_pre_round_brief(
+        {
+            "patient_id": "patient-canonical-history",
+            "history_data": {"chief_complaint": "胸痛", "hpi_narrative": "胸痛 2 小时"},
+            "allergies": ["无已知药物过敏"],
+            "ros_findings": {"cardiovascular": "否认心悸"},
+            "patient_history": {"comorbidities": {"hypertension": "高血压"}},
+        }
+    )
+
+    gap_fields = {item["field"] for item in brief["history_gaps"]}
+
+    assert {"allergies", "pmh", "ros_findings"}.isdisjoint(gap_fields)
+
+
 @pytest.mark.asyncio
 async def test_pre_round_route_returns_a_read_only_current_version_brief(monkeypatch):
     monkeypatch.setattr(
