@@ -11,10 +11,14 @@ import logging
 import os
 
 import httpx
+from zhenhu.contracts import ServiceConfig
 
 logger = logging.getLogger("zhenhu.inpatient.fhir_sync")
 
-FHIR_BASE_URL = os.environ.get("FHIR_ADAPTER_URL", "http://localhost:8080/fhir")
+FHIR_BASE_URL = os.environ.get(
+    "FHIR_ADAPTER_URL",
+    f"{ServiceConfig.FHIR_URL.rstrip('/')}/fhir",
+)
 
 
 async def _http_post(endpoint: str, payload: dict, idempotency_key: str | None = None) -> dict:

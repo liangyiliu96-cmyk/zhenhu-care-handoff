@@ -377,6 +377,8 @@ async def create_audit_event(
         ref = body.entity[0].what.get("reference", "")
         patient_id = _extract_patient_id(ref) if ref else "unknown"
 
+    patient = await _ensure_patient(session, patient_id)
+
     actor = "system"
     if body.agent:
         who = body.agent[0].who
@@ -384,7 +386,7 @@ async def create_audit_event(
             actor = who.identifier.get("value", "system")
 
     audit = FHIRAuditEvent(
-        patient_id=patient_id,
+        patient_id=patient.patient_id,
         entity_type="AuditEvent",
         entity_id=request_id,
         action=body.action,

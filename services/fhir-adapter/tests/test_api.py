@@ -196,6 +196,27 @@ class TestGetAuditEvent:
         # 不做严格断言
 
     @pytest.mark.asyncio
+    async def test_create_audit_event_creates_a_minimal_patient_for_traceability(self, client):
+        patient_id = "audit-only-patient"
+        response = await client.post("/fhir/AuditEvent", json={
+            "resourceType": "AuditEvent",
+            "type": {"code": "110100"},
+            "action": "U",
+            "agent": [{"who": {"identifier": {"value": "system"}}, "requestor": True}],
+            "entity": [{"what": {"reference": f"Patient/{patient_id}"}}],
+        })
+
+        assert response.status_code == 201
+        patient_response = await client.get(f"/fhir/Patient/{patient_id}")
+        assert patient_response.status_code == 200
+        audit_response = await client.get(f"/fhir/AuditEvent?patient={patient_id}")
+        assert audit_response.status_code == 200
+        assert any(
+            item["resource"]["type"]["code"] == "U"
+            for item in audit_response.json()["data"]["entry"]
+        )
+
+    @pytest.mark.asyncio
     async def test_get_audit_events_after_access(self, client):
         """先访问 Patient 再查询 AuditEvent，应能看到审计记录。"""
         # 先访问 Patient（会产生审计记录）
