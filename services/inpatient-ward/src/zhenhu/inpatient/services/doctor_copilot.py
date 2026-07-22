@@ -30,6 +30,56 @@ def build_pre_round_brief(state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_progress_note_draft(state: dict[str, Any]) -> dict[str, Any]:
+    """Build a non-persistent SOAP draft without making clinical inferences.
+
+    Assessment and plan stay explicitly incomplete until a clinician supplies
+    them. This keeps the drafting helper useful for documentation while making
+    it incapable of silently producing a diagnosis or treatment direction.
+    """
+
+    history = state.get("history_data") if isinstance(state.get("history_data"), dict) else {}
+    subjective_facts: list[dict[str, Any]] = []
+    chief_complaint = str(history.get("chief_complaint") or "").strip()
+    if chief_complaint:
+        subjective_facts.append(_fact("history", "current", "", "chief_complaint", chief_complaint))
+
+    objective_facts: list[dict[str, Any]] = []
+    objective_lines: list[str] = []
+    vital = _latest_dict(state.get("vital_signs"))
+    if vital:
+        observed_at = str(vital.get("timestamp") or "")
+        for field, label, unit in (("heart_rate", "心率", "次/分"), ("spo2", "血氧饱和度", "%"), ("temperature", "体温", "摄氏度")):
+            if vital.get(field) is None:
+                continue
+            value = vital[field]
+            objective_facts.append(_fact("vital_sign", "latest", observed_at, field, value))
+            objective_lines.append(f"{label}{value}{unit}")
+    lab = _latest_dict(state.get("lab_results"))
+    if lab:
+        name = str(lab.get("name") or "检验")
+        value = lab.get("value")
+        unit = str(lab.get("unit") or "")
+        objective_facts.append(_fact("lab_result", str(lab.get("id") or "latest"), str(lab.get("timestamp") or ""), name, value))
+        objective_lines.append(f"最近检验：{name} {value if value is not None else ''}{unit}".strip())
+
+    return {
+        "patient_id": str(state.get("patient_id") or ""),
+        "state_version": int(state.get("state_version") or 0),
+        "generation_source": "rule_based_fact_draft",
+        "write_back": "requires_doctor_edit_and_existing_round_review",
+        "sections": {
+            "subjective": _draft_section(
+                f"主诉：{chief_complaint}" if chief_complaint else "待医生补充",
+                subjective_facts,
+            ),
+            "objective": _draft_section("；".join(objective_lines) if objective_lines else "待医生补充", objective_facts),
+            "assessment": _draft_section("待医生补充", []),
+            "plan": _draft_section("待医生补充", []),
+        },
+    }
+
+
 def _attention_items(state: dict[str, Any]) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for index, alert in enumerate(_dict_items(state.get("clinical_alerts"))):
@@ -125,6 +175,14 @@ def _fact(source_type: str, source_id: str, observed_at: str, field: str, value:
         "observed_at": observed_at,
         "field": field,
         "value": value,
+    }
+
+
+def _draft_section(text: str, facts: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "text": text,
+        "status": "draft" if facts else "needs_input",
+        "facts": facts,
     }
 
 

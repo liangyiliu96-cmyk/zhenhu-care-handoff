@@ -1,5 +1,6 @@
-from zhenhu.inpatient.services.doctor_copilot import build_pre_round_brief
+from zhenhu.inpatient.services.doctor_copilot import build_pre_round_brief, build_progress_note_draft
 from zhenhu.inpatient.routes import doctor_copilot
+from zhenhu.inpatient.routes.doctor_copilot import ProgressNoteDraftRequest
 from request_helpers import doctor_request
 import pytest
 
@@ -69,3 +70,47 @@ async def test_pre_round_route_returns_a_read_only_current_version_brief(monkeyp
 
     assert response.data["patient_id"] == "patient-route"
     assert response.data["state_version"] == 9
+
+
+@pytest.mark.asyncio
+async def test_progress_note_route_rejects_stale_state_version(monkeypatch):
+    monkeypatch.setattr(
+        doctor_copilot,
+        "get_state",
+        lambda patient_id: {"patient_id": patient_id, "state_version": 9},
+    )
+
+    with pytest.raises(Exception) as exc_info:
+        await doctor_copilot.generate_progress_note(
+            "patient-route",
+            ProgressNoteDraftRequest(expected_version=8),
+            doctor_request(),
+        )
+
+    assert getattr(exc_info.value, "status_code", None) == 409
+
+
+def test_progress_note_draft_never_fills_unsupported_assessment_or_plan():
+    draft = build_progress_note_draft({"patient_id": "patient-note", "state_version": 3})
+
+    assert draft["patient_id"] == "patient-note"
+    assert draft["state_version"] == 3
+    assert draft["sections"]["assessment"]["text"] == "待医生补充"
+    assert draft["sections"]["assessment"]["status"] == "needs_input"
+    assert draft["sections"]["plan"]["facts"] == []
+
+
+def test_progress_note_draft_links_subjective_and_objective_to_source_facts():
+    draft = build_progress_note_draft(
+        {
+            "patient_id": "patient-note-facts",
+            "state_version": 5,
+            "history_data": {"chief_complaint": "活动后气促"},
+            "vital_signs": [{"timestamp": "2026-07-22T08:00:00Z", "heart_rate": 96, "spo2": 97}],
+            "lab_results": [{"name": "肌酐", "value": "120", "timestamp": "2026-07-22T07:30:00Z"}],
+        }
+    )
+
+    assert draft["sections"]["subjective"]["facts"][0]["source_type"] == "history"
+    assert {fact["source_type"] for fact in draft["sections"]["objective"]["facts"]} == {"vital_sign", "lab_result"}
+    assert "活动后气促" in draft["sections"]["subjective"]["text"]
