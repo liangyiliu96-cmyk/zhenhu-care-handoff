@@ -52,6 +52,7 @@ from .routes.monitoring_overdue import router as overdue_router
 from .routes.patients import router as patients_router
 from .routes.rounds import router as rounds_router
 from .routes.workflow_briefs import router as workflow_briefs_router
+from .routes.doctor_copilot import router as doctor_copilot_router
 from .routes.scores import router as scores_router
 from .routes.query import router as query_router
 from .routes.nursing import router as nursing_router
@@ -312,6 +313,7 @@ app.include_router(overdue_router)
 app.include_router(patients_router)
 app.include_router(rounds_router)
 app.include_router(workflow_briefs_router)
+app.include_router(doctor_copilot_router)
 # ── 评分与查询 ──
 app.include_router(scores_router)
 app.include_router(query_router)
@@ -343,6 +345,7 @@ app.include_router(agent_flow_router, prefix="/v1")
 app.include_router(patients_router, prefix="/v1")
 app.include_router(rounds_router, prefix="/v1")
 app.include_router(workflow_briefs_router, prefix="/v1")
+app.include_router(doctor_copilot_router, prefix="/v1")
 app.include_router(scores_router, prefix="/v1")
 app.include_router(care_management_router, prefix="/v1")
 app.include_router(assistant_action_drafts_router, prefix="/v1")
