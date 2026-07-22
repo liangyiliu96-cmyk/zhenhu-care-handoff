@@ -559,6 +559,17 @@ async def node_medication_reconciliation(state: dict) -> dict:
         for r in interactions
     ]
 
+    # External labels are advisory evidence only. Deterministic local rules remain the safety gate.
+    if all_med_names:
+        try:
+            from .clinical_external import collect_api_data
+
+            external_data = await collect_api_data({"medication_list": all_med_names})
+            if external_data.get("drug_evidence"):
+                findings["external_data"] = external_data["drug_evidence"]
+        except Exception:
+            logger.warning("node_medication_reconciliation: external medication evidence unavailable, patient=%s", patient_id)
+
     # 过敏禁忌检查
     allergies = state.get("allergies", [])
     if allergies:

@@ -1,7 +1,7 @@
 import { Alert, Box, Card, Chip, Divider, Typography } from '@mui/material';
 import { ShieldAlert } from 'lucide-react';
 
-import type { MedicationSafety, MedicationSafetyConflict } from '@/types/patient-dashboard';
+import type { MedicationExternalEvidence, MedicationSafety, MedicationSafetyConflict } from '@/types/patient-dashboard';
 
 interface MedicationSafetyPanelProps {
   safety: MedicationSafety;
@@ -21,7 +21,8 @@ function severityColor(severity: string): 'error' | 'warning' | 'default' {
 }
 
 export default function MedicationSafetyPanel({ safety }: MedicationSafetyPanelProps) {
-  const hasFindings = safety.conflicts.length > 0 || safety.allergy_contraindications.length > 0 || safety.gaps.length > 0 || safety.duplications.length > 0 || safety.warnings.length > 0;
+  const externalEvidence = safety.external_evidence ?? [];
+  const hasFindings = safety.conflicts.length > 0 || safety.allergy_contraindications.length > 0 || safety.gaps.length > 0 || safety.duplications.length > 0 || safety.warnings.length > 0 || externalEvidence.length > 0;
 
   return <Card variant="outlined" sx={{ borderRadius: 1 }}>
     <Box sx={{ px: 1.75, py: 1.25, display: 'flex', alignItems: 'center', gap: 0.75, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -40,8 +41,33 @@ export default function MedicationSafetyPanel({ safety }: MedicationSafetyPanelP
       {safety.gaps.map((item, index) => <FindingItem key={`gap-${index}`} label="用药缺口" text={item} />)}
       {safety.duplications.map((item, index) => <FindingItem key={`duplicate-${index}`} label="潜在重复" text={item} />)}
       {safety.warnings.map((item, index) => <FindingItem key={`warning-${index}`} label="需复核" text={item} />)}
+      {externalEvidence.length > 0 ? <ExternalEvidenceSection evidence={externalEvidence} /> : null}
     </Box>
   </Card>;
+}
+
+function ExternalEvidenceSection({ evidence }: { evidence: MedicationExternalEvidence[] }) {
+  const available = evidence.filter((item) => item.status === 'available');
+
+  return <Box sx={{ pt: 0.25 }}>
+    <Divider sx={{ mb: 1.25 }} />
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.8 }}>
+      <Typography variant="subtitle2" fontWeight={600}>外部药品证据</Typography>
+      <Chip size="small" variant="outlined" label="仅供医生复核" />
+    </Box>
+    {available.length === 0 ? <Alert severity="info" sx={{ py: 0 }}>外部药品证据暂不可用，未据此得出安全结论。</Alert> : available.map((item, index) => <Box key={`${item.drug}-${item.rxnorm_id}-${index}`} sx={{ borderLeft: '3px solid', borderColor: 'info.main', pl: 1.25, mb: index === available.length - 1 ? 0 : 1.1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+        <Typography variant="body2" fontWeight={600}>{item.drug}</Typography>
+        {item.standard_name ? <Chip size="small" variant="outlined" label={item.standard_name} /> : null}
+        {item.rxnorm_id ? <Chip size="small" variant="outlined" label={`RxCUI ${item.rxnorm_id}`} /> : null}
+        <Chip size="small" color="info" label={item.source} />
+      </Box>
+      {item.warnings ? <Typography variant="caption" display="block" sx={{ mt: 0.4 }}>标签警告：{item.warnings}</Typography> : null}
+      {item.contraindications ? <Typography variant="caption" display="block" color="text.secondary">禁忌信息：{item.contraindications}</Typography> : null}
+      {item.interactions ? <Typography variant="caption" display="block" color="text.secondary">相互作用标签：{item.interactions}</Typography> : null}
+    </Box>)}
+    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.8 }}>仅供医生复核，不自动生成医嘱。</Typography>
+  </Box>;
 }
 
 function ConflictItem({ conflict }: { conflict: MedicationSafetyConflict }) {

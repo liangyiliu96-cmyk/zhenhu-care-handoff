@@ -70,6 +70,17 @@ export interface MedicationSafetyConflict {
   model_suggested: boolean;
 }
 
+export interface MedicationExternalEvidence {
+  drug: string;
+  rxnorm_id: string;
+  standard_name: string;
+  warnings: string;
+  contraindications: string;
+  interactions: string;
+  source: 'OpenFDA/RxNorm' | string;
+  status: 'available' | 'unavailable' | string;
+}
+
 export interface MedicationSafety {
   status: 'complete' | 'not_run' | string;
   conflicts: MedicationSafetyConflict[];
@@ -77,6 +88,7 @@ export interface MedicationSafety {
   gaps: string[];
   duplications: string[];
   warnings: string[];
+  external_evidence?: MedicationExternalEvidence[];
 }
 
 export interface ScoresResponse {

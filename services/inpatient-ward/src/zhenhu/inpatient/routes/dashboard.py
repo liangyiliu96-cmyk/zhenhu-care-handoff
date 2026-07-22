@@ -195,6 +195,20 @@ def _medication_safety(state: dict) -> dict:
         "gaps": [str(item) for item in findings.get("gaps") or [] if str(item).strip()],
         "duplications": [str(item) for item in findings.get("duplications") or [] if str(item).strip()],
         "warnings": [str(item) for item in findings.get("llm_warnings") or [] if str(item).strip()],
+        "external_evidence": [
+            {
+                "drug": str(item.get("drug") or "")[:120],
+                "rxnorm_id": str(item.get("rxnorm_id") or "")[:40],
+                "standard_name": str(item.get("standard_name") or "")[:160],
+                "warnings": str(item.get("warnings") or "")[:200],
+                "contraindications": str(item.get("contraindications") or "")[:200],
+                "interactions": str(item.get("interactions") or "")[:200],
+                "source": str(item.get("source") or "OpenFDA/RxNorm"),
+                "status": "available" if item.get("status") == "available" else "unavailable",
+            }
+            for item in findings.get("external_data") or []
+            if isinstance(item, dict) and str(item.get("drug") or "").strip()
+        ],
     }
 
 

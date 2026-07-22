@@ -7,6 +7,37 @@ import pytest
 from request_helpers import doctor_request
 
 
+def test_medication_safety_projects_external_evidence_without_safety_conclusion():
+    from zhenhu.inpatient.routes.dashboard import _medication_safety
+
+    result = _medication_safety({
+        "medication_findings": {
+            "external_data": [{
+                "drug": "metoprolol",
+                "rxnorm_id": "6918",
+                "standard_name": "metoprolol tartrate",
+                "warnings": "Do not stop suddenly.",
+                "contraindications": "Cardiogenic shock.",
+                "interactions": "Monitor with other rate-lowering medicines.",
+                "source": "OpenFDA/RxNorm",
+                "status": "available",
+            }],
+        },
+    })
+
+    assert result["status"] == "complete"
+    assert result["external_evidence"] == [{
+        "drug": "metoprolol",
+        "rxnorm_id": "6918",
+        "standard_name": "metoprolol tartrate",
+        "warnings": "Do not stop suddenly.",
+        "contraindications": "Cardiogenic shock.",
+        "interactions": "Monitor with other rate-lowering medicines.",
+        "source": "OpenFDA/RxNorm",
+        "status": "available",
+    }]
+
+
 @pytest.mark.asyncio
 async def test_dashboard_projects_persisted_medication_findings_with_traceability(isolated_state_store, monkeypatch):
     from zhenhu.inpatient.routes import dashboard

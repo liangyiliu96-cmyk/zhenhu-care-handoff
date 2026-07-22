@@ -205,7 +205,10 @@ async def _medication_confirm_cards(patient_id: str) -> list[dict]:
     conflicts = findings.get("conflicts", [])
     gaps = findings.get("gaps", [])
     during = findings.get("during_stay_changes", [])
-    external = findings.get("external_data") or []
+    external = [
+        item for item in findings.get("external_data") or []
+        if isinstance(item, dict) and item.get("status") == "available"
+    ]
 
     summary = f"用药核对: {len(conflicts)} 对相互作用, {len(gaps)} 缺口, {len(during)} 次调药"
     detail_lines = []

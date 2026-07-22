@@ -382,6 +382,11 @@ def _loop_refine(result: dict, collect_ctx: dict) -> dict:
                 summary_parts.append(f"[{phase}] RAG: {hits[0].get('topic','?')}")
 
     api_data = collect_ctx.get("api_data", {})
+    # Keep the legacy summary formatter from treating unavailable evidence as retrieved data.
+    api_data["fda_labels"] = [
+        item for item in api_data.get("drug_evidence", [])
+        if isinstance(item, dict) and item.get("status") == "available"
+    ]
     if api_data.get("fda_labels"):
         summary_parts.append(f"FDA: {len(api_data['fda_labels'])} 药物标签")
     if api_data.get("icd10_codes"):

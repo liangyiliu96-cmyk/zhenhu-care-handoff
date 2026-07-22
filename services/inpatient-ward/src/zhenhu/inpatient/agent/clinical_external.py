@@ -25,6 +25,7 @@ SKIP_EXTERNAL = os.environ.get("SKIP_EXTERNAL", "").lower() in ("true", "1", "ye
 
 _CLIENT_TIMEOUT = httpx.Timeout(8.0, connect=4.0)
 _DEFAULT_HEADERS = {"User-Agent": "Zhenhu-Inpatient/1.0"}
+EXTERNAL_COLLECTION_TIMEOUT_SECONDS = 3.0
 
 # 简单内存缓存（线程安全）
 _cache: dict[str, Any] = {}
@@ -221,8 +222,6 @@ async def collect_api_data(state: dict) -> dict:
 
     返回 {fda_labels, icd10_codes, rxnorm} 三字段
     """
-    from collections import defaultdict
-
     result: dict[str, Any] = {}
 
     # 1. OpenFDA: 药物安全数据
@@ -235,17 +234,45 @@ async def collect_api_data(state: dict) -> dict:
                 p for c in conflicts for p in c.get("drug_pair", "").split(" + ")
             ))[:8]
 
-    if meds and os.environ.get("SKIP_EXTERNAL") != "true":
+    if meds and os.environ.get("SKIP_EXTERNAL", "").lower() not in ("true", "1", "yes"):
         try:
-            labels = await get_drug_labels(meds[:5])
-            if labels:
-                result["fda_labels"] = [
-                    {"drug": l.get("drug_name", ""), "warnings": l.get("warnings", "")[:200],
-                     "contraindications": l.get("contraindications", "")[:200]}
-                    for l in labels if l.get("drug_name")
-                ]
+            enriched = await asyncio.wait_for(
+                enrich_medications([str(med)[:120] for med in meds[:5] if str(med).strip()]),
+                timeout=EXTERNAL_COLLECTION_TIMEOUT_SECONDS,
+            )
+            result["drug_evidence"] = [
+                {
+                    "drug": str(item.get("original") or "")[:120],
+                    "rxnorm_id": str(item.get("rxnorm_id") or "")[:40],
+                    "standard_name": str(item.get("standard_name") or "")[:160],
+                    "warnings": str((item.get("label") or {}).get("warnings") or "")[:200],
+                    "contraindications": str((item.get("label") or {}).get("contraindications") or "")[:200],
+                    "interactions": str((item.get("label") or {}).get("interactions") or "")[:200],
+                    "source": "OpenFDA/RxNorm",
+                    "status": "available",
+                }
+                for item in enriched
+                if isinstance(item, dict) and str(item.get("original") or "").strip()
+            ]
         except Exception:
-            pass
+            logger.warning("clinical_external: medication evidence collection failed")
+            result["drug_evidence"] = []
+
+        if not result.get("drug_evidence"):
+            result["drug_evidence"] = [
+                {
+                    "drug": str(med)[:120],
+                    "rxnorm_id": "",
+                    "standard_name": "",
+                    "warnings": "",
+                    "contraindications": "",
+                    "interactions": "",
+                    "source": "OpenFDA/RxNorm",
+                    "status": "unavailable",
+                }
+                for med in meds[:5]
+                if str(med).strip()
+            ]
 
     # 2. ICD-10: 诊断标准化
     ddx = state.get("ddx_list") or state.get("diagnosis") or []
@@ -255,13 +282,13 @@ async def collect_api_data(state: dict) -> dict:
         ddx = [{"name": state["disease_template"].get("name", "")}]
     diagnoses = [d.get("name", "") if isinstance(d, dict) else str(d) for d in ddx[:3] if d]
 
-    if diagnoses and os.environ.get("SKIP_EXTERNAL") != "true":
+    if diagnoses and os.environ.get("SKIP_EXTERNAL", "").lower() not in ("true", "1", "yes"):
         try:
-            icd_results = await search_icd10(diagnoses[0])
+            icd_results = await icd10_search(diagnoses[0], max_results=3)
             if icd_results:
                 result["icd10_codes"] = icd_results[:3]
         except Exception:
-            pass
+            logger.warning("clinical_external: ICD-10 evidence collection failed")
 
     return result
 
@@ -273,6 +300,14 @@ async def enrich_prompt_from_api(state: dict) -> str:
         return ""
 
     lines = ["【外部临床数据】"]
+    if data.get("drug_evidence"):
+        lines.append("FDA/RxNorm drug evidence (advisory; clinician review required):")
+        for evidence in data["drug_evidence"][:3]:
+            if evidence.get("status") != "available":
+                continue
+            summary = evidence.get("warnings") or evidence.get("contraindications") or evidence.get("interactions")
+            if summary:
+                lines.append(f"  {evidence.get('drug', '')}: {summary[:100]}")
     if data.get("fda_labels"):
         lines.append("FDA药物安全:")
         for lbl in data["fda_labels"][:3]:
@@ -280,5 +315,5 @@ async def enrich_prompt_from_api(state: dict) -> str:
     if data.get("icd10_codes"):
         lines.append("ICD-10编码:")
         for icd in data["icd10_codes"][:3]:
-            lines.append(f"  {icd.get('code','?')} {icd.get('description','')[:80]}")
+            lines.append(f"  {icd.get('code','?')} {icd.get('name','')[:80]}")
     return "\n".join(lines) if len(lines) > 1 else ""

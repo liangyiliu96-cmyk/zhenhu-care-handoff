@@ -1,11 +1,29 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 
 import MedicationSafetyPanel from './MedicationSafetyPanel';
 
+afterEach(cleanup);
+
 describe('MedicationSafetyPanel', () => {
+  it('shows external medication evidence as advisory information only', () => {
+    render(<MedicationSafetyPanel safety={{
+      status: 'complete', conflicts: [], allergy_contraindications: [], gaps: [], duplications: [], warnings: [],
+      external_evidence: [{
+        drug: 'metoprolol', rxnorm_id: '6918', standard_name: 'metoprolol tartrate',
+        warnings: 'Do not stop suddenly.', contraindications: 'Cardiogenic shock.',
+        interactions: '', source: 'OpenFDA/RxNorm', status: 'available',
+      }],
+    }} />);
+
+    expect(screen.getByText('外部药品证据')).toBeTruthy();
+    expect(screen.getByText('metoprolol tartrate')).toBeTruthy();
+    expect(screen.getByText('OpenFDA/RxNorm')).toBeTruthy();
+    expect(screen.getByText('仅供医生复核，不自动生成医嘱。')).toBeTruthy();
+  });
+
   it('does not turn an unrun reconciliation into a false no-interaction statement', () => {
     render(<MedicationSafetyPanel safety={{ status: 'not_run', conflicts: [], allergy_contraindications: [], gaps: [], duplications: [], warnings: [] }} />);
 
