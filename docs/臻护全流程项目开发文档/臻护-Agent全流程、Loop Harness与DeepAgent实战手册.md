@@ -64,18 +64,18 @@ flowchart LR
 下面是当前接口契约的调用示例。`expected_version` 不是可选装饰，它用于阻止旧页面覆盖新状态。
 
 ```bash
-curl.exe -X POST "http://127.0.0.1:8000/inpatient/pat-hf-001/rounds/generate" ^
+curl.exe -X POST "http://127.0.0.1:8001/inpatient/pat-hf-001/rounds/generate" ^
   -H "Content-Type: application/json" ^
   -H "x-role: doctor" ^
   -H "x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB" ^
   -d "{\"expected_version\": 12}"
 
 # 医生修改生成内容，再提交编辑和核对。
-curl.exe -X PATCH "http://127.0.0.1:8000/inpatient/pat-hf-001/rounds/3/edit" ^
+curl.exe -X PATCH "http://127.0.0.1:8001/inpatient/pat-hf-001/rounds/3/edit" ^
   -H "Content-Type: application/json" ^
   -d "{\"assessment\":\"容量负荷较昨日改善，继续观察肾功能\",\"expected_version\":13}"
 
-curl.exe -X POST "http://127.0.0.1:8000/inpatient/pat-hf-001/rounds/3/review" ^
+curl.exe -X POST "http://127.0.0.1:8001/inpatient/pat-hf-001/rounds/3/review" ^
   -H "Content-Type: application/json" ^
   -d "{\"expected_version\":14}"
 ```

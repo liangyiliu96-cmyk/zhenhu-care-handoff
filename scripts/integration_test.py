@@ -17,7 +17,7 @@ BASE = {
     "workflow": "http://localhost:8100",
     "knowledge": "http://localhost:8200",
     "fhir": "http://localhost:8300",
-    "inpatient": "http://localhost:8400",
+    "inpatient": "http://127.0.0.1:8001",
 }
 
 passed = 0

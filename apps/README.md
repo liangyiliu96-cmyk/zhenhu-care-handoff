@@ -1,7 +1,25 @@
-# 应用目录
+# 前端应用
 
-前端应用：`apps/` 目前为空骨架，前端阶段启动时在此创建 Vite + React + MUI 项目。
+正式前端位于 `apps/frontend`，使用 React、Vite、MUI 和 TypeScript。
 
-当前后端已就绪（5 服务），前端可对接的端点见 `docs/architecture/03-接口契约与API设计.md`。
+## 本地入口
 
-约束：不得直接读取 `poc/` 目录中的实现，不得依赖 `poc/` 模拟数据。
+- 前端：`http://127.0.0.1:5173`
+- 后端：`http://127.0.0.1:8001`
+- 代理：`5173 -> 8001`
+
+```bash
+cd apps/frontend
+npm install
+npm run dev -- --host 127.0.0.1
+```
+
+前端 API 请求保持同源路径，由 [vite.config.ts](frontend/vite.config.ts) 转发到 `VITE_DEV_API_TARGET`。默认目标为 `http://127.0.0.1:8001`。
+
+```bash
+npm run lint
+npm run build
+npm run test:run
+```
+
+不要把容器内部的 `8000` 作为浏览器或本机脚本访问地址。

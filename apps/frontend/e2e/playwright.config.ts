@@ -15,8 +15,9 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'cd .. && ../../scripts/start-backend.sh',
-      url: 'http://127.0.0.1:8000/health',
+      command: 'set PYTHONPATH=src;../../packages/clinical-contracts-py/src&& python -m uvicorn zhenhu.inpatient.main:app --host 127.0.0.1 --port 8001',
+      cwd: '../../services/inpatient-ward',
+      url: 'http://127.0.0.1:8001/health',
       reuseExistingServer: true,
       timeout: 30_000,
     },

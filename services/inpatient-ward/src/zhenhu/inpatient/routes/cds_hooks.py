@@ -336,6 +336,7 @@ def _card(
     links: list[dict] | None = None,
 ) -> dict:
     """生成 CDS Hooks 标准卡片。"""
+    base_url = os.environ.get("PUBLIC_BASE_URL", "http://127.0.0.1:8001").rstrip("/")
     card = {
         "uuid": source_label.lower().replace(" ", "-"),
         "summary": summary,
@@ -343,7 +344,7 @@ def _card(
         "detail": detail,
         "source": {
             "label": source_label,
-            "url": "http://localhost:8000/docs",
+            "url": f"{base_url}/docs",
         },
     }
     if suggestions:

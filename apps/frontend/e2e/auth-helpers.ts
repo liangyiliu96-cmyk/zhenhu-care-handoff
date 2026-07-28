@@ -1,6 +1,6 @@
 import { Page, request as playwrightRequest } from '@playwright/test';
 
-const BACKEND = 'http://127.0.0.1:8000';
+const BACKEND = process.env.E2E_BACKEND_URL ?? 'http://127.0.0.1:8001';
 
 /**
  * Delete a patient from the state store via the backend's clear-expired

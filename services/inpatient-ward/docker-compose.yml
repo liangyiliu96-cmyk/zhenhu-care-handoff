@@ -76,7 +76,7 @@ services:
     container_name: zhenhu-fastapi
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${INPATIENT_HOST_PORT:-8001}:8000"
     environment:
       # Phase 1: transactional tables use DATABASE_URL/MySQL, while the
       # single-instance workflow hot state may remain on a durable SQLite volume.

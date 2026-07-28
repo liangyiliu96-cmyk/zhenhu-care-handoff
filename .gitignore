@@ -42,5 +42,8 @@ Thumbs.db
 # PoC runtime data (not version-controlled)
 poc/data/
 
+# Local adapter runtime data (seeded automatically for demos)
+services/fhir-adapter/data/*.db
+
 # Local browser QA captures. Keep durable visual evidence under docs/ instead.
 tmp-*.png

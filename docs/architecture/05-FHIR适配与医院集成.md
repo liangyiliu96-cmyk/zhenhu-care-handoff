@@ -10,7 +10,7 @@
 ```
 HIS/EMR/LIS（阶段 0 模拟 / 阶段 1 真实）
         ↓
-fhir-adapter（FastAPI :8003）
+fhir-adapter（FastAPI :8300）
   ├── 协议适配层：HL7 v2/v3 → FHIR R4 映射
   ├── 资源校验层：fhir.resources 校验 → Pydantic 输出
   ├── Patient Compartment：按患者隔离资源集合

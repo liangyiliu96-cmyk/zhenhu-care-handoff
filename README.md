@@ -19,16 +19,23 @@ zhenhu-care-handoff/
 └── 参考借鉴项目/             # 外部参考（只读，不入版本管理）
 ```
 
-## 当前阶段
+## 当前状态
 
-**阶段 0：需求寻找**——需求基线已建立，PoC 44/44 测试验证通过。正式工程设计待启动。
+正式工程前后端已具备本地联调能力。开发/演示环境固定使用：前端 `5173`，住院后端宿主机入口 `8001`，FHIR Adapter `8300`；住院容器内部监听 `8000`，不作为浏览器访问地址。
 
 ## 快速开始
 
 ```bash
-# PoC 验证
-npm run poc:test          # 44/44 单元测试
-npm run poc:serve         # 启动 PoC 演示服务 (http://127.0.0.1:4173)
+# 启动住院后端（本机 8001；容器部署使用 8001:8000）
+cd services/inpatient-ward
+python -m uvicorn zhenhu.inpatient.main:app --host 127.0.0.1 --port 8001
+
+# 启动前端（固定 5173，代理到 8001）
+cd apps/frontend
+npm run dev -- --host 127.0.0.1
+
+# 浏览器入口
+# http://127.0.0.1:5173
 
 # 契约测试
 npm run contracts:test    # 临床契约测试 (7/7)

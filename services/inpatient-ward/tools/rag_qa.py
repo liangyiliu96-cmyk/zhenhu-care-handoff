@@ -1,6 +1,6 @@
-import json, time, urllib.request, urllib.parse
+import json, os, time, urllib.request, urllib.parse
 
-BASE = 'http://localhost:8000'
+BASE = os.environ.get('INPATIENT_BASE_URL', 'http://127.0.0.1:8001').rstrip('/')
 H = {'x-role': 'doctor'}
 
 def search(q, layer=None, topk=5):

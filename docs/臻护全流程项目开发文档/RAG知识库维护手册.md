@@ -246,23 +246,23 @@ DEPT_CHECKLIST = {
 
 ```bash
 # 重建索引 (等同于管理端按钮；推荐入口)
-curl -X POST http://127.0.0.1:8000/admin/rag/reindex \
+curl -X POST http://127.0.0.1:8001/admin/rag/reindex \
   -H "x-role: doctor" -H "x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB"
 
 # 查看诊断与层级完整性
-curl http://127.0.0.1:8000/admin/rag/diagnostics \
+curl http://127.0.0.1:8001/admin/rag/diagnostics \
   -H "x-role: doctor"
 
 # 查看仪表板
-curl http://127.0.0.1:8000/admin/rag/dashboard \
+curl http://127.0.0.1:8001/admin/rag/dashboard \
   -H "x-role: doctor"
 
 # 搜索知识条目
-curl "http://127.0.0.1:8000/admin/rag/entries?layer=L8&search=%E5%BF%83%E8%A1%B0&page=1&page_size=20" \
+curl "http://127.0.0.1:8001/admin/rag/entries?layer=L8&search=%E5%BF%83%E8%A1%B0&page=1&page_size=20" \
   -H "x-role: doctor"
 
 # 种子数据
-curl -X POST http://127.0.0.1:8000/inpatient/seed-all \
+curl -X POST http://127.0.0.1:8001/inpatient/seed-all \
   -H "x-role: doctor" -H "x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB"
 ```
 
@@ -371,7 +371,7 @@ docker ps --filter "name=milvus" | grep milvus
 # 预期: milvus-standalone Up
 
 # 2. 检查集合状态
-curl http://127.0.0.1:8000/admin/rag/dashboard -H "x-role: doctor"
+curl http://127.0.0.1:8001/admin/rag/dashboard -H "x-role: doctor"
 # 预期: total_layers=16, 各层 actual 与 expected 一致
 
 # 3. 检查 JSON 有效性
@@ -384,7 +384,7 @@ print(f'OK: {sum(len(v) for v in kb.values() if isinstance(v,list))} entries')
 # 预期: "OK: 385 entries"
 
 # 4. 记录 /admin/rag/diagnostics 的 failed_layers 和维护日志后再重试
-# curl -X POST http://127.0.0.1:8000/admin/rag/reindex
+# curl -X POST http://127.0.0.1:8001/admin/rag/reindex
 
 # 5. 如果 Milvus 集合损坏, 手动删除重建
 # docker exec -it milvus-standalone bash
@@ -399,11 +399,11 @@ print(f'OK: {sum(len(v) for v in kb.values() if isinstance(v,list))} entries')
 
 ```bash
 # 1. 确认该层知识已索引
-curl http://127.0.0.1:8000/admin/rag/dashboard -H "x-role: doctor"
+curl http://127.0.0.1:8001/admin/rag/dashboard -H "x-role: doctor"
 # 检查目标层的 actual vs expected
 
 # 2. 管理端语义预览（首次调用可能需要加载嵌入模型）
-curl "http://127.0.0.1:8000/admin/rag/preview?query=%E5%BF%83%E8%A1%B0%E5%87%BA%E5%85%A5%E9%87%8F&layers=L8&top_k=5" \
+curl "http://127.0.0.1:8001/admin/rag/preview?query=%E5%BF%83%E8%A1%B0%E5%87%BA%E5%85%A5%E9%87%8F&layers=L8&top_k=5" \
   -H "x-role: doctor"
 # 检查返回的 score 和 topic
 
@@ -427,11 +427,11 @@ grep -A50 "SYNONYMS" src/zhenhu/inpatient/agent/assistant.py
 
 ```bash
 # 1. 检查管理权限
-curl http://127.0.0.1:8000/inpatient/whoami -H "x-role: doctor"
+curl http://127.0.0.1:8001/inpatient/whoami -H "x-role: doctor"
 # 确认 role=doctor 且 title 为管理角色 (科主任/护士长)
 
 # 2. 检查环境
-curl http://127.0.0.1:8000/inpatient/admin-capabilities -H "x-role: doctor"
+curl http://127.0.0.1:8001/inpatient/admin-capabilities -H "x-role: doctor"
 # 确认 operations.rag_reindex 为 true
 # 注意: APP_ENV=production 时写操作需显式授权
 
@@ -470,7 +470,7 @@ grep -r "指南\|guideline\|ERS\|ACC\|AHA\|ESMO\|NCCN\|KDIGO" \
   config/clinical_knowledge.json | wc -l
 
 # 2. 检查上次索引时间
-curl http://127.0.0.1:8000/admin/rag/dashboard -H "x-role: doctor" \
+curl http://127.0.0.1:8001/admin/rag/dashboard -H "x-role: doctor" \
   | python -c "import json,sys; print(json.load(sys.stdin)['data']['last_indexed'])"
 
 # 3. 如果 last_indexed > 90 天, 建议审查更新
@@ -543,37 +543,37 @@ _enc_cache: OrderedDict (最大 512 条)
 
 ```bash
 # 服务状态
-curl http://127.0.0.1:8000/health                          # 后端健康
+curl http://127.0.0.1:8001/health                          # 后端健康
 docker ps --filter "name=milvus" | grep milvus              # Milvus 状态
 docker ps --filter "name=redis" | grep redis                # Redis 状态
 docker ps --filter "name=neo4j" | grep neo4j                # Neo4j 状态
 
 # 索引管理
-curl -s -X POST http://127.0.0.1:8000/admin/rag/reindex \
+curl -s -X POST http://127.0.0.1:8001/admin/rag/reindex \
   -H "x-role: doctor" -H "x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB"
 # 重建全库索引
 
-curl -s "http://127.0.0.1:8000/admin/rag/dashboard" \
+curl -s "http://127.0.0.1:8001/admin/rag/dashboard" \
   -H "x-role: doctor" -H "x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB" \
   | python -m json.tool | head -20
 # 查看仪表板
 
 # 语义预览（管理端推荐）
-curl -s "http://127.0.0.1:8000/admin/rag/preview?query=%E5%BF%83%E8%A1%B0%E5%87%BA%E5%85%A5%E9%87%8F%E7%AE%A1%E7%90%86&layers=L8&top_k=3" \
+curl -s "http://127.0.0.1:8001/admin/rag/preview?query=%E5%BF%83%E8%A1%B0%E5%87%BA%E5%85%A5%E9%87%8F%E7%AE%A1%E7%90%86&layers=L8&top_k=3" \
   -H "x-role: doctor" | python -m json.tool
 
 # 知识浏览
-curl -s "http://127.0.0.1:8000/admin/rag/entries?layer=L5&page=1&page_size=50" \
+curl -s "http://127.0.0.1:8001/admin/rag/entries?layer=L5&page=1&page_size=50" \
   -H "x-role: doctor" | python -c \
   "import json,sys; d=json.load(sys.stdin); print(f'L5: {len(d[\"data\"][\"entries\"])} 条')"
 
 # 数据校验
-curl -s "http://127.0.0.1:8000/admin/rag/diagnostics" \
+curl -s "http://127.0.0.1:8001/admin/rag/diagnostics" \
   -H "x-role: doctor" -H "x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB"
 # 检查缺失/重复/过期
 
 # 数据种子
-curl -s -X POST http://127.0.0.1:8000/inpatient/seed-all \
+curl -s -X POST http://127.0.0.1:8001/inpatient/seed-all \
   -H "x-role: doctor" -H "x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB" \
   | python -c "import json,sys; d=json.load(sys.stdin)['data']; \
     print(f'人员: {d.get(\"org\",\"?\")}人, 模板: {d.get(\"templates\",\"?\")}, 清单: {d.get(\"checklist\",\"?\")}条')"
@@ -728,12 +728,12 @@ sequenceDiagram
 
 ```powershell
 # 当前登录身份下查看自己的会话列表
-curl.exe "http://127.0.0.1:8000/assistant/sessions" `
+curl.exe "http://127.0.0.1:8001/assistant/sessions" `
   -H 'x-role: doctor' `
   -H 'x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB'
 
 # 查看某次会话（仅可访问自己的会话）
-curl.exe "http://127.0.0.1:8000/assistant/session/<session_id>" `
+curl.exe "http://127.0.0.1:8001/assistant/session/<session_id>" `
   -H 'x-role: doctor'
 ```
 
@@ -779,17 +779,17 @@ flowchart TB
 
 ```powershell
 # 1. 检查图谱可达性与节点/关系统计
-curl.exe "http://127.0.0.1:8000/admin/evidence-graph/status" `
+curl.exe "http://127.0.0.1:8001/admin/evidence-graph/status" `
   -H 'x-role: doctor' `
   -H 'x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB'
 
 # 2. 查看病种关系和可视化投影
-curl.exe "http://127.0.0.1:8000/admin/evidence-graph/diseases/diabetes/visualization" `
+curl.exe "http://127.0.0.1:8001/admin/evidence-graph/diseases/diabetes/visualization" `
   -H 'x-role: doctor' `
   -H 'x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB'
 
 # 3. 对同一病种做 RAG 语义预览，比较主题、来源和规则是否一致
-curl.exe "http://127.0.0.1:8000/admin/rag/preview?query=GLP-1RA&layers=L2,L5,L11&top_k=5" `
+curl.exe "http://127.0.0.1:8001/admin/rag/preview?query=GLP-1RA&layers=L2,L5,L11&top_k=5" `
   -H 'x-role: doctor' `
   -H 'x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB'
 ```
@@ -1109,22 +1109,22 @@ flowchart LR
 
 ```powershell
 # 1. 看索引总览
-curl.exe "http://127.0.0.1:8000/admin/rag/dashboard" `
+curl.exe "http://127.0.0.1:8001/admin/rag/dashboard" `
   -H 'x-role: doctor' `
   -H 'x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB'
 
 # 2. 看某个术语是否能在原始条目中定位。注意参数名是 search。
-curl.exe "http://127.0.0.1:8000/admin/rag/entries?search=GLP-1RA&layer=L2&page=1&page_size=10" `
+curl.exe "http://127.0.0.1:8001/admin/rag/entries?search=GLP-1RA&layer=L2&page=1&page_size=10" `
   -H 'x-role: doctor' `
   -H 'x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB'
 
 # 3. 跑真实语义召回。注意参数名是 query 与 layers。
-curl.exe "http://127.0.0.1:8000/admin/rag/preview?query=GLP-1RA&layers=L2,L5,L11&top_k=5" `
+curl.exe "http://127.0.0.1:8001/admin/rag/preview?query=GLP-1RA&layers=L2,L5,L11&top_k=5" `
   -H 'x-role: doctor' `
   -H 'x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB'
 
 # 4. 有缺层或服务异常再诊断，最后才考虑重建。
-curl.exe "http://127.0.0.1:8000/admin/rag/diagnostics" `
+curl.exe "http://127.0.0.1:8001/admin/rag/diagnostics" `
   -H 'x-role: doctor' `
   -H 'x-title: %E7%A7%91%E4%B8%BB%E4%BB%BB'
 ```

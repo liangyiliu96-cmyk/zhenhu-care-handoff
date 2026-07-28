@@ -10,13 +10,13 @@ flowchart TB
     end
 
     subgraph gateway["网关层"]
-      gw["api-gateway\nFastAPI :8000"]
+      gw["inpatient-ward\nFastAPI host :8001 / container :8000"]
     end
 
     subgraph services["服务层"]
-      we["workflow-engine\nFastAPI :8001"]
-      ko["knowledge-orchestrator\nFastAPI :8002"]
-      fa["fhir-adapter\nFastAPI :8003"]
+      we["workflow-engine\nFastAPI :8100"]
+      ko["knowledge-orchestrator\nFastAPI :8200"]
+      fa["fhir-adapter\nFastAPI :8300"]
     end
 
     subgraph data["数据层"]
