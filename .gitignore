@@ -2,6 +2,13 @@
 node_modules/
 .pnpm-store/
 
+# Python virtual environments and caches
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # Build, coverage, and test artifacts
 dist/
 build/
@@ -20,6 +27,13 @@ apps/frontend/build.log
 apps/frontend/handoff-*.png
 apps/frontend/phase*.png
 apps/frontend/score-panel-qa.png
+
+# Runtime databases and backups (seeded automatically, never version-controlled)
+*.db
+*.sqlite
+*.sqlite3
+**/backups/
+*.log
 
 # Local environment and secrets
 .env

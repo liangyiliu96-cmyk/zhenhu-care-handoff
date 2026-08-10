@@ -3,7 +3,8 @@
 # 用法: SKIP_BRIDGE=true bash start.sh
 
 set -e
-PYTHON=C:/Users/Windows/.workbuddy/binaries/python/versions/3.13.12/python.exe
+# Python 解释器: 默认使用 PATH 中的 python, 可用 PYTHON_BIN 环境变量覆盖 (如 PYTHON_BIN=/path/to/python)
+PYTHON="${PYTHON_BIN:-python}"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 echo "=== 臻护平台启动 ==="
