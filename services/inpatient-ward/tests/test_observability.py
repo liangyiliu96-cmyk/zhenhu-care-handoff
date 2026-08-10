@@ -40,7 +40,7 @@ def test_prometheus_configuration_loads_alert_rules():
     prometheus = (root / "monitoring" / "prometheus.yml").read_text(encoding="utf-8")
     alert_rules = (root / "monitoring" / "alerts.yml").read_text(encoding="utf-8")
     alertmanager = (root / "monitoring" / "alertmanager.yml").read_text(encoding="utf-8")
-    compose = (root / "docker-compose.yml").read_text(encoding="utf-8")
+    compose = (root.parent.parent / "docker-compose.yml").read_text(encoding="utf-8")
 
     assert "rule_files:" in prometheus
     assert "alerts.yml" in prometheus

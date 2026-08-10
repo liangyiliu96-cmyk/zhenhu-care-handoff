@@ -42,6 +42,67 @@ services:
       timeout: 3s
       retries: 5
 
+  # Milvus Standalone 三件套: etcd(元数据) + minio(对象存储) + milvus(向量库)
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+    container_name: zhenhu-etcd
+    restart: unless-stopped
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    volumes:
+      - etcd_data:/etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  minio:
+    image: minio/minio:RELEASE.2024-05-28T17-19-04Z
+    container_name: zhenhu-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: minio server /minio_data --console-address ":9001"
+    volumes:
+      - minio_data:/minio_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  milvus:
+    image: milvusdb/milvus:v2.6.1
+    container_name: zhenhu-milvus
+    restart: unless-stopped
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    ports:
+      - "19530:19530"
+    volumes:
+      - milvus_data:/var/lib/milvus
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   # ═══════════════ 后端服务 ═══════════════
   workflow-engine:
     build:
@@ -113,6 +174,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       FHIR_URL: http://fhir-adapter:8300
       KNOWLEDGE_URL: http://knowledge-orchestrator:8200
+      MILVUS_HOST: milvus
+      MILVUS_PORT: "19530"
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-pro}
       STATE_DB_PATH: /var/lib/zhenhu/zhenhu_state.db
@@ -120,12 +183,17 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       DOCTOR_AUTO_APPROVE: ${DOCTOR_AUTO_APPROVE:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      OLLAMA_FALLBACK_ENABLED: ${OLLAMA_FALLBACK_ENABLED:-false}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      ALLOW_SQLITE_STATE_STORE: ${ALLOW_SQLITE_STATE_STORE:-true}
     volumes:
       - state_data:/var/lib/zhenhu
     depends_on:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      milvus:
         condition: service_healthy
       fhir-adapter:
         condition: service_started
@@ -181,3 +249,6 @@ services:
 volumes:
   mysql_data:
   state_data:
+  etcd_data:
+  minio_data:
+  milvus_data:

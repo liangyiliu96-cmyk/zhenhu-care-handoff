@@ -2,10 +2,14 @@
 
 > 面向医护人员的临床决策支持系统 (CDSS),通过受控知识库与多 Agent 工作流,发现出院交接与院后随访中的信息缺漏、冲突和规范风险。
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
+
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.11+-green)
+
 ![React](https://img.shields.io/badge/React-18-blue)
+
 ![Tests](https://img.shields.io/badge/Tests-295%20passing-brightgreen)
 
 ---
@@ -22,13 +26,13 @@
 
 ## 技术栈
 
-| 层 | 技术 |
-|---|---|
-| 后端 | Python 3.12+ · FastAPI · SQLAlchemy 2.0 (async) · Pydantic v2 · Celery · Redis |
-| 数据库 | MySQL 8.0(业务三库隔离:workflow / knowledge / fhir)· Milvus Lite(向量检索,HNSW) |
-| 前端 | Vite · React 18 · MUI v6 · Tailwind · Zustand · TanStack Query v5 · React Hook Form · Zod |
-| LLM 管线 | LangChain · sentence-transformers(本地嵌入)· DeepSeek API(可选) |
-| 部署 | Docker Compose(MySQL + Milvus + Redis + FastAPI + Celery + React)→ 后续 K8s |
+| 层      | 技术                                                                                        |
+| ------ | ----------------------------------------------------------------------------------------- |
+| 后端     | Python 3.12+ · FastAPI · SQLAlchemy 2.0 (async) · Pydantic v2 · Celery · Redis            |
+| 数据库    | MySQL 8.0(业务三库隔离:workflow / knowledge / fhir)· Milvus Standalone(向量检索,HNSW)                 |
+| 前端     | Vite · React 18 · MUI v6 · Tailwind · Zustand · TanStack Query v5 · React Hook Form · Zod |
+| LLM 管线 | LangChain · sentence-transformers(本地嵌入)· DeepSeek API(可选)                                 |
+| 部署     | Docker Compose(MySQL + Milvus + Redis + FastAPI + Celery + React)→ 后续 K8s                 |
 
 ## 架构总览
 
@@ -125,7 +129,7 @@ npm run dev
 
 ## Docker 一键部署
 
-完整全栈编排(MySQL 三库隔离 + Redis + 4 后端服务 + 前端 nginx),根目录 `docker-compose.yml`:
+完整全栈编排(MySQL 三库隔离 + Redis + Milvus Standalone 三件套 + 4 后端服务 + 前端 nginx),根目录 `docker-compose.yml`:
 
 ```bash
 # 1. 准备环境变量 (可选, 有默认值)
@@ -146,29 +150,37 @@ docker compose --profile monitoring up -d
 docker compose down [-v]
 ```
 
-| 服务 | 宿主机端口 | 容器端口 | 说明 |
-|---|---|---|---|
-| frontend | 5173 | 80 | nginx 静态托管 + API 代理 |
-| inpatient-ward | 8001 | 8000 | 住院协同(业务核心) |
-| workflow-engine | 8100 | 8100 | 病例状态机 / Agent 编排 |
-| knowledge-orchestrator | 8200 | 8200 | 知识检索与编排 |
-| fhir-adapter | 8300 | 8300 | FHIR 数据映射 |
-| mysql | 3306 | 3306 | 三库隔离(workflow / knowledge / fhir) |
-| redis | 6379 | 6379 | 缓存 / 任务队列 |
+| 服务                     | 宿主机端口 | 容器端口 | 说明                                |
+| ---------------------- | ----- | ---- | --------------------------------- |
+| frontend               | 5173  | 80   | nginx 静态托管 + API 代理               |
+| inpatient-ward         | 8001  | 8000 | 住院协同(业务核心)                        |
+| workflow-engine        | 8100  | 8100 | 病例状态机 / Agent 编排                  |
+| knowledge-orchestrator | 8200  | 8200 | 知识检索与编排                           |
+| fhir-adapter           | 8300  | 8300 | FHIR 数据映射                         |
+| mysql                  | 3306  | 3306 | 三库隔离(workflow / knowledge / fhir) |
+| redis                  | 6379  | 6379 | 缓存 / 任务队列                         |
+| milvus                 | 19530 | 19530 | 向量数据库(RAG)                        |
+| etcd                   | -     | 2379 | Milvus 元数据存储(仅内部)                |
+| minio                  | -     | 9000 | Milvus 对象存储(仅内部)                 |
 
-> 说明:向量检索采用 **Milvus Lite** 嵌入式方案,无需独立容器,后续在 knowledge 服务内按需启用(`pymilvus` lite 模式),避免虚挂无用基础设施容器。若需生产级 Milvus Standalone,可另行扩展编排。
+
+
+> 说明:向量检索采用 **Milvus Standalone**(etcd + minio + milvus v2.6.1),inpatient-ward 启动时自动初始化 RAG 索引。
 
 ### 环境变量
 
-| 变量 | 默认值 | 说明 |
-|---|---|---|
-| `DEEPSEEK_API_KEY` | (空) | DeepSeek API 密钥;未设置时使用规则引擎 |
-| `SKIP_BRIDGE` | `false` | `true` 时跳过 FHIR HTTP 同步,使用 mock 数据 |
-| `FHIR_ADAPTER_URL` | `http://127.0.0.1:8300/fhir` | FHIR 适配器地址 |
-| `INPATIENT_PORT` | `8001` | 住院协同服务端口 |
-| `APP_ENV` | `dev` | 运行环境 `dev` / `production` |
-| `GRAPH_MODE` | `classic` | Agent 编排模式 `classic` / `langgraph` |
-| `DOCTOR_AUTO_APPROVE` | `true` | 医生自动审批(仅开发环境建议开启) |
+| 变量                    | 默认值                          | 说明                                 |
+| --------------------- | ---------------------------- | ---------------------------------- |
+| `DEEPSEEK_API_KEY`    | (空)                          | DeepSeek API 密钥;未设置时使用规则引擎         |
+| `SKIP_BRIDGE`         | `false`                      | `true` 时跳过 FHIR HTTP 同步,使用 mock 数据 |
+| `FHIR_ADAPTER_URL`    | `http://127.0.0.1:8300/fhir` | FHIR 适配器地址                         |
+| `INPATIENT_PORT`      | `8001`                       | 住院协同服务端口                           |
+| `APP_ENV`             | `dev`                        | 运行环境 `dev` / `production`          |
+| `GRAPH_MODE`          | `classic`                    | Agent 编排模式 `classic` / `langgraph` |
+| `DOCTOR_AUTO_APPROVE` | `true`                       | 医生自动审批(仅开发环境建议开启)                  |
+| `MILVUS_HOST`         | `milvus`(容器内)/ `localhost`(本地) | Milvus 向量库地址                       |
+| `MILVUS_PORT`         | `19530`                      | Milvus 向量库端口                        |
+| `RAG_MODEL`           | `paraphrase-multilingual-MiniLM-L12-v2` | 向量嵌入模型(首次启动自动下载)         |
 
 ## 测试
 
@@ -203,7 +215,7 @@ cd services/inpatient-ward && SKIP_BRIDGE=true python -m pytest -v  # 79 项
 - [x] Docker Compose 一键部署(全栈编排 + 监控 profile)
 - [ ] API Gateway(路由 / 鉴权 / 统一响应)
 - [ ] 病史采集 / 体格检查 / 鉴别诊断补全
-- [ ] Milvus Lite 向量检索接入(嵌入式)
+- [x] Milvus Standalone 向量检索接入(etcd + minio + milvus v2.6.1)
 - [ ] K8s 部署
 
 ## License
