@@ -1,0 +1,35 @@
+# 后端构建上下文 (.): 仅需要 packages/ 与 services/, 其余一律排除
+
+.git
+.workbuddy
+node_modules
+**/node_modules
+poc
+参考借鉴项目
+docs
+scripts
+apps
+tests
+
+# Python 缓存与测试产物
+**/__pycache__
+**/*.pyc
+**/tests
+**/.pytest_cache
+**/*.egg-info
+
+# 运行时数据
+**/*.db
+**/data
+**/logs
+**/backups
+
+# 文档与根脚本 (构建不需要)
+*.md
+.env*
+package.json
+package-lock.json
+start.sh
+tsconfig.base.json
+README.md
+LICENSE

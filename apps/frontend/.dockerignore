@@ -1,0 +1,8 @@
+node_modules
+dist
+e2e
+coverage
+test-results
+*.log
+.env*
+.DS_Store

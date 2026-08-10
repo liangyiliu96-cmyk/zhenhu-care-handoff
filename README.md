@@ -56,6 +56,9 @@
 
 ```
 zhenhu-care-handoff/
+├── docker-compose.yml           # 全栈编排 (MySQL + Redis + 4 后端 + 前端)
+├── deploy/
+│   └── mysql/init/              #   MySQL 三库隔离初始化脚本
 ├── docs/                       # 项目文档
 │   ├── requirements/           #   需求规格 v0.2 / 证据基线 / 对齐报告
 │   └── architecture/           #   架构设计 00-14 / P0 修复方案
@@ -63,7 +66,7 @@ zhenhu-care-handoff/
 │   ├── clinical-contracts/     #   JS 版临床契约 (PoC 用, v0.1.0)
 │   └── clinical-contracts-py/  #   Python 版临床契约 (正式工程用, v0.2.0)
 ├── apps/
-│   └── frontend/               #   前端应用 (React 18 + MUI)
+│   └── frontend/               #   前端应用 (React 18 + MUI, 含 Dockerfile + nginx)
 ├── services/
 │   ├── workflow-engine/        #   病例状态机 / Agent 编排 / 审核流
 │   ├── knowledge-orchestrator/ #   知识导入 / 混合检索 / 反向阻断
@@ -120,6 +123,41 @@ npm run dev
 
 浏览器访问 <http://127.0.0.1:5173>,后端 API 文档见 <http://127.0.0.1:8001/docs>。
 
+## Docker 一键部署
+
+完整全栈编排(MySQL 三库隔离 + Redis + 4 后端服务 + 前端 nginx),根目录 `docker-compose.yml`:
+
+```bash
+# 1. 准备环境变量 (可选, 有默认值)
+cp .env.example .env
+# 生产环境务必修改: MYSQL_ROOT_PASSWORD / MYSQL_PASSWORD / DEEPSEEK_API_KEY
+
+# 2. 构建并启动全部服务
+docker compose up -d --build
+
+# 3. 访问
+#   前端:      http://127.0.0.1:5173  (nginx 代理 API 到 inpatient-ward)
+#   API 文档:  http://127.0.0.1:8001/docs
+
+# 可选: 启用监控栈 (Prometheus + Alertmanager)
+docker compose --profile monitoring up -d
+
+# 停止 / 清理 (加 -v 删除数据卷)
+docker compose down [-v]
+```
+
+| 服务 | 宿主机端口 | 容器端口 | 说明 |
+|---|---|---|---|
+| frontend | 5173 | 80 | nginx 静态托管 + API 代理 |
+| inpatient-ward | 8001 | 8000 | 住院协同(业务核心) |
+| workflow-engine | 8100 | 8100 | 病例状态机 / Agent 编排 |
+| knowledge-orchestrator | 8200 | 8200 | 知识检索与编排 |
+| fhir-adapter | 8300 | 8300 | FHIR 数据映射 |
+| mysql | 3306 | 3306 | 三库隔离(workflow / knowledge / fhir) |
+| redis | 6379 | 6379 | 缓存 / 任务队列 |
+
+> 说明:向量检索采用 **Milvus Lite** 嵌入式方案,无需独立容器,后续在 knowledge 服务内按需启用(`pymilvus` lite 模式),避免虚挂无用基础设施容器。若需生产级 Milvus Standalone,可另行扩展编排。
+
 ### 环境变量
 
 | 变量 | 默认值 | 说明 |
@@ -162,9 +200,10 @@ cd services/inpatient-ward && SKIP_BRIDGE=true python -m pytest -v  # 79 项
 - [x] 临床契约 Python 移植(v0.2.0)
 - [x] 四大后端服务 + 前端联调
 - [x] 临床精度 P0 修复(审计 52/100 → 修复后预估 >85)
+- [x] Docker Compose 一键部署(全栈编排 + 监控 profile)
 - [ ] API Gateway(路由 / 鉴权 / 统一响应)
-- [ ] Docker Compose 一键部署
 - [ ] 病史采集 / 体格检查 / 鉴别诊断补全
+- [ ] Milvus Lite 向量检索接入(嵌入式)
 - [ ] K8s 部署
 
 ## License

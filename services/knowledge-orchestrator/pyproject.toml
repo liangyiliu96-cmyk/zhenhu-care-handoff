@@ -10,6 +10,7 @@ dependencies = [
     "pydantic>=2.5",
     "httpx>=0.27.0",  # 阶段J审计修复：补 httpx 依赖
     "zhenhu-contracts",
+    "asyncmy>=0.2.10",
 ]
 
 [project.optional-dependencies]

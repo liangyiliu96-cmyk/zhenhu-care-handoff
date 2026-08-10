@@ -1,0 +1,183 @@
+# 臻护 · 全病程数智医护平台 — 全栈编排
+# 用法:
+#   docker compose up -d                     # 完整栈 (MySQL + Redis + 4 后端 + 前端)
+#   docker compose up -d --build             # 重新构建镜像
+#   docker compose --profile monitoring up -d # 额外启用 Prometheus + Alertmanager
+#   docker compose down                      # 停止 (加 -v 清空数据卷)
+
+name: zhenhu
+
+services:
+  # ═══════════════ 基础设施 ═══════════════
+  mysql:
+    image: mysql:8.0
+    container_name: zhenhu-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-zhenhu_root}
+      MYSQL_DATABASE: zhenhu_workflow
+      MYSQL_USER: ${MYSQL_USER:-zhenhu}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-zhenhu123}
+    ports:
+      - "${MYSQL_HOST_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./deploy/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: zhenhu-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ═══════════════ 后端服务 ═══════════════
+  workflow-engine:
+    build:
+      context: .
+      dockerfile: services/workflow-engine/Dockerfile
+    container_name: zhenhu-workflow-engine
+    restart: unless-stopped
+    ports:
+      - "${WORKFLOW_HOST_PORT:-8100}:8100"
+    environment:
+      DATABASE_URL: mysql+asyncmy://${MYSQL_USER:-zhenhu}:${MYSQL_PASSWORD:-zhenhu123}@mysql:3306/zhenhu_workflow
+      REDIS_URL: redis://redis:6379/0
+      APP_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  knowledge-orchestrator:
+    build:
+      context: .
+      dockerfile: services/knowledge-orchestrator/Dockerfile
+    container_name: zhenhu-knowledge
+    restart: unless-stopped
+    ports:
+      - "${KNOWLEDGE_HOST_PORT:-8200}:8200"
+    environment:
+      DATABASE_URL: mysql+asyncmy://${MYSQL_USER:-zhenhu}:${MYSQL_PASSWORD:-zhenhu123}@mysql:3306/zhenhu_knowledge
+      REDIS_URL: redis://redis:6379/0
+      APP_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  fhir-adapter:
+    build:
+      context: .
+      dockerfile: services/fhir-adapter/Dockerfile
+    container_name: zhenhu-fhir
+    restart: unless-stopped
+    ports:
+      - "${FHIR_HOST_PORT:-8300}:8300"
+    environment:
+      DATABASE_URL: mysql+asyncmy://${MYSQL_USER:-zhenhu}:${MYSQL_PASSWORD:-zhenhu123}@mysql:3306/zhenhu_fhir
+      KNOWLEDGE_URL: http://knowledge-orchestrator:8200
+      APP_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      knowledge-orchestrator:
+        condition: service_started
+
+  inpatient-ward:
+    build:
+      context: .
+      dockerfile: services/inpatient-ward/Dockerfile
+    container_name: zhenhu-inpatient
+    restart: unless-stopped
+    ports:
+      - "${INPATIENT_HOST_PORT:-8001}:8000"
+    environment:
+      DATABASE_URL: mysql+asyncmy://${MYSQL_USER:-zhenhu}:${MYSQL_PASSWORD:-zhenhu123}@mysql:3306/zhenhu_workflow
+      REDIS_URL: redis://redis:6379/0
+      FHIR_URL: http://fhir-adapter:8300
+      KNOWLEDGE_URL: http://knowledge-orchestrator:8200
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-pro}
+      STATE_DB_PATH: /var/lib/zhenhu/zhenhu_state.db
+      APP_ENV: production
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      DOCTOR_AUTO_APPROVE: ${DOCTOR_AUTO_APPROVE:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - state_data:/var/lib/zhenhu
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      fhir-adapter:
+        condition: service_started
+      knowledge-orchestrator:
+        condition: service_started
+
+  # ═══════════════ 前端 ═══════════════
+  frontend:
+    build:
+      context: apps/frontend
+      dockerfile: Dockerfile
+    container_name: zhenhu-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_HOST_PORT:-5173}:80"
+    depends_on:
+      - inpatient-ward
+
+  # ═══════════════ 监控 (可选 profile) ═══════════════
+  prometheus:
+    profiles: ["monitoring"]
+    image: prom/prometheus:v2.54.1
+    container_name: zhenhu-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./services/inpatient-ward/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./services/inpatient-ward/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+    depends_on:
+      - workflow-engine
+      - knowledge-orchestrator
+      - fhir-adapter
+      - inpatient-ward
+
+  alertmanager:
+    profiles: ["monitoring"]
+    image: prom/alertmanager:v0.27.0
+    container_name: zhenhu-alertmanager
+    restart: unless-stopped
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--config.expand-env"]
+    environment:
+      # 生产环境务必在 .env 中配置真实 webhook 接收地址, 否则告警发送到占位地址
+      ALERTMANAGER_CRITICAL_WEBHOOK_URL: ${ALERTMANAGER_CRITICAL_WEBHOOK_URL:-http://127.0.0.1:9099/zhenhu-critical}
+      ALERTMANAGER_WARNING_WEBHOOK_URL: ${ALERTMANAGER_WARNING_WEBHOOK_URL:-http://127.0.0.1:9099/zhenhu-warning}
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./services/inpatient-ward/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  mysql_data:
+  state_data:
