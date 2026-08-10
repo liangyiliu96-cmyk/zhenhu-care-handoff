@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
-from sqlalchemy import select, or_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from zhenhu.contracts import assert_case_transition, ContractError
@@ -714,7 +714,7 @@ class CaseStateMachine:
                 actor="system",
                 event_type="knowledge_blocked",
                 title=f"知识变更阻断：{document_id}",
-                detail=f"引用该知识的在办病例被阻断，须重新检索与人工复核",
+                detail="引用该知识的在办病例被阻断，须重新检索与人工复核",
                 before_state=before,
                 after_state="knowledge_changed",
             )

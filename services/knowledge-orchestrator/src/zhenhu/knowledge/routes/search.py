@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from zhenhu.knowledge.models import get_session
-from zhenhu.knowledge.retrieval import search_chunks, fulltext_search
+from zhenhu.knowledge.retrieval import fulltext_search
 from zhenhu.knowledge.schemas import SearchResponse, SearchResultItem, UnifiedResponse
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])

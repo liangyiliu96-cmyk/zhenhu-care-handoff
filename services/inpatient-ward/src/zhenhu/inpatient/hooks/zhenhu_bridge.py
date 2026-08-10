@@ -140,7 +140,6 @@ async def bridge_patient_summary(patient_id: str) -> dict:
 
 # 阶段M Agent升级: CircuitBreakerOpenError 从 contracts 导入
 from zhenhu.contracts.agent import CircuitBreakerOpenError
-from ..agent.harness import bridge_circuit
 
 
 async def bridge_discharge_to_zhenhu_with_retry(

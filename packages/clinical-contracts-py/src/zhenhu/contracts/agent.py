@@ -6,7 +6,6 @@ from typing import Generic, TypeVar, Callable, Protocol, runtime_checkable
 from dataclasses import dataclass, field
 from datetime import datetime
 import time
-import asyncio
 import json
 import os
 
@@ -417,7 +416,8 @@ class OllamaProvider:
             return {"answer": raw_response, "source_type": "source_knowledge"}
 
     async def stream(self, prompt: str, context: dict | None = None):
-        import httpx, json as _json
+        import httpx
+        import json as _json
         async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
             async with client.stream(
                 "POST", f"{self.base_url}/api/generate",

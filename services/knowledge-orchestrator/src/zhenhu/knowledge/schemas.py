@@ -11,7 +11,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from zhenhu.contracts import ErrorDetail, UnifiedResponse  # 阶段J审计修复
+from zhenhu.contracts import ErrorDetail, UnifiedResponse  # noqa: F401 — 阶段J审计修复; 经本模块再导出
 
 
 # ============================================================================

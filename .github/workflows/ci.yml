@@ -1,0 +1,136 @@
+# 臻护 · 全病程数智医护平台 — Phase 0 CI/CD
+#
+# 三个 job:
+#   1. backend-test : 4 个 Python 服务全量测试 (Python 3.12)
+#   2. frontend-test: 契约测试 + Vitest 单测 + 生产构建 (Node 22)
+#   3. lint         : ruff (Python src) + eslint (前端)
+#
+# Python 测试关键环境:
+#   - workflow-engine / knowledge-orchestrator / fhir-adapter 仅需 DEEPSEEK_API_KEY= (空)
+#   - inpatient-ward 需 SKIP_BRIDGE=true + DEEPSEEK_API_KEY= + LLM_TIMEOUT=0.5 +
+#     LLM_RETRIES=0 + OLLAMA_FALLBACK_ENABLED=false (否则 LLM 测试会挂起/超时)
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend-test:
+    name: Backend tests (Python 3.12)
+    runs-on: ubuntu-latest
+    # inpatient-ward 全量含 LLM 回退慢测, 本地实测约 60min, 预留余量
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12 (with pip cache)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies (editable, all services + shared contracts)
+        run: |
+          pip install --no-cache-dir \
+            -e packages/clinical-contracts-py \
+            -e services/workflow-engine \
+            -e services/knowledge-orchestrator \
+            -e services/fhir-adapter \
+            -e "services/inpatient-ward[dev]" \
+            pytest pytest-asyncio aiosqlite numpy
+
+      - name: Test workflow-engine
+        working-directory: services/workflow-engine
+        env:
+          DEEPSEEK_API_KEY: ""
+        run: python -m pytest -q
+
+      - name: Test knowledge-orchestrator
+        working-directory: services/knowledge-orchestrator
+        env:
+          DEEPSEEK_API_KEY: ""
+        run: python -m pytest -q
+
+      - name: Test fhir-adapter
+        working-directory: services/fhir-adapter
+        env:
+          DEEPSEEK_API_KEY: ""
+        run: python -m pytest -q
+
+      - name: Test inpatient-ward
+        working-directory: services/inpatient-ward
+        env:
+          SKIP_BRIDGE: "true"
+          DEEPSEEK_API_KEY: ""
+          LLM_TIMEOUT: "0.5"
+          LLM_RETRIES: "0"
+          OLLAMA_FALLBACK_ENABLED: "false"
+        run: python -m pytest -q
+
+  frontend-test:
+    name: Frontend tests + build (Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22 (with npm cache)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install workspace dependencies (root lockfile)
+        run: npm ci
+
+      - name: Contract tests (tests/contracts)
+        run: npm run contracts:test
+
+      - name: Vitest unit tests (apps/frontend)
+        working-directory: apps/frontend
+        run: npm run test:run
+
+      - name: Production build (apps/frontend)
+        working-directory: apps/frontend
+        run: npm run build
+
+  lint:
+    name: Lint (ruff + eslint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ruff check (Python src)
+        run: |
+          pip install --no-cache-dir ruff
+          ruff check services/workflow-engine/src \
+            services/knowledge-orchestrator/src \
+            services/fhir-adapter/src \
+            services/inpatient-ward/src \
+            packages/clinical-contracts-py/src
+
+      - name: Setup Node 22 (with npm cache)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: ESLint (apps/frontend)
+        working-directory: apps/frontend
+        run: npm run lint

@@ -563,7 +563,7 @@ async def get_ward_ai_summary(request: Request, department: str | None = None):
         prompt = (
             f"病区实时状态: 共{len(patients_summary)}名患者。\n"
             + "\n".join(patients_summary) +
-            f"\n\n请用100字以内中文生成病区摘要，格式：总体概况1-2句 + 需重点关注患者1-3人。不要前缀。"
+            "\n\n请用100字以内中文生成病区摘要，格式：总体概况1-2句 + 需重点关注患者1-3人。不要前缀。"
         )
         llm_result = await safe_llm_invoke(provider, prompt, timeout=10.0)
         summary = (llm_result or {}).get("response", "") if llm_result else ""

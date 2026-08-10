@@ -1,0 +1,28 @@
+# 臻护 monorepo 统一 Python lint 配置 (Phase 0 工程化)
+#
+# 规则策略（以"CI 绿 + 最小 diff"为目标，不重构历史业务代码）:
+#   select: 仅启用高价值规则子集
+#     - E401  单行多个 import（自动修复）
+#     - E9    语法级错误（当前 0 例，作为安全网）
+#     - F     pyflakes 基础错误：F401 未使用导入 / F821 未定义名称 / F541 空 f-string 等
+#   ignore:
+#     - F841  已赋值未使用 —— 本仓库多处"赋值即触发初始化/预热"的写法
+#             （如 client = _c() 触发 Milvus 连接、get_runtime_cache() 预热），
+#             自动移除有副作用风险；留待专项重构时逐个人工确认。
+#   未启用 I (isort 导入排序): 全仓库 150 处 I001，改动面大且本仓存在
+#   函数级延迟 import（规避循环依赖），导入重排有隐性风险，暂不启用。
+
+line-length = 120
+target-version = "py312"
+
+exclude = [
+    "node_modules",
+    "dist",
+    "build",
+    "**/__pycache__",
+    "**/.pytest_cache",
+]
+
+[lint]
+select = ["E401", "E9", "F"]
+ignore = ["F841"]

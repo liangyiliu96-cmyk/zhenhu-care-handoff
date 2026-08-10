@@ -17,7 +17,7 @@ from typing import Any, Awaitable, Callable, TypeVar
 
 from zhenhu.contracts.agent import (
     AgentLoop as _BaseAgentLoop,
-    AgentEvent,
+    AgentEvent,  # noqa: F401 — 对外再导出 (tests 经本模块导入)
     LoopTrace,  # noqa: F401
     CircuitBreaker,
     CircuitBreakerOpenError,  # noqa: F401

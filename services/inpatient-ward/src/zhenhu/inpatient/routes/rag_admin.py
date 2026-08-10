@@ -208,8 +208,9 @@ async def preview_retrieval(request: Request, query: str, layers: str = "", top_
 @router.get("/maintenance-log")
 async def maintenance_log():
     """维护建议 — 基于知识库状态生成维护任务。"""
-    from ..agent.rag_engine import _c, LAYERS
-    import os, time
+    from ..agent.rag_engine import _c, LAYERS, collection_row_count
+    import os
+    import time
 
     tasks = []
 
@@ -249,7 +250,7 @@ async def maintenance_log():
                     "priority": "high",
                     "task": f"L{layer} ({coll_name}) 索引不完整",
                     "detail": f"期望 {exp} 条, 实际 {actual} 条",
-                    "action": f"POST /admin/rag/reindex 重新索引",
+                    "action": "POST /admin/rag/reindex 重新索引",
                 })
         except Exception:
             pass

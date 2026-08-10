@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import json as _json
-import math
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -326,7 +326,6 @@ async def get_rag_status():
 @router.get("/rag/browse")
 async def browse_rag(layer: str | None = None, page: int = 1, page_size: int = 20):
     """浏览知识库 — 按层分页查看已索引条目。"""
-    import json as _json
     from ..agent.rag_engine import _c, LAYERS
     client = _c()
     colls = [LAYERS[layer]] if layer and layer in LAYERS else list(LAYERS.values())

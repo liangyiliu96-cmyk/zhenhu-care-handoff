@@ -7,7 +7,7 @@ GET  /knowledge/audit         — 审计事件列表
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi import APIRouter, Depends, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from zhenhu.knowledge.models import (
@@ -16,7 +16,6 @@ from zhenhu.knowledge.models import (
     KnowledgeIngestionJob,
     KnowledgeLifecycleEvent,
     get_session,
-    _utcnow,
 )
 from zhenhu.knowledge.schemas import (
     AuditListResponse,

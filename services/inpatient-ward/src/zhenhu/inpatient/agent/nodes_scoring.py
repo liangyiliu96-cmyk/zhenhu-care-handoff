@@ -57,7 +57,6 @@ def _load_thresholds() -> dict:
     yaml_path = Path(__file__).parent.parent.parent.parent.parent / "config" / "scoring_thresholds.yaml"
     try:
         import json as _json_module
-        import re
         _json = _json_module
         with open(yaml_path, encoding="utf-8") as f:
             raw = f.read()

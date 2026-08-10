@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -279,7 +278,7 @@ async def _discharge_sign_cards(patient_id: str) -> list[dict]:
         from ..agent.rag_engine import search as rag_search
         rag_tcm = await rag_search("体质评估", layer="L16", top_k=1)
         if rag_tcm:
-            detail_lines.append(f"[中医参考] 体质评估算法已就绪，可作为出院后康复调养参考")
+            detail_lines.append("[中医参考] 体质评估算法已就绪，可作为出院后康复调养参考")
     except Exception:
         pass
 

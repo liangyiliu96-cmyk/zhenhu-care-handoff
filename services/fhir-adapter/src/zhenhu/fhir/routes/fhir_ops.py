@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from zhenhu.fhir.models import (
     Consent,
     Condition,
-    Encounter,
     FHIRAuditEvent,
     MedicationRequest,
     Observation,

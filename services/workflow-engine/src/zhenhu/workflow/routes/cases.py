@@ -15,7 +15,6 @@ POST /cases/{case_id}/reconcile — 重新核实（知识变更后）
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 
 import httpx
@@ -28,8 +27,6 @@ from zhenhu.workflow.schemas import (
     AnalyseResponse,
     CaseCreate,
     CaseResponse,
-    KnowledgeChangedHookRequest,
-    KnowledgeChangedHookResponse,
     ReviewRequest,
     RiskItemResponse,
     SimulatedPublishResponse,

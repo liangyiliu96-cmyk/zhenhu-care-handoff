@@ -814,7 +814,8 @@ def get_org_summary() -> dict:
 
 def seed_templates_from_dir(templates_dir: str | None = None) -> int:
     """从 disease_templates/ 目录导入到 disease_templates 表。"""
-    import json as _json, glob as _glob
+    import json as _json
+    import glob as _glob
     if templates_dir is None:
         templates_dir = os.path.abspath(
             os.path.join(os.path.dirname(__file__), "..", "disease_templates")

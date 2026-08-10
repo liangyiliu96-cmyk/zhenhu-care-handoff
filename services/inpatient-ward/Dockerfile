@@ -18,6 +18,14 @@ RUN pip install --no-cache-dir -e /app/packages/clinical-contracts-py \
     && pip install --no-cache-dir -r /app/services/inpatient-ward/requirements.txt \
     && pip install --no-cache-dir -e /app/services/inpatient-ward
 
+# 模型预缓存 (P3): 构建期预下载 sentence-transformers 模型, 使运行时 HF_HUB_OFFLINE=1 可离线加载。
+#   - rag_engine 仅在加载时 setdefault("HF_HUB_OFFLINE","1"), 不覆盖 HF_HOME,
+#     因此 ENV HF_HOME 会同时作用于构建期 RUN 与运行时容器, 运行时能命中此缓存目录。
+#   - || true 兜底: 构建环境无外网时不阻断镜像构建 (运行时 rag_engine 会回退 TF-IDF)。
+#   - 镜像体积增加约 ~130MB (paraphrase-multilingual-MiniLM-L12-v2)。
+ENV HF_HOME=/app/.hf-cache
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')" || true
+
 # 状态数据目录 (compose 挂卷持久化)
 RUN mkdir -p /var/lib/zhenhu
 

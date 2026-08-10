@@ -13,8 +13,8 @@ from pydantic import BaseModel, Field
 # 阶段M: 从 contracts 导入共享基础架构
 from zhenhu.contracts.agent import (
     CircuitBreaker,
-    CircuitBreakerOpenError,
-    AgentAuditHook,
+    CircuitBreakerOpenError,  # noqa: F401 — 对外再导出 (tests 经本模块导入)
+    AgentAuditHook,  # noqa: F401 — 对外再导出 (tests 经本模块导入)
 )
 
 

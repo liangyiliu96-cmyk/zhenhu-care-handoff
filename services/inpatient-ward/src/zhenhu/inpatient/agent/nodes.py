@@ -8,7 +8,11 @@
 - nodes_monitoring.py: 监测/查房/调药/检验/转科
 - nodes_handoff.py: 出院/交接/审核/确认
 - nodes_scoring.py: 临床评分（NEWS2/qSOFA/...）
+
+本模块为再导出聚合入口（graph.py/loop.py/routes 均从本模块导入），
+"未使用"的 import 均为对外再导出，故文件级关闭 F401。
 """
+# ruff: noqa: F401
 from .nodes_admission import (
     load_template, list_templates,
     node_admission, node_triage, node_medication_reconciliation,
