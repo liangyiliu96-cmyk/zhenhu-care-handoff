@@ -190,6 +190,19 @@ DEEPSEEK_MODEL=deepseek-chat
 - [ ] Phase 2:开源 HIS 对接(FHIR)、知识入口统一、可观测性
 - [ ] Phase 3:K8s 部署、多租户、等保合规
 
+## 局限性与展望
+
+本项目是**个人/小团队开发的技术验证型 CDSS**,定位为**教学与二次开发平台**,而非可直接投入临床的生产医疗软件。请知悉以下局限:
+
+- **未经临床验证**:所有患者数据为虚构演示数据,未在真实医院环境验证
+- **非医疗器械**:未取得医疗器械注册 / 等保测评,不能作为临床决策依据;所有 AI 输出须由持证医护人员审核
+- **LLM 边界**:DeepSeek 输出存在不确定性,规则引擎兜底但不保证完全正确;不配置 API Key 时助手仅提供规则与寒暄能力
+- **部署形态**:Docker Compose 单机部署,未做高可用、多租户与灾备
+- **数据孤岛**:knowledge / fhir / workflow 三库业务数据待接入(开源 HIS 对接方案见 roadmap)
+- **可观测性**:workflow / knowledge / fhir 的结构化日志与 metrics 待补齐
+
+**我们真诚地欢迎建议与二次开发**:无论是临床逻辑完善、HIS 互操作、更多病种模板、前端体验优化,还是本地化部署与合规推进,都可以通过 Issue / Discussion / PR 与我们交流。一个人的项目有边界,但社区的智慧没有——期待你的参与让臻护走得更远。🤝
+
 ## 贡献
 
 请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 与 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。安全问题见 [SECURITY.md](SECURITY.md)。
