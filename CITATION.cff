@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Zhenhu Care Handoff"
+abstract: "AI-powered clinical decision support platform (CDSS) for discharge handover and chronic disease collaborative care. FastAPI microservices, FHIR interoperability, Milvus RAG, LLM agents."
+keywords:
+  - clinical-decision-support
+  - healthcare
+  - fhir
+  - rag
+  - llm-agents
+  - fastapi
+license: MIT
+version: 0.1.0
+date-released: 2026-08-11
+authors:
+  - name: "Zhenhu Team"
