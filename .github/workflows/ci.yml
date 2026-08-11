@@ -24,6 +24,19 @@ jobs:
     runs-on: ubuntu-latest
     # inpatient-ward 全量含 LLM 回退慢测, 本地实测约 60min, 预留余量
     timeout-minutes: 90
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: zhenhu_test
+          MYSQL_USER: zhenhu
+          MYSQL_PASSWORD: zhenhu123
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uzhenhu -pzhenhu123"
+          --health-interval=10s --health-timeout=5s --health-retries=10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -70,6 +83,8 @@ jobs:
           LLM_TIMEOUT: "0.5"
           LLM_RETRIES: "0"
           OLLAMA_FALLBACK_ENABLED: "false"
+          # MySQL 集成测试 (CI service, 见本 job services.mysql)
+          ZHENHU_MYSQL_TEST_DATABASE_URL: "mysql+asyncmy://zhenhu:zhenhu123@127.0.0.1:3306/zhenhu_test"
         run: python -m pytest -q
 
   frontend-test:

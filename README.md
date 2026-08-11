@@ -122,6 +122,17 @@ docker compose down [-v]
 - **演示(默认)**:`.env` 设 `APP_ENV=dev` + `AUTH_MODE=header`,开发快捷登录
 - **生产**:`.env` 设 `APP_ENV=production` + `AUTH_MODE=oidc`,Keycloak 登录(演示账号 `doctor/doctor123`、`nurse/nurse123`、`admin/admin123`)
 
+### 生产部署安全清单
+
+上线前必须完成以下事项(默认值均为本地演示用途):
+
+- [ ] **修改全部默认密码**:`MYSQL_ROOT_PASSWORD` / `MYSQL_PASSWORD` / `NEO4J_PASSWORD` / `KEYCLOAK_ADMIN_PASSWORD`(demo 账号 `doctor123` 等)
+- [ ] **启用 OIDC 认证**:`APP_ENV=production` + `AUTH_MODE=oidc`(生产强制,header 模式被拒绝)
+- [ ] **配置 DeepSeek Key**:`.env` 的 `DEEPSEEK_API_KEY`(未配置则助手回退规则引擎)
+- [ ] **配置 TLS**:前置反向代理(nginx/caddy)终止 HTTPS,并设置 `ALLOWED_HOSTS`
+- [ ] **移除演示账号**:生产 realm 仅保留真实医护账号(删除 doctor/nurse/admin demo 用户)
+- [ ] **数据备份**:MySQL 定时备份 + 恢复演练(三库 zhenhu_workflow / knowledge / fhir)
+
 ### LLM 配置
 
 ```bash
