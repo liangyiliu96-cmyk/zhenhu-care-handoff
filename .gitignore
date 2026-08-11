@@ -72,3 +72,4 @@ vitest.config.ts.timestamp-*.mjs
 # Vite build output variants (CI/verify builds)
 dist-verify/
 dist-final/
+docs/

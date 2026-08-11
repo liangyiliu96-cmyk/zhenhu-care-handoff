@@ -79,7 +79,6 @@
 │   ├── workflow-engine/        # 病例状态机
 │   ├── knowledge-orchestrator/ # 知识编排
 │   └── fhir-adapter/           # FHIR 适配
-├── docs/architecture/          # 架构文档 (15 成熟度扫描 / 16 HIS 对接 / 17 路线图)
 └── scripts/                    # 辅助脚本
 ```
 
