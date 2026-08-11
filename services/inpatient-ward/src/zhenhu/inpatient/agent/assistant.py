@@ -426,6 +426,15 @@ def _is_smalltalk(intent: dict[str, Any]) -> bool:
     return intent.get("name") == "smalltalk"
 
 
+def _smalltalk_fallback(config: dict[str, Any]) -> str:
+    """LLM 不可用时对寒暄意图的预设友好回复, 避免直接报"服务暂不可用"。"""
+    name = str(config.get("name") or "智能助手")
+    return (
+        f"您好！我是{name}，很高兴为您服务。"
+        "您可以向我咨询健康、用药、护理或出院随访等方面的问题，我会尽力为您解答。"
+    )
+
+
 def _is_general_cache_safe(message: str) -> bool:
     """Never share answers derived from likely patient-identifying free text."""
     normalized = message.lower()
@@ -770,10 +779,20 @@ async def chat(message: str, role=DEFAULT_ROLE, session_id=None, patient_id="", 
         result = await asyncio.wait_for(safe_llm_invoke(provider, prompt, timeout=90.0, caller=f"asst_{role}"), timeout=120.0)
         answer = _answer_from_result(result)
     except asyncio.TimeoutError:
-        answer = "⚠️ AI 推理超时。请稍后重试或简化问题。"; health["llm"] = "timeout"
+        if _is_smalltalk(intent):
+            answer = _smalltalk_fallback(config); health["llm"] = "fallback-smalltalk"
+        else:
+            answer = "⚠️ AI 推理超时。请稍后重试或简化问题。"; health["llm"] = "timeout"
     except Exception as e:
-        answer = "⚠️ 服务暂不可用。"; health["llm"] = "error"
-    if not answer: answer = "⚠️ 知识库暂不可用。请稍后重试。"; health["llm"] = "empty"
+        if _is_smalltalk(intent):
+            answer = _smalltalk_fallback(config); health["llm"] = "fallback-smalltalk"
+        else:
+            answer = "⚠️ 服务暂不可用。"; health["llm"] = "error"
+    if not answer:
+        if _is_smalltalk(intent):
+            answer = _smalltalk_fallback(config); health["llm"] = "fallback-smalltalk"
+        else:
+            answer = "⚠️ 知识库暂不可用。请稍后重试。"; health["llm"] = "empty"
 
     add_message(session_id, "assistant", answer)
     confidence = round(min(0.95, 0.5+len(sources)*0.15), 2)
@@ -850,7 +869,7 @@ async def chat_stream(message: str, role=DEFAULT_ROLE, session_id=None, patient_
     except Exception as exc:
         logger.warning("Assistant stream failed for %s: %s", role, exc)
 
-    # 兜底
-    fallback = "⚠️ 服务暂不可用，请稍后重试。"
+    # 兜底: 寒暄意图给预设友好回复, 其余保持提示语
+    fallback = _smalltalk_fallback(config) if _is_smalltalk(intent) else "⚠️ 服务暂不可用，请稍后重试。"
     add_message(session_id, "assistant", fallback)
     yield f"data: {json.dumps({'token': fallback, 'done': True, 'session_id': session_id, 'sources': [s['topic'] for s in sources], 'citations': citations, 'backend': 'fallback', 'cache_hit': False, 'intent': intent}, ensure_ascii=False)}\n\n"
