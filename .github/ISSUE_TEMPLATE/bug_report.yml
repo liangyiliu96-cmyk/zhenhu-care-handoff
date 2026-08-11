@@ -1,0 +1,34 @@
+name: Bug 报告
+description: 提交一个可复现的缺陷
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: textarea
+    id: describe
+    attributes:
+      label: 问题描述
+      description: 清晰描述发生了什么、期望什么。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 最小复现路径(操作/请求/输入)。
+      placeholder: |
+        1. 打开 ...
+        2. 点击 ...
+        3. 看到错误 ...
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: 环境
+      description: 浏览器/容器/服务版本。
+      placeholder: "Docker Compose, Chrome 126, inpatient-ward v0.1.0"
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 截图
+      description: 相关错误日志、控制台报错或截图(如有)。
