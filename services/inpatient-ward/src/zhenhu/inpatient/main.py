@@ -139,6 +139,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await run_schema_migrations(async_engine)
 
+    # 启动种子: 病种模板表为预留结构, 此处从 disease_templates/ 目录幂等同步 (列表 API 依赖表)
+    try:
+        from .routes.state_store import seed_disease_templates
+        seed_disease_templates()
+    except Exception:
+        logger.exception("seed_disease_templates failed")
+
     async def outbox_delivery_worker() -> None:
         from .agent.outbox import deliver_pending_outbox_events
 

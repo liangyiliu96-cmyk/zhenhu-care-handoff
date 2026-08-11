@@ -865,6 +865,49 @@ def list_templates() -> list[dict]:
             for r in rows]
 
 
+def seed_disease_templates() -> int:
+    """启动种子: 将 disease_templates/ 目录的 JSON 模板导入表 (幂等, 存在则更新)。
+
+    此前模板表为预留结构、无导入逻辑, 导致 GET /inpatient/templates 列表为空
+    (详情读取走文件目录不受影响)。SQLite 与 MySQL 方言兼容 (先查再插/更)。
+    """
+    tpl_dir = os.path.join(os.path.dirname(__file__), "..", "disease_templates")
+    tpl_dir = os.path.abspath(tpl_dir)
+    if not os.path.isdir(tpl_dir):
+        _logger.warning("seed_disease_templates: 目录不存在 %s", tpl_dir)
+        return 0
+    n = 0
+    for fname in sorted(os.listdir(tpl_dir)):
+        if not fname.endswith(".json"):
+            continue
+        fpath = os.path.join(tpl_dir, fname)
+        try:
+            with open(fpath, "r", encoding="utf-8") as fh:
+                tpl = _json.load(fh)
+            did = str(tpl.get("disease_id") or os.path.splitext(fname)[0])
+            name = str(tpl.get("name") or did)
+            dept = str(tpl.get("department") or "通用")
+            existed = _exec_sql(
+                "SELECT 1 FROM disease_templates WHERE disease_id = ?", (did,), fetch=True
+            )
+            if existed:
+                _exec_sql(
+                    "UPDATE disease_templates SET name=?, department=?, template_json=?, updated_at=? WHERE disease_id=?",
+                    (name, dept, _json.dumps(tpl, ensure_ascii=False), _time.time(), did),
+                )
+            else:
+                _exec_sql(
+                    "INSERT INTO disease_templates(disease_id,name,department,template_json,updated_at) VALUES(?,?,?,?,?)",
+                    (did, name, dept, _json.dumps(tpl, ensure_ascii=False), _time.time()),
+                )
+            n += 1
+        except Exception:
+            _logger.warning("seed_disease_templates: 跳过 %s", fname, exc_info=True)
+    if n:
+        _logger.info("seed_disease_templates: 已同步 %d 个病种模板", n)
+    return n
+
+
 # ═══════════════════════════════════════════════════════════
 # 科室护理清单 CRUD
 # ═══════════════════════════════════════════════════════════
