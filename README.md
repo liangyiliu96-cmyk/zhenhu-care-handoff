@@ -2,222 +2,157 @@
 
 > 面向医护人员的临床决策支持系统 (CDSS),通过受控知识库与多 Agent 工作流,发现出院交接与院后随访中的信息缺漏、冲突和规范风险。
 
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-
-![Python](https://img.shields.io/badge/Python-3.12+-blue)
-
-![FastAPI](https://img.shields.io/badge/FastAPI-0.11+-green)
-
-![React](https://img.shields.io/badge/React-18-blue)
-
-![Tests](https://img.shields.io/badge/Tests-295%20passing-brightgreen)
-
----
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/liangyiliu96-cmyk/zhenhu-care-handoff/actions/workflows/ci.yml/badge.svg)](https://github.com/liangyiliu96-cmyk/zhenhu-care-handoff/actions)
+[![Python](https://img.shields.io/badge/Python-3.12+-blue)](https://www.python.org/)
+[![React](https://img.shields.io/badge/React-18-61dafb)](https://react.dev/)
 
 ## 项目简介
 
-「臻护」面向医生、护士与随访人员,围绕 **出院交接** 与 **慢病随访** 两大核心场景,提供:
+臻护是全病程数智医护平台:从入院评估、住院协同到出院交接与慢病随访,平台通过 12 节点多 Agent 工作流、16 层 RAG 临床知识引擎与 LLM 辅助推理,辅助医护人员:
 
-- **多 Agent 临床协同**:住院协同 12 节点 Agent 工作流(入院评估 → 病程监测 → 出院准备 → 出院交接 → 随访计划)
-- **受控知识库**:14 种慢病病种模板 + 39 条药物规则,支持规则引擎与 LLM 语义检索双通道
-- **临床精度保障**:4 项国际标准入院评估(NRS / NRS2002 / Morse / Padua)+ 3 项老年综合评估(MMSE / ADL / IADL)
-- **FHIR 互操作**:医院数据映射、Patient Compartment、患者授权(Consent)管理
-- **LLM 容错设计**:LLM 调用异常时自动回退规则引擎,不阻断临床流程
+- **发现风险**:用药冲突、检验异常、规范偏差、随访缺口
+- **生成建议**:可追溯、可审核的临床建议与操作草案
+- **协同交接**:多学科团队、护理任务、出院计划全链路留痕
+- **持续随访**:慢病患者的院后管理与智能提醒
+
+平台遵循**人机协同**原则:AI 提供证据化建议,医生/护士掌握最终决策权。
 
 ## 技术栈
 
-| 层      | 技术                                                                                        |
-| ------ | ----------------------------------------------------------------------------------------- |
-| 后端     | Python 3.12+ · FastAPI · SQLAlchemy 2.0 (async) · Pydantic v2 · Celery · Redis            |
-| 数据库    | MySQL 8.0(业务三库隔离:workflow / knowledge / fhir)· Milvus Standalone(向量检索,HNSW)                 |
-| 前端     | Vite · React 18 · MUI v6 · Tailwind · Zustand · TanStack Query v5 · React Hook Form · Zod |
-| LLM 管线 | LangChain · sentence-transformers(本地嵌入)· DeepSeek API(可选)                                 |
-| 部署     | Docker Compose(MySQL + Milvus + Redis + FastAPI + Celery + React)→ 后续 K8s                 |
+| 层 | 技术 |
+|---|---|
+| 后端 | Python 3.12 · FastAPI · SQLAlchemy 2.0 async · Pydantic v2 |
+| 数据库 | MySQL 8.0(三库隔离)· Milvus(向量检索)· Neo4j(证据图谱)· Redis(缓存) |
+| LLM | DeepSeek API(deepseek-chat)· 规则引擎兜底 · Ollama 可配回退 |
+| 认证 | Keycloak OIDC(生产)· header 演示模式(开发) |
+| 前端 | React 18 · Vite · MUI v6 · Zustand · TanStack Query v5 |
+| 部署 | Docker Compose(12 容器)· GitHub Actions CI · Alembic 迁移 |
 
 ## 架构总览
 
 ```
-┌─────────────┐      ┌──────────────────────────────────────┐
-│   React 前端  │      │              API Gateway              │
-│   (Vite 5173) │ ───► │      （路由 / 鉴权 / 统一响应）         │
-└─────────────┘      └───────────────┬──────────────────────┘
-                                     │
-              ┌──────────────────────┼──────────────────────┐
-              ▼                      ▼                      ▼
-   ┌────────────────┐    ┌────────────────┐    ┌────────────────┐
-   │ workflow-engine │    │knowledge-      │    │  fhir-adapter  │
-   │  8100 状态机/Agent│    │orchestrator    │    │  8300 FHIR映射  │
-   │  编排/审核流      │    │ 8200 知识检索    │    │  Patient/Consent│
-   └────────────────┘    └────────────────┘    └────────────────┘
-              │
-   ┌──────────▼──────────┐
-   │   inpatient-ward     │  8001 (宿主机) / 8000 (容器)
-   │   12节点Agent + 14病种 │  ← 核心业务服务
-   └──────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    前端 (React + MUI)                     │
+│            nginx 静态托管 + API 代理 (5173)                │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────┐
+│              Keycloak OIDC (统一认证, 8080)               │
+└──────────────────────┬──────────────────────────────────┘
+                       │ JWT
+┌──────────────────────▼──────────────────────────────────┐
+│   inpatient-ward     workflow-engine    knowledge-orc.   │
+│   (住院协同 8001)      (状态机 8100)      (知识编排 8200)   │
+│   fhir-adapter       (FHIR 映射 8300)                     │
+└──────┬───────────┬───────────┬───────────┬───────────────┘
+       │           │           │           │
+   ┌───▼───┐  ┌────▼────┐  ┌───▼────┐  ┌───▼────┐
+   │ MySQL │  │ Milvus  │  │ Neo4j  │  │ Redis  │
+   │ 三库   │  │ 向量检索 │  │ 证据图谱 │  │ 缓存   │
+   └───────┘  └─────────┘  └────────┘  └────────┘
 ```
+
+### 服务拆分
+
+| 服务 | 端口 | 职责 | 测试 |
+|---|---|---|---|
+| inpatient-ward | 8001 | 住院协同 12 节点 Agent、14+ 病种模板、评估量表、助手 | 374 |
+| workflow-engine | 8100 | 病例状态机、Agent 编排、审核流、审计 | 90 |
+| knowledge-orchestrator | 8200 | 知识导入、混合检索、反向阻断、审计 | 49 |
+| fhir-adapter | 8300 | FHIR 数据映射、Patient Compartment、Consent | 42 |
+| clinical-contracts | — | 共享临床契约(状态机/AgentLoop/断路器) | 7 |
 
 ## 项目结构
 
 ```
-zhenhu-care-handoff/
-├── docker-compose.yml           # 全栈编排 (MySQL + Redis + 4 后端 + 前端)
+├── docker-compose.yml          # 全栈编排 (12 容器)
+├── .github/workflows/ci.yml    # CI: 后端测试 + 前端测试 + lint
 ├── deploy/
-│   └── mysql/init/              #   MySQL 三库隔离初始化脚本
-├── docs/                       # 项目文档
-│   ├── requirements/           #   需求规格 v0.2 / 证据基线 / 对齐报告
-│   └── architecture/           #   架构设计 00-14 / P0 修复方案
-├── packages/
-│   ├── clinical-contracts/     #   JS 版临床契约 (PoC 用, v0.1.0)
-│   └── clinical-contracts-py/  #   Python 版临床契约 (正式工程用, v0.2.0)
-├── apps/
-│   └── frontend/               #   前端应用 (React 18 + MUI, 含 Dockerfile + nginx)
+│   ├── keycloak/               # OIDC realm 配置
+│   └── mysql/init/             # MySQL 三库初始化
+├── packages/clinical-contracts-py/  # 共享临床契约 (Pydantic v2)
+├── apps/frontend/              # 前端 (React 18 + MUI)
 ├── services/
-│   ├── workflow-engine/        #   病例状态机 / Agent 编排 / 审核流
-│   ├── knowledge-orchestrator/ #   知识导入 / 混合检索 / 反向阻断
-│   ├── fhir-adapter/           #   医院数据映射 / Patient Compartment
-│   └── inpatient-ward/         #   住院协同 12 节点 Agent + 14 病种模板
-├── tests/                      #   契约测试 (跨服务)
-├── scripts/                    #   开发 / 分析脚本
-└── poc/                        #   PoC 验证区 (独立, 不参与正式工程)
+│   ├── inpatient-ward/         # 住院协同 (核心业务)
+│   ├── workflow-engine/        # 病例状态机
+│   ├── knowledge-orchestrator/ # 知识编排
+│   └── fhir-adapter/           # FHIR 适配
+├── docs/architecture/          # 架构文档 (15 成熟度扫描 / 16 HIS 对接 / 17 路线图)
+└── scripts/                    # 辅助脚本
 ```
-
-## 快速开始
-
-### 环境要求
-
-- Python ≥ 3.12
-- Node.js ≥ 22 (npm ≥ 10)
-- 可选:MySQL 8.0、Redis、Docker(生产部署)
-
-### 一键启动
-
-```bash
-# 环境变量模板 (可选配置)
-cp .env.example .env
-
-# 启动 4 个后端服务 + 健康检查
-bash start.sh
-# 开发模式跳过 FHIR 同步: SKIP_BRIDGE=true bash start.sh
-```
-
-### 手动启动
-
-```bash
-# 1. 住院协同服务 (宿主机 8001)
-cd services/inpatient-ward
-python -m uvicorn zhenhu.inpatient.main:app --host 127.0.0.1 --port 8001
-
-# 2. workflow-engine (8100)
-cd services/workflow-engine
-python -m uvicorn zhenhu.workflow.main:app --host 127.0.0.1 --port 8100
-
-# 3. knowledge-orchestrator (8200)
-cd services/knowledge-orchestrator
-python -m uvicorn zhenhu.knowledge.main:app --host 127.0.0.1 --port 8200
-
-# 4. fhir-adapter (8300)
-cd services/fhir-adapter
-python -m uvicorn zhenhu.fhir.main:app --host 127.0.0.1 --port 8300
-
-# 5. 前端 (5173)
-cd apps/frontend
-npm install
-npm run dev
-```
-
-浏览器访问 <http://127.0.0.1:5173>,后端 API 文档见 <http://127.0.0.1:8001/docs>。
 
 ## Docker 一键部署
-
-完整全栈编排(MySQL 三库隔离 + Redis + Milvus Standalone 三件套 + 4 后端服务 + 前端 nginx),根目录 `docker-compose.yml`:
 
 ```bash
 # 1. 准备环境变量 (可选, 有默认值)
 cp .env.example .env
-# 生产环境务必修改: MYSQL_ROOT_PASSWORD / MYSQL_PASSWORD / DEEPSEEK_API_KEY
+# 生产务必修改: MYSQL_ROOT_PASSWORD / MYSQL_PASSWORD / DEEPSEEK_API_KEY / KEYCLOAK_ADMIN_PASSWORD
 
 # 2. 构建并启动全部服务
 docker compose up -d --build
 
 # 3. 访问
-#   前端:      http://127.0.0.1:5173  (nginx 代理 API 到 inpatient-ward)
+#   前端:      http://127.0.0.1:5173
 #   API 文档:  http://127.0.0.1:8001/docs
+#   Keycloak:  http://127.0.0.1:8080
 
-# 可选: 启用监控栈 (Prometheus + Alertmanager)
+# 可选: 监控栈 (Prometheus + Alertmanager)
 docker compose --profile monitoring up -d
 
 # 停止 / 清理 (加 -v 删除数据卷)
 docker compose down [-v]
 ```
 
-| 服务                     | 宿主机端口 | 容器端口 | 说明                                |
-| ---------------------- | ----- | ---- | --------------------------------- |
-| frontend               | 5173  | 80   | nginx 静态托管 + API 代理               |
-| inpatient-ward         | 8001  | 8000 | 住院协同(业务核心)                        |
-| workflow-engine        | 8100  | 8100 | 病例状态机 / Agent 编排                  |
-| knowledge-orchestrator | 8200  | 8200 | 知识检索与编排                           |
-| fhir-adapter           | 8300  | 8300 | FHIR 数据映射                         |
-| mysql                  | 3306  | 3306 | 三库隔离(workflow / knowledge / fhir) |
-| redis                  | 6379  | 6379 | 缓存 / 任务队列                         |
-| milvus                 | 19530 | 19530 | 向量数据库(RAG)                        |
-| etcd                   | -     | 2379 | Milvus 元数据存储(仅内部)                |
-| minio                  | -     | 9000 | Milvus 对象存储(仅内部)                 |
+| 服务 | 宿主机端口 | 说明 |
+|---|---|---|
+| frontend | 5173 | nginx 静态托管 + API 代理 |
+| inpatient-ward | 8001 | 住院协同(业务核心) |
+| workflow-engine | 8100 | 病例状态机 |
+| knowledge-orchestrator | 8200 | 知识编排 |
+| fhir-adapter | 8300 | FHIR 映射 |
+| keycloak | 8080 | OIDC 认证 |
+| mysql / redis / milvus / neo4j / etcd / minio | 3307 / 6379 / 19530 / 7474·7687 / — / — | 数据层 |
 
+> 注:宿主机 MySQL 端口默认 3307(避免与本机 MySQL 冲突,可用 `MYSQL_HOST_PORT` 调整)。
 
+### 认证模式
 
-> 说明:向量检索采用 **Milvus Standalone**(etcd + minio + milvus v2.6.1),inpatient-ward 启动时自动初始化 RAG 索引。
+- **演示(默认)**:`.env` 设 `APP_ENV=dev` + `AUTH_MODE=header`,开发快捷登录
+- **生产**:`.env` 设 `APP_ENV=production` + `AUTH_MODE=oidc`,Keycloak 登录(演示账号 `doctor/doctor123`、`nurse/nurse123`、`admin/admin123`)
 
-### 环境变量
+### LLM 配置
 
-| 变量                    | 默认值                          | 说明                                 |
-| --------------------- | ---------------------------- | ---------------------------------- |
-| `DEEPSEEK_API_KEY`    | (空)                          | DeepSeek API 密钥;未设置时使用规则引擎         |
-| `SKIP_BRIDGE`         | `false`                      | `true` 时跳过 FHIR HTTP 同步,使用 mock 数据 |
-| `FHIR_ADAPTER_URL`    | `http://127.0.0.1:8300/fhir` | FHIR 适配器地址                         |
-| `INPATIENT_PORT`      | `8001`                       | 住院协同服务端口                           |
-| `APP_ENV`             | `dev`                        | 运行环境 `dev` / `production`          |
-| `GRAPH_MODE`          | `classic`                    | Agent 编排模式 `classic` / `langgraph` |
-| `DOCTOR_AUTO_APPROVE` | `true`                       | 医生自动审批(仅开发环境建议开启)                  |
-| `MILVUS_HOST`         | `milvus`(容器内)/ `localhost`(本地) | Milvus 向量库地址                       |
-| `MILVUS_PORT`         | `19530`                      | Milvus 向量库端口                        |
-| `RAG_MODEL`           | `paraphrase-multilingual-MiniLM-L12-v2` | 向量嵌入模型(首次启动自动下载)         |
+```bash
+# .env 中配置 (未配置时自动回退规则引擎, 不影响核心流程)
+DEEPSEEK_API_KEY=sk-xxx
+DEEPSEEK_MODEL=deepseek-chat
+```
 
 ## 测试
 
 ```bash
-# PoC 验证 (44 项)
-npm run poc:test
+# 前端 (179 项)
+cd apps/frontend && npm run test:run
 
-# 临床契约 (7 项)
-npm run contracts:test
+# 后端 (隔离 venv, 合计 555 项)
+python -m pytest -q -v   # 各服务目录内执行 (4 服务)
 
-# 服务级测试 (244 项)
-cd services/workflow-engine && python -m pytest -v          # 81 项
-cd services/knowledge-orchestrator && python -m pytest -v   # 47 项
-cd services/fhir-adapter && python -m pytest -v             # 37 项
-cd services/inpatient-ward && SKIP_BRIDGE=true python -m pytest -v  # 79 项
+# CI 已全绿: backend 555 / frontend 179 / lint (GitHub Actions)
 ```
-
-**合计 295 项测试全部通过。**
-
-## 隔离红线
-
-- 正式代码(`apps/`、`services/`)**不得** `import` 任何 `poc/` 实现
-- 唯一允许的跨目录共享: `packages/clinical-contracts-py`(Python 版)与 `packages/clinical-contracts`(JS 版)
-- `poc/` 仅验证技术可行性,不代表临床有效性结论
 
 ## 路线图
 
-- [x] PoC 验证(44 测试冻结)
-- [x] 临床契约 Python 移植(v0.2.0)
+- [x] PoC 验证与临床契约移植
 - [x] 四大后端服务 + 前端联调
-- [x] 临床精度 P0 修复(审计 52/100 → 修复后预估 >85)
-- [x] Docker Compose 一键部署(全栈编排 + 监控 profile)
-- [ ] API Gateway(路由 / 鉴权 / 统一响应)
-- [ ] 病史采集 / 体格检查 / 鉴别诊断补全
-- [x] Milvus Standalone 向量检索接入(etcd + minio + milvus v2.6.1)
-- [ ] K8s 部署
+- [x] Docker 全栈部署(Milvus/Neo4j/Keycloak 落地)
+- [x] LLM 接入(DeepSeek)+ 16 层 RAG 知识引擎
+- [x] Phase 0:CI/CD、ruff、依赖锁定、模型预缓存
+- [x] Phase 1a:Alembic 迁移、审计补全
+- [x] Phase 1b:Keycloak OIDC 统一鉴权
+- [ ] Phase 2:开源 HIS 对接(FHIR)、知识入口统一、可观测性
+- [ ] Phase 3:K8s 部署、多租户、等保合规
 
 ## License
 
-[MIT](LICENSE) © 2026 Delong Liu
+[MIT](LICENSE)
