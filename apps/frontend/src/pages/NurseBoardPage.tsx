@@ -18,6 +18,8 @@ import NursingTaskCompletionDialog, { type NursingTaskSelection } from '@/compon
 import { nurseBoardTab, type NurseBoardTab } from '@/core/nurse-workspace';
 import { emitOpenGlobalAssistant } from '@/core/runtime-events';
 import type { MonitoringOverduePatient, NursePatientDetail, NurseTask } from '@/types/nurse-management';
+import { fetchPatientDirectory } from '@/services/patient-directory-service';
+import { applyNursingTaskCompletion, directoryPatientToNurseDetail } from '@/utils/nurse-patient-utils';
 
 const VIEW_CONFIG: Array<{ id: NurseBoardTab; label: string; description: string; icon: LucideIcon; panel?: 'nursing' | 'handoff' | 'checklist' }> = [
   { id: 'overview', label: '班次总览', description: '先处理高优先级护理任务，再核对监测风险和交班重点。', icon: LayoutDashboard },
@@ -37,6 +39,7 @@ export default function NurseBoardPage() {
   const [recordingTask, setRecordingTask] = useState<NurseTask | null>(null);
   const [completingTask, setCompletingTask] = useState<NursingTaskSelection | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<NursePatientDetail | null>(null);
+  const [patientLookupError, setPatientLookupError] = useState('');
 
   if (auth.redirect) return auth.redirect;
   const config = VIEW_CONFIG.find((tab) => tab.id === activeTab)!;
@@ -56,15 +59,35 @@ export default function NurseBoardPage() {
   const statusColor = activeTab === 'overdue' && (status ?? 0) > 0
     ? 'error'
     : 'info';
-  const openPatient = (patient: NurseTask | NursePatientDetail) => setSelectedPatient('writable' in patient ? patient : { ...patient, writable: true });
-  const openPatientById = (patientId: string) => {
+  const openPatient = (patient: NurseTask | NursePatientDetail) => {
+    setPatientLookupError('');
+    setSelectedPatient('writable' in patient ? patient : { ...patient, writable: true });
+  };
+  const openPatientById = async (patientId: string) => {
+    setPatientLookupError('');
     const task = tasks.data?.tasks.find((item) => item.patient_id === patientId);
     if (task) {
       setSelectedPatient({ ...task, writable: true });
       return;
     }
     const overduePatient = overdue.data?.patients.find((item) => item.patient_id === patientId);
-    if (overduePatient) setSelectedPatient({ ...asNursingTask(overduePatient), writable: true });
+    if (overduePatient) {
+      setSelectedPatient({ ...asNursingTask(overduePatient), writable: true });
+      return;
+    }
+    try {
+      const response = await fetchPatientDirectory({ search: patientId, limit: 10, sort: 'name' });
+      const patient = response.patients.find((item) => item.patient_id === patientId);
+      if (!patient) throw new Error('未找到该患者，可能已离开当前护理范围。');
+      setSelectedPatient(directoryPatientToNurseDetail(patient, auth.user?.department || '当前病区'));
+    } catch (error) {
+      setPatientLookupError(error instanceof Error ? error.message : '患者详情暂时无法打开。');
+    }
+  };
+  const applyCompletion = (result: { state_version: number }, selection: NursingTaskSelection) => {
+    setSelectedPatient((current) => current?.patient_id === selection.patient.patient_id
+      ? applyNursingTaskCompletion(current, selection.task.task_key, result.state_version)
+      : current);
   };
 
   return (
@@ -81,13 +104,14 @@ export default function NurseBoardPage() {
           welcome={auth.user ? <WorkspaceWelcome user={auth.user} workspace="nurse" /> : undefined}
         />
         <DepartmentLeadershipStrip />
+        {patientLookupError ? <Alert severity="error" onClose={() => setPatientLookupError('')}>{patientLookupError}</Alert> : null}
         {activeTab === 'overview' ? <NurseShiftOverview tasks={tasks.data} loading={tasks.isLoading} error={tasks.error} onRetry={() => void tasks.refetch()} onOpenPatient={openPatient} onRecord={setRecordingTask} onComplete={(patient, task) => setCompletingTask({ patient, task })} /> : null}
         {activeTab === 'patients' ? <NursePatientDirectoryPanel tasks={tasks.data} tasksError={tasks.error} onOpenPatient={openPatient} onRecord={setRecordingTask} /> : null}
         {activeTab === 'overdue' ? <MonitoringOverduePanel patients={overdue.data?.patients} critical={overdue.data?.critical_overdue ?? 0} loading={overdue.isLoading} error={overdue.error} onRetry={() => void overdue.refetch()} onRecord={setRecordingTask} onOpenPatient={openPatientById} fallbackTasks={tasks.data?.tasks ?? []} /> : null}
         {activeTab === 'tasks' || activeTab === 'shift' || activeTab === 'checklist' ? <NurseManagementPanel tab={config.panel!} onOpenPatient={openPatientById} onRecordNursing={activeTab === 'tasks' || activeTab === 'checklist' ? setRecordingTask : undefined} onCompleteTask={activeTab === 'tasks' || activeTab === 'checklist' ? (patient, task) => setCompletingTask({ patient, task }) : undefined} /> : null}
       </Box>
       <NursingEntryDialog task={recordingTask} onClose={() => setRecordingTask(null)} />
-      <NursingTaskCompletionDialog selection={completingTask} onClose={() => setCompletingTask(null)} />
+      <NursingTaskCompletionDialog selection={completingTask} onClose={() => setCompletingTask(null)} onCompleted={applyCompletion} />
       <NursePatientDrawer patient={selectedPatient} onClose={() => setSelectedPatient(null)} onRecord={setRecordingTask} onComplete={(patient, task) => setCompletingTask({ patient, task })} />
     </AppShell>
   );

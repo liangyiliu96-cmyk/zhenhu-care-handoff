@@ -41,7 +41,7 @@ export default function EvidenceGraphPanel() {
   }, [filtered.rules]);
 
   if (status.isLoading || templates.isLoading) return <Card variant="outlined" sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1 }}><CircularProgress size={20} /><Typography variant="body2" color="text.secondary">正在加载证据图谱...</Typography></Card>;
-  if (status.error || templates.error) return <Alert severity="warning">证据图谱状态暂时不可用，请稍后重试。</Alert>;
+  if (status.error || templates.error) return <Alert severity="warning" action={<Button size="small" color="inherit" onClick={() => { void status.refetch(); void templates.refetch(); }}>重试</Button>}>证据图谱状态暂时不可用，请稍后重试。</Alert>;
   const graph = status.data;
   if (!graph) return null;
 
@@ -49,6 +49,7 @@ export default function EvidenceGraphPanel() {
     <Alert severity={graph.reachable ? 'success' : 'warning'} icon={<ShieldCheck size={18} />} action={<Button size="small" color="inherit" startIcon={<RefreshCw size={15} />} onClick={() => rebuild.mutate()} disabled={rebuild.isPending}>{rebuild.isPending ? '重建中' : '重建图谱'}</Button>}>
       {graph.reachable ? 'Neo4j 图谱已连接。重建只同步版本化知识与病种模板，不包含患者数据。' : 'Neo4j 图谱当前不可用，临床工作流与现有 RAG 不受影响。'}
     </Alert>
+    {rebuild.error ? <Alert severity="error" action={<Button size="small" color="inherit" onClick={() => rebuild.mutate()}>重试</Button>}>图谱重建失败：{rebuild.error instanceof Error ? rebuild.error.message : '服务暂时不可用'}</Alert> : null}
 
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 1.25 }}>
       <Metric icon={<Database size={17} />} label="证据节点" value={graph.nodes.Evidence ?? 0} />
@@ -64,7 +65,8 @@ export default function EvidenceGraphPanel() {
           {templates.data?.templates.map((item) => <MenuItem key={item.disease_id} value={item.disease_id}>{item.name} · {item.department}</MenuItem>)}
         </Select>
       </Box>
-      {!graph.reachable ? <Box sx={{ p: 2 }}><Typography variant="body2" color="text.secondary">图谱恢复连接后即可查看病种关联。</Typography></Box> : disease.isLoading || visualization.isLoading ? <Box sx={{ p: 2, display: 'flex', gap: 1, alignItems: 'center' }}><CircularProgress size={18} /><Typography variant="body2" color="text.secondary">正在解析病种路径...</Typography></Box> : disease.error || visualization.error ? <Box sx={{ p: 2 }}><Alert severity="warning">病种路径暂时不可用。</Alert></Box> : <Box sx={{ p: 1.75 }}>
+      {!graph.reachable ? <Box sx={{ p: 2 }}><Typography variant="body2" color="text.secondary">图谱恢复连接后即可查看病种关联。</Typography></Box> : disease.isLoading || visualization.isLoading ? <Box sx={{ p: 2, display: 'flex', gap: 1, alignItems: 'center' }}><CircularProgress size={18} /><Typography variant="body2" color="text.secondary">正在解析病种路径...</Typography></Box> : disease.error ? <Box sx={{ p: 2 }}><Alert severity="warning" action={<Button size="small" color="inherit" onClick={() => void disease.refetch()}>重试</Button>}>病种路径暂时不可用。</Alert></Box> : <Box sx={{ p: 1.75 }}>
+        {visualization.error ? <Alert severity="warning" action={<Button size="small" color="inherit" onClick={() => void visualization.refetch()}>重试</Button>}>图谱投影暂时不可用，仍可查看下方证据与规则路径。</Alert> : null}
         {visualization.data ? <EvidenceGraphCanvas graph={visualization.data} /> : null}
         <PathSteps activeStep={activeStep} evidenceCount={filtered.evidence.length} ruleCount={filtered.rules.length} onSelect={(step) => {
           setActiveStep(step);

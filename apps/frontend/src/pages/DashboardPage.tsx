@@ -15,6 +15,7 @@ import AlertLifecyclePanel from '@/components/clinical/AlertLifecyclePanel';
 import ClinicalIntakePanel from '@/components/clinical/ClinicalIntakePanel';
 import ClinicalMonitoringEntryPanel from '@/components/clinical/ClinicalMonitoringEntryPanel';
 import ClinicalBriefPanel from '@/components/clinical/ClinicalBriefPanel';
+import ContingencyPanel from '@/components/clinical/ContingencyPanel';
 import AgentFlowPanel from '@/components/clinical/AgentFlowPanel';
 import NursingRecordsPanel from '@/components/clinical/NursingRecordsPanel';
 import PatientClinicalQueryPanel from '@/components/clinical/PatientClinicalQueryPanel';
@@ -195,6 +196,7 @@ function PatientWorkspaceContent({ patientId, section, focus, dashboard, patient
     </>}
     side={<>
        <ScoresPanel loading={patient.scores.isLoading} scores={patient.scores.data} />
+       <ContingencyPanel dashboard={dashboard} scores={patient.scores.data} />
        <ReadinessPanel readiness={dashboard.discharge_readiness} criteria={dashboard.discharge_criteria_status} />
        <EvidenceGraphPathPanel patientId={patientId} />
        <ChecklistPanel items={dashboard.decision_checklist} />

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -16,20 +17,21 @@ def build_agent_flow(state: dict[str, Any], *, audience: str = "clinical") -> di
     artifacts = _artifacts(state, citations, drafts)
     review_status = "pending" if pending or any(item.get("status") == "pending" for item in drafts) else "completed"
     stages = [
-        _stage("collect", "临床数据采集", "rule", "completed" if chain else "idle", "汇集入院资料、体征、检验与护理记录", _collect_outputs(state)),
-        _stage("evidence", "知识检索与证据", "rag", "completed" if citations or state.get("_collect_summary") else "idle", "检索已配置知识库并保留可追溯引用", [f"{len(citations)} 条临床引用"] if citations else []),
-        _stage("reason", "规则与 LLM 推理", "llm", "completed" if artifacts else "idle", "生成诊断、查房、检验解读、交班和草案；不直接执行临床动作", [item["title"] for item in artifacts]),
-        _stage("review", "医生审核卡点", "human", review_status, _review_description(pending, drafts), _review_outputs(pending, drafts)),
-        _stage("commit", "正式记录与协同", "record", "completed" if _has_committed_records(state) else "idle", "仅在人工确认后写入医嘱、检查、MDT、随访或宣教计划", _committed_outputs(state)),
+        _stage("collect", "临床数据采集", "rule", "completed" if chain else "idle", "汇集入院资料、体征、检验与护理记录", _collect_outputs(state), _collect_inputs(state)),
+        _stage("evidence", "知识检索与证据", "rag", "completed" if citations or state.get("_collect_summary") else "idle", "检索已配置知识库并保留可追溯引用", [f"{len(citations)} 条临床引用"] if citations else [], _evidence_inputs(state)),
+        _stage("reason", "规则与 LLM 推理", "llm", "completed" if artifacts else "idle", "生成诊断、查房、检验解读、交班和草案；不直接执行临床动作", [item["title"] for item in artifacts], _reason_inputs(state, citations)),
+        _stage("review", "医生审核卡点", "human", review_status, _review_description(pending, drafts), _review_outputs(pending, drafts), _review_inputs(pending, drafts)),
+        _stage("commit", "正式记录与协同", "record", "completed" if _has_committed_records(state) else "idle", "仅在人工确认后写入医嘱、检查、MDT、随访或宣教计划", _committed_outputs(state), _commit_inputs(state)),
     ]
     return {
         "flow_status": "waiting_review" if review_status == "pending" else "ready",
-        "state_version": int(state.get("state_version", 0)),
+        "state_version": _safe_int(state.get("state_version")),
         "pending_review": _pending_review_projection(pending),
         "stages": stages,
         "generated_artifacts": artifacts,
         "citations": [_citation(item) for item in citations[:12]],
         "turn_journal": _turn_journal(state),
+        "latest_execution": _latest_execution(state),
         "safety_boundary": "LLM 仅生成辅助内容和待审核草案；临床记录写入需经过既有权限、版本校验与人工确认。",
     }
 
@@ -69,33 +71,34 @@ def _build_nursing_agent_flow(state: dict[str, Any]) -> dict[str, Any]:
     stages = [
         _stage(
             "collect", "床旁护理数据采集", "rule", "completed" if _nursing_has_inputs(state) else "idle",
-            "汇集生命体征、护理记录、给药核对和风险提示", _nursing_collect_outputs(state),
+            "汇集生命体征、护理记录、给药核对和风险提示", _nursing_collect_outputs(state), _nursing_collect_inputs(state),
         ),
         _stage(
             "evidence", "护理规范与证据检索", "rag", "completed" if citations else "idle",
-            "按当前患者问题检索护理规范，并保留可追溯引用", [f"{len(citations)} 条护理或临床引用"] if citations else [],
+            "按当前患者问题检索护理规范，并保留可追溯引用", [f"{len(citations)} 条护理或临床引用"] if citations else [], ["当前患者护理事实", "护理规范知识库"] if _nursing_has_inputs(state) else ["当前患者病种与护理问题"],
         ),
         _stage(
             "reason", "风险识别与护理建议", "llm", "completed" if agent_records else "idle",
-            "规则优先，必要时由 LLM 补充护理观察和措施建议", _nursing_suggestion_outputs(latest_agent_record),
+            "规则优先，必要时由 LLM 补充护理观察和措施建议", _nursing_suggestion_outputs(latest_agent_record), ["生命体征与风险提示", f"{len(citations)} 条证据引用"] if citations else ["生命体征与风险提示"],
         ),
         _stage(
             "review", "护士复核与任务执行", "human", review_status,
-            "智能建议仅供复核；护士确认后选择记录护理事实或完成对应任务", _nursing_review_outputs(latest_agent_record, completions, waiting_confirmation),
+            "智能建议仅供复核；护士确认后选择记录护理事实或完成对应任务", _nursing_review_outputs(latest_agent_record, completions, waiting_confirmation), ["智能护理建议", "护理任务与版本校验"],
         ),
         _stage(
             "commit", "护理记录与交接审计", "record", "completed" if nursing_records or completions else "idle",
-            "已确认的护理记录、任务完成和交接信息写入患者正式病程", _nursing_commit_outputs(nursing_records, completions),
+            "已确认的护理记录、任务完成和交接信息写入患者正式病程", _nursing_commit_outputs(nursing_records, completions), ["护士复核结果", "审计与版本校验"],
         ),
     ]
     return {
         "flow_status": "waiting_review" if waiting_confirmation else "ready",
-        "state_version": int(state.get("state_version", 0)),
+        "state_version": _safe_int(state.get("state_version")),
         "pending_review": None,
         "stages": stages,
         "generated_artifacts": artifacts,
         "citations": [_citation(item) for item in citations[:12]],
         "turn_journal": _turn_journal(state),
+        "latest_execution": _latest_execution(state),
         "safety_boundary": "护理助手仅生成风险提示和护理建议；生命体征、护理记录及任务完成均须由护士复核并通过既有权限、版本校验和审计链路写入。",
     }
 
@@ -169,13 +172,13 @@ def _nursing_artifacts(
     return records
 
 
-def _stage(identifier: str, title: str, mode: str, status: str, description: str, outputs: list[str]) -> dict[str, Any]:
-    return {"id": identifier, "title": title, "mode": mode, "status": status, "description": description, "outputs": outputs[:4]}
+def _stage(identifier: str, title: str, mode: str, status: str, description: str, outputs: list[str], inputs: list[str] | None = None) -> dict[str, Any]:
+    return {"id": identifier, "title": title, "mode": mode, "status": status, "description": description, "inputs": (inputs or [])[:6], "outputs": outputs[:4]}
 
 
 def _turn_journal(state: dict[str, Any]) -> list[dict[str, Any]]:
     """Expose only operational turn facts needed for clinical transparency."""
-    records = [item for item in (state.get("agent_turn_journal") or []) if isinstance(item, dict)]
+    records = _ordered_turns(state)
     projected = []
     for item in records[-6:][::-1]:
         projected.append({
@@ -183,13 +186,58 @@ def _turn_journal(state: dict[str, Any]) -> list[dict[str, Any]]:
             "occurred_at": str(item.get("occurred_at") or ""),
             "entry_strategy": str(item.get("entry_strategy") or ""),
             "status": "failed" if item.get("status") == "failed" else "completed",
-            "latency_ms": int(item.get("latency_ms") or 0),
-            "rag_hit_count": int(item.get("rag_hit_count") or 0),
+            "latency_ms": _safe_int(item.get("latency_ms")),
+            "rag_hit_count": _safe_int(item.get("rag_hit_count")),
             "knowledge_gap": bool(item.get("knowledge_gap")),
             "node_count": len(item.get("node_path") or []),
             "error_message": str(item.get("error_message") or "")[:160],
         })
     return projected
+
+
+def _latest_execution(state: dict[str, Any]) -> dict[str, Any] | None:
+    records = _ordered_turns(state)
+    if not records:
+        return None
+    item = records[-1]
+    return {
+        "turn_id": str(item.get("turn_id") or ""),
+        "occurred_at": str(item.get("occurred_at") or ""),
+        "entry_strategy": str(item.get("entry_strategy") or ""),
+        "status": "failed" if item.get("status") == "failed" else "completed",
+        "latency_ms": _safe_int(item.get("latency_ms")),
+        "rag_hit_count": _safe_int(item.get("rag_hit_count")),
+        "node_path": [str(node) for node in (item.get("node_path") or [])[-12:]],
+        "error_message": str(item.get("error_message") or "")[:160],
+    }
+
+
+def _ordered_turns(state: dict[str, Any]) -> list[dict[str, Any]]:
+    records = [item for item in (state.get("agent_turn_journal") or []) if isinstance(item, dict)]
+    return [item for _, item in sorted(enumerate(records), key=lambda pair: (_turn_time(pair[1].get("occurred_at")), pair[0]))]
+
+
+def _turn_time(value: Any) -> datetime:
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        raw = str(value or "").strip()
+        if not raw:
+            return datetime.min.replace(tzinfo=timezone.utc)
+        try:
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return datetime.min.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _safe_int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _collect_outputs(state: dict[str, Any]) -> list[str]:
@@ -198,6 +246,43 @@ def _collect_outputs(state: dict[str, Any]) -> list[str]:
     if state.get("vital_signs"): values.append(f"{len(state['vital_signs'])} 次生命体征")
     if state.get("lab_results"): values.append(f"{len(state['lab_results'])} 项检验结果")
     if state.get("nursing_records"): values.append(f"{len(state['nursing_records'])} 条护理记录")
+    return values
+
+
+def _collect_inputs(state: dict[str, Any]) -> list[str]:
+    values = ["患者入院资料"]
+    if state.get("vital_signs"): values.append("生命体征")
+    if state.get("lab_results"): values.append("检验结果")
+    if state.get("nursing_records"): values.append("护理记录")
+    return values
+
+
+def _evidence_inputs(state: dict[str, Any]) -> list[str]:
+    return ["当前病种模板", "患者临床问题", "已配置知识库"]
+
+
+def _reason_inputs(state: dict[str, Any], citations: list[dict[str, Any]]) -> list[str]:
+    values = ["结构化临床事实", f"{len(citations)} 条证据引用"]
+    if state.get("pending_review"): values.append("既有审核状态")
+    return values
+
+
+def _review_inputs(pending: dict[str, Any] | None, drafts: list[dict[str, Any]]) -> list[str]:
+    values = ["规则与 LLM 生成内容"]
+    if pending: values.append("待审核临床 payload")
+    if any(item.get("status") == "pending" for item in drafts): values.append("操作草稿")
+    return values
+
+
+def _commit_inputs(state: dict[str, Any]) -> list[str]:
+    return ["人工确认结果", "权限与状态版本校验"]
+
+
+def _nursing_collect_inputs(state: dict[str, Any]) -> list[str]:
+    values = ["床旁患者状态"]
+    if state.get("vital_signs"): values.append("生命体征")
+    if state.get("nursing_records"): values.append("护理记录")
+    if state.get("clinical_alerts"): values.append("风险提示")
     return values
 
 

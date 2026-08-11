@@ -30,14 +30,15 @@ function renderDialog() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   const invalidate = vi.spyOn(client, 'invalidateQueries');
   const onClose = vi.fn();
-  render(<QueryClientProvider client={client}><NursingTaskCompletionDialog selection={selection} onClose={onClose} /></QueryClientProvider>);
-  return { invalidate, onClose };
+  const onCompleted = vi.fn();
+  render(<QueryClientProvider client={client}><NursingTaskCompletionDialog selection={selection} onClose={onClose} onCompleted={onCompleted} /></QueryClientProvider>);
+  return { invalidate, onClose, onCompleted };
 }
 
 describe('NursingTaskCompletionDialog', () => {
   it('submits the server task key and state version, then refreshes downstream views', async () => {
     service.completeNursingTask.mockResolvedValue({ completion: { id: 'done-1' }, state_version: 8 });
-    const { invalidate, onClose } = renderDialog();
+    const { invalidate, onClose, onCompleted } = renderDialog();
     const dialog = within(screen.getByRole('dialog'));
     fireEvent.change(dialog.getByLabelText('执行备注'), { target: { value: '已完成床旁测量' } });
     fireEvent.click(dialog.getByRole('button', { name: '确认完成' }));
@@ -50,6 +51,7 @@ describe('NursingTaskCompletionDialog', () => {
     await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['nurse'] }));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['ward'] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['patient', 'patient-1'] });
+    expect(onCompleted).toHaveBeenCalledWith({ completion: { id: 'done-1' }, state_version: 8 }, selection);
     expect(onClose).toHaveBeenCalled();
   });
 

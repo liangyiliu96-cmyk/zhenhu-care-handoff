@@ -13,7 +13,7 @@ import { BookOpen, Building2, ClipboardCheck, Files, GitCompare, ListChecks, Plu
 import { useManagementPageAuth } from '@/hooks/use-page-auth';
 import { departmentDoctorRoute, departmentNurseRoute, ROUTES } from '@/core/routes';
 import { fetchPatientDirectory } from '@/services/patient-directory-service';
-import { directoryPatientToNurseDetail } from '@/utils/nurse-patient-utils';
+import { applyNursingTaskCompletion, directoryPatientToNurseDetail } from '@/utils/nurse-patient-utils';
 import { useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
 import type { NursePatientDetail, NurseTask, NursingTaskItem } from '@/types/nurse-management';
@@ -72,6 +72,11 @@ export default function AdminPage() {
   const completeNursingTask = (patient: NurseTask, task: NursingTaskItem) => {
     if (canExecuteNursing) setCompletingTask({ patient, task });
   };
+  const applyCompletion = (result: { state_version: number }, selection: NursingTaskSelection) => {
+    setSelectedPatient((current) => current?.patient_id === selection.patient.patient_id
+      ? applyNursingTaskCompletion(current, selection.task.task_key, result.state_version)
+      : current);
+  };
   return (
     <AppShell title="管理控制台" backTo={backTo} backLabel={user.role === 'doctor' ? '医生工作台' : '护理看板'}>
       <Box display="flex" flexDirection="column" gap={2.5} maxWidth={1380} mx="auto" width="100%">
@@ -96,7 +101,7 @@ export default function AdminPage() {
         /> : <AdminDataPanels tab={activeTab} role={user.role} onOpenPatient={(patientId) => { void openPatientById(patientId); }} />}
       </Box>
       <NursingEntryDialog task={recordingTask} onClose={() => setRecordingTask(null)} />
-      <NursingTaskCompletionDialog selection={completingTask} onClose={() => setCompletingTask(null)} />
+      <NursingTaskCompletionDialog selection={completingTask} onClose={() => setCompletingTask(null)} onCompleted={applyCompletion} />
       <NursePatientDrawer
         patient={selectedPatient}
         onClose={() => setSelectedPatient(null)}

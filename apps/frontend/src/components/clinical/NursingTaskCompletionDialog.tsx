@@ -5,7 +5,7 @@ import { CheckCircle2 } from 'lucide-react';
 
 import { ApiClientError } from '@/core/api-client';
 import { completeNursingTask } from '@/services/nurse-management-service';
-import type { NurseTask, NursingTaskItem } from '@/types/nurse-management';
+import type { NurseTask, NursingTaskCompletionResponse, NursingTaskItem } from '@/types/nurse-management';
 
 export interface NursingTaskSelection {
   patient: NurseTask;
@@ -15,9 +15,11 @@ export interface NursingTaskSelection {
 export default function NursingTaskCompletionDialog({
   selection,
   onClose,
+  onCompleted,
 }: {
   selection: NursingTaskSelection | null;
   onClose: () => void;
+  onCompleted?: (result: NursingTaskCompletionResponse, selection: NursingTaskSelection) => void;
 }) {
   const queryClient = useQueryClient();
   const [note, setNote] = useState('');
@@ -29,12 +31,13 @@ export default function NursingTaskCompletionDialog({
       note: note.trim(),
       expected_version: selection!.patient.state_version,
     }, idempotencyKey),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['nurse'] }),
         queryClient.invalidateQueries({ queryKey: ['ward'] }),
         queryClient.invalidateQueries({ queryKey: ['patient', selection!.patient.patient_id] }),
       ]);
+      if (selection) onCompleted?.(result, selection);
       onClose();
     },
     onError: async (cause) => {

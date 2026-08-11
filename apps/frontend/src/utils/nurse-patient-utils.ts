@@ -23,6 +23,22 @@ export function directoryPatientToNurseDetail(patient: PatientDirectoryPatient, 
   };
 }
 
+/**
+ * Apply a confirmed task completion to the open drawer while invalidated
+ * queries are refetching. The server response supplies the new version.
+ */
+export function applyNursingTaskCompletion(
+  patient: NursePatientDetail,
+  taskKey: string,
+  stateVersion: number,
+): NursePatientDetail {
+  const taskItems = patient.task_items?.filter((task) => task.task_key !== taskKey);
+  const openTaskCount = patient.open_task_count == null
+    ? patient.open_task_count
+    : Math.max(0, patient.open_task_count - 1);
+  return { ...patient, state_version: stateVersion, task_items: taskItems, open_task_count: openTaskCount };
+}
+
 export function nursePatientDisplayName(patient: { patient_id: string; name?: string | null }): string {
   const name = patient.name?.trim() ?? '';
   return !name || name === patient.patient_id.slice(0, 10) ? patient.patient_id : name;

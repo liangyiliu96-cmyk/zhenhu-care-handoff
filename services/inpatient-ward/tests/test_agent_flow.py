@@ -16,6 +16,7 @@ def test_agent_flow_separates_llm_drafts_from_human_review_and_commits():
     assert flow["flow_status"] == "waiting_review"
     assert flow["pending_review"] == {"review_type": "med_confirm", "review_id": "", "label": "用药调整审核"}
     assert next(stage for stage in flow["stages"] if stage["id"] == "review")["status"] == "pending"
+    assert next(stage for stage in flow["stages"] if stage["id"] == "reason")["inputs"] == ["结构化临床事实", "1 条证据引用", "既有审核状态"]
     assert any(item["title"] == "检查医嘱草稿" and item["status"] == "待医生审核" for item in flow["generated_artifacts"])
     assert any(stage["id"] == "commit" and stage["status"] == "completed" for stage in flow["stages"])
 
@@ -43,6 +44,41 @@ def test_agent_flow_projects_recent_turns_without_exposing_input_fingerprint():
         "entry_strategy": "monitoring:vitals", "status": "completed", "latency_ms": 42,
         "rag_hit_count": 2, "knowledge_gap": False, "node_count": 2, "error_message": "",
     }]
+    assert flow["latest_execution"] == {
+        "turn_id": "turn-1", "occurred_at": "2026-07-21T08:00:00+00:00",
+        "entry_strategy": "monitoring:vitals", "status": "completed", "latency_ms": 42,
+        "rag_hit_count": 2, "node_path": ["monitoring", "daily_round"], "error_message": "",
+    }
+    assert "input_fingerprint" not in flow["latest_execution"]
+
+
+def test_agent_flow_orders_turns_by_time_and_tolerates_legacy_telemetry():
+    flow = build_agent_flow({
+        "agent_turn_journal": [
+            {
+                "turn_id": "turn-new",
+                "occurred_at": "2026-07-21T11:00:00+00:00",
+                "entry_strategy": "rounds:summary",
+                "status": "completed",
+                "latency_ms": "not-recorded",
+                "rag_hit_count": "2",
+                "node_path": ["rounds"],
+            },
+            {
+                "turn_id": "turn-old",
+                "occurred_at": "2026-07-21T10:00:00+00:00",
+                "entry_strategy": "monitoring:vitals",
+                "status": "completed",
+                "latency_ms": 40,
+                "rag_hit_count": 1,
+                "node_path": ["monitoring"],
+            },
+        ],
+    })
+
+    assert flow["latest_execution"]["turn_id"] == "turn-new"
+    assert flow["latest_execution"]["latency_ms"] == 0
+    assert [item["turn_id"] for item in flow["turn_journal"]] == ["turn-new", "turn-old"]
 
 
 def test_agent_flow_ignores_stale_prerequisite_review_after_discharge_signature():

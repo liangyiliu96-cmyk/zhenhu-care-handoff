@@ -19,7 +19,12 @@ describe('patient action plan', () => {
     const dashboard = { complication_alerts: [], pending_review_type: '', phase: 'monitoring', discharge_sign_status: '', bridge_status: '' } as unknown as DashboardResponse;
     const rounds = { rounds: [], latest_soap: { round_number: 2, review_status: 'requires_clinician_review' } } as unknown as RoundsResponse;
 
-    expect(patientActionPlan(dashboard, rounds)).toContainEqual(expect.objectContaining({ target: 'rounds', title: '核对最新查房摘要' }));
+    expect(patientActionPlan(dashboard, rounds)).toContainEqual(expect.objectContaining({
+      target: 'rounds',
+      title: '核对最新查房摘要',
+      kind: 'review',
+      completion: expect.stringContaining('已核对'),
+    }));
   });
 
   it('shows discharge conditions as blockers only after the formal discharge path starts', () => {
@@ -29,5 +34,21 @@ describe('patient action plan', () => {
     } as unknown as DashboardResponse;
 
     expect(patientActionPlan(dashboard)).toContainEqual(expect.objectContaining({ key: 'blocker-medication_titrated', target: 'orders', focus: 'medication_titrated' }));
+  });
+
+  it('adds a clinical kind and an observable completion condition to safety work', () => {
+    const dashboard = {
+      complication_alerts: ['持续低血压告警'],
+      pending_review_type: '',
+      phase: 'monitoring',
+      discharge_sign_status: '',
+      bridge_status: '',
+    } as unknown as DashboardResponse;
+
+    expect(patientActionPlan(dashboard)[0]).toEqual(expect.objectContaining({
+      target: 'monitoring',
+      kind: 'safety',
+      completion: expect.stringContaining('告警'),
+    }));
   });
 });

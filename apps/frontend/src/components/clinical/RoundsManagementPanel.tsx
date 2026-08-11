@@ -49,7 +49,7 @@ export default function RoundsManagementPanel({ patientId, stateVersion, loading
   const latest = latestRound(rounds);
   if (!latest) return <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
     <PreRoundBriefPanel brief={preRoundBrief} loading={preRoundBriefLoading} generating={progressDraftMutation.isPending} error={preRoundBriefError || (progressDraftMutation.error instanceof Error ? progressDraftMutation.error.message : undefined)} onGenerateDraft={() => progressDraftMutation.mutate()} />
-    {progressDraftMutation.data ? <Alert severity="info" action={<Button color="inherit" size="small" onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending}>先生成首次摘要</Button>}>已生成仅含来源事实的增量草稿。请先生成首次查房摘要，再在编辑器中补充并保存医生修订。</Alert> : null}
+    {progressDraftMutation.data ? <Alert severity="info" action={<Button color="inherit" size="small" onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending}>先生成首次摘要</Button>}>已生成仅含来源事实的增量草稿。请先生成首次查房摘要，再在编辑器中补充并保存医生修订。<ProgressDraftPreview draft={progressDraftMutation.data} /></Alert> : null}
     <Card variant="outlined" sx={{ borderRadius: 1, p: 2 }}>
       <EmptyState title="尚未生成查房摘要" description="可基于当前体征、检验、用药和病程数据生成第一轮结构化 SOAP 草稿。" />
       <Box sx={{ display: 'flex', justifyContent: 'center', pb: 2 }}>
@@ -70,7 +70,7 @@ export default function RoundsManagementPanel({ patientId, stateVersion, loading
   };
   return <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
     <PreRoundBriefPanel brief={preRoundBrief} loading={preRoundBriefLoading} generating={progressDraftMutation.isPending} error={preRoundBriefError || (progressDraftMutation.error instanceof Error ? progressDraftMutation.error.message : undefined)} onGenerateDraft={() => progressDraftMutation.mutate()} />
-    {progressDraftMutation.data ? <Alert severity="info" action={<Button color="inherit" size="small" onClick={() => applyProgressDraft(progressDraftMutation.data!)}>在编辑器中补充</Button>}>已生成仅含来源事实的增量草稿。评估与计划未被自动填写。</Alert> : null}
+    {progressDraftMutation.data ? <Alert severity="info" action={<Button color="inherit" size="small" onClick={() => applyProgressDraft(progressDraftMutation.data!)}>在编辑器中补充</Button>}>已生成仅含来源事实的增量草稿。评估与计划未被自动填写。<ProgressDraftPreview draft={progressDraftMutation.data} /></Alert> : null}
     <Card variant="outlined" sx={{ borderRadius: 1 }}>
       <Box sx={{ px: 2, py: 1.6, display: 'flex', alignItems: 'flex-start', gap: 1.5, flexWrap: 'wrap', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Box sx={{ width: 36, height: 36, display: 'grid', placeItems: 'center', bgcolor: 'rgba(11, 100, 114, 0.09)', color: 'primary.dark', borderRadius: 1 }}><Stethoscope size={19} /></Box>
@@ -123,6 +123,37 @@ export default function RoundsManagementPanel({ patientId, stateVersion, loading
 export function LatestRoundSummary({ loading, rounds, onOpen }: { loading: boolean; rounds?: RoundsResponse; onOpen: () => void }) {
   const latest = latestRound(rounds);
   return <Card variant="outlined" sx={{ borderRadius: 1 }}><Box sx={{ px: 1.75, py: 1.25, display: 'flex', alignItems: 'center', gap: 0.75, borderBottom: '1px solid', borderColor: 'divider' }}><Activity size={18} /><Typography variant="subtitle2">最近查房</Typography><Button size="small" endIcon={<ArrowRight size={14} />} onClick={onOpen} sx={{ ml: 'auto' }}>进入查房管理</Button></Box><Box sx={{ p: 1.75 }}>{loading ? <LoadingSkeleton lines={3} height={18} /> : !latest ? <EmptyState title="暂无查房记录" /> : <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.9 }}><Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}><Chip size="small" label={`第 ${latest.round_number ?? rounds?.round_count ?? 1} 次`} /><Chip size="small" variant="outlined" label={roundGenerationLabel(latest)} /><Chip size="small" color="warning" label={roundReviewLabel(latest)} /></Box><Typography variant="body2" sx={{ lineHeight: 1.65 }}>{latest.ai_recommendation || firstAssessment(latest) || '查房摘要已生成，请进入查房管理核对完整 SOAP。'}</Typography><Typography variant="caption" color="text.secondary">{formatClinicalTime(latest.timestamp)}</Typography></Box>}</Box></Card>;
+}
+
+function ProgressDraftPreview({ draft }: { draft: ProgressNoteDraftResponse }) {
+  const sections = Object.entries(draft.sections);
+  const facts = sections.flatMap(([, section]) => section.facts || []);
+  const missingSections = sections
+    .filter(([, section]) => section.status === 'needs_input')
+    .map(([section]) => progressSectionLabel(section));
+
+  return <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+    <Box sx={{ display: 'flex', gap: 0.6, flexWrap: 'wrap', alignItems: 'center' }}>
+      <Chip size="small" variant="outlined" label={`来源事实 ${facts.length} 条`} />
+      <Chip size="small" variant="outlined" label={`仍需医生补充 ${missingSections.length} 个部分`} />
+      <Typography variant="caption" color="text.secondary">评估和计划不会被自动填写</Typography>
+    </Box>
+    {facts.slice(0, 6).map((fact, index) => <Typography key={`${String(fact.source_type)}-${String(fact.field)}-${index}`} variant="caption" color="text.secondary" display="block" sx={{ mt: 0.35 }}>
+      来源：{sourceTypeLabel(String(fact.source_type || 'clinical'))} · {factFieldLabel(String(fact.field || 'clinical_fact'))}：{String(fact.value ?? '未记录')}
+    </Typography>)}
+  </Box>;
+}
+
+function progressSectionLabel(section: string) {
+  return ({ subjective: '主观情况', objective: '客观数据', assessment: '临床评估', plan: '诊疗计划' } as Record<string, string>)[section] || section;
+}
+
+function sourceTypeLabel(sourceType: string) {
+  return ({ history: '病史', vital_sign: '体征', lab_result: '检验' } as Record<string, string>)[sourceType] || sourceType;
+}
+
+function factFieldLabel(field: string) {
+  return ({ chief_complaint: '主诉', heart_rate: '心率', spo2: '血氧饱和度', temperature: '体温' } as Record<string, string>)[field] || field;
 }
 
 function SoapSection({ record, section, code, title, description, color }: { record: RoundRecord; section: RoundSection; code: string; title: string; description: string; color: string }) {
