@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { loginModeDescription, normalizeLoginMode, supportsCredentialLogin } from './login-mode';
+import { isSsoMode, loginModeDescription, normalizeLoginMode, supportsCredentialLogin } from './login-mode';
 
 describe('login mode helpers', () => {
   it('uses header mode as the safe fallback for an unknown frontend setting', () => {
@@ -15,5 +15,11 @@ describe('login mode helpers', () => {
 
   it('does not describe oidc as a password-based flow', () => {
     expect(loginModeDescription('oidc')).toContain('统一身份认证');
+  });
+
+  it('flags oidc as the SSO-only mode', () => {
+    expect(isSsoMode('oidc')).toBe(true);
+    expect(isSsoMode('header')).toBe(false);
+    expect(isSsoMode('jwt')).toBe(false);
   });
 });
