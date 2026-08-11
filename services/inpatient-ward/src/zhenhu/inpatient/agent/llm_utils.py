@@ -199,22 +199,22 @@ NODE_RAG_MAP: dict[str, list[str]] = {
 # 收益: 简单任务用时 -60%, API费用 -70%, 复杂任务精度不降
 NODE_MODEL_MAP: dict[str, str] = {
     # ── pro: 需要深度医学推理 ──
-    "ddx": "deepseek-v4-pro",                    # 鉴别诊断: 多病种推理
-    "medication_reconciliation": "deepseek-v4-pro", # 用药核对: 相互作用分析
-    "medication_adjust": "deepseek-v4-pro",      # 调药草案: 保持与用药核对同级
-    "discharge": "deepseek-v4-pro",               # 出院判断: 多因素权衡
-    "history_taking": "deepseek-v4-pro",          # 病史采集: 复杂语义理解
+    "ddx": os.environ.get("DEEPSEEK_MODEL_PRO", "deepseek-chat"),                    # 鉴别诊断: 多病种推理
+    "medication_reconciliation": os.environ.get("DEEPSEEK_MODEL_PRO", "deepseek-chat"), # 用药核对: 相互作用分析
+    "medication_adjust": os.environ.get("DEEPSEEK_MODEL_PRO", "deepseek-chat"),      # 调药草案: 保持与用药核对同级
+    "discharge": os.environ.get("DEEPSEEK_MODEL_PRO", "deepseek-chat"),               # 出院判断: 多因素权衡
+    "history_taking": os.environ.get("DEEPSEEK_MODEL_PRO", "deepseek-chat"),          # 病史采集: 复杂语义理解
     # ── flash: 结构化/简短/高频 ──
-    "daily_round": "deepseek-v4-flash",           # 查房: 一句建议
-    "nursing": "deepseek-v4-flash",               # 护理: 清单生成
-    "triage": "deepseek-v4-flash",                # 分诊: 规则为主
-    "admission": "deepseek-v4-flash",             # 入院: 模板匹配
-    "monitoring": "deepseek-v4-flash",            # 监测: 阈值检查
-    "shift_summary": "deepseek-v4-flash",         # 交班: 摘要合成
-    "lab_review": "deepseek-v4-flash",            # 检验: 参考值对比
-    "db_agent": "deepseek-v4-flash",              # DB: SQL 生成
+    "daily_round": os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),           # 查房: 一句建议
+    "nursing": os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),               # 护理: 清单生成
+    "triage": os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),                # 分诊: 规则为主
+    "admission": os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),             # 入院: 模板匹配
+    "monitoring": os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),            # 监测: 阈值检查
+    "shift_summary": os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),         # 交班: 摘要合成
+    "lab_review": os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),            # 检验: 参考值对比
+    "db_agent": os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),              # DB: SQL 生成
     # 默认必须服从部署配置，避免治理收敛时把原先的显式 Pro 部署静默降级。
-    "default": os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-pro"),
+    "default": os.environ.get("DEEPSEEK_MODEL", os.environ.get("DEEPSEEK_MODEL_PRO", "deepseek-chat")),
 }
 
 

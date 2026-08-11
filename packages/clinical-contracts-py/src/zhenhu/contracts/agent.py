@@ -275,10 +275,10 @@ _default_provider: AIProvider = RuleBasedProvider()
 
 
 class DeepSeekProvider:
-    """DeepSeek V4 提供者 — 对接 deepseek-v4-flash / v4-pro 模型。
+    """DeepSeek V4 提供者 — 对接 deepseek-chat / v4-pro 模型。
 
     OpenAI 兼容 API: POST https://api.deepseek.com/chat/completions
-    用法: set_ai_provider(DeepSeekProvider(api_key="sk-xxx", model="deepseek-v4-pro"))
+    用法: set_ai_provider(DeepSeekProvider(api_key="sk-xxx", model="deepseek-chat"))
     """
 
     BASE_URL = "https://api.deepseek.com/chat/completions"
@@ -286,7 +286,7 @@ class DeepSeekProvider:
     def __init__(
         self,
         api_key: str = "",
-        model: str = "deepseek-v4-pro",
+        model: str = "deepseek-chat",
         temperature: float = 0.3,
         max_tokens: int = 2048,
     ):
