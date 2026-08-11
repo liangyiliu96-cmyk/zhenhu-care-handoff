@@ -42,6 +42,26 @@ services:
       timeout: 3s
       retries: 5
 
+  neo4j:
+    image: neo4j:latest
+    container_name: zhenhu-neo4j
+    restart: unless-stopped
+    environment:
+      # 证据图谱图数据库; 生产建议固定版本 tag 并修改密码
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}
+      NEO4J_server_memory_heap_max__size: 512M
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   # Milvus Standalone 三件套: etcd(元数据) + minio(对象存储) + milvus(向量库)
   etcd:
     image: quay.io/coreos/etcd:v3.5.18
@@ -103,6 +123,27 @@ services:
       retries: 10
       start_period: 30s
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    container_name: zhenhu-keycloak
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin123}
+      KC_HTTP_PORT: "8080"
+    ports:
+      - "${KEYCLOAK_HOST_PORT:-8080}:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./deploy/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/realms/zhenhu"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   # ═══════════════ 后端服务 ═══════════════
   workflow-engine:
     build:
@@ -117,6 +158,10 @@ services:
       REDIS_URL: redis://redis:6379/0
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      AUTH_MODE: ${AUTH_MODE:-header}
+      AUTH_ISSUER: ${AUTH_ISSUER:-http://keycloak:8080/realms/zhenhu}
+      AUTH_JWKS_URL: ${AUTH_JWKS_URL:-http://keycloak:8080/realms/zhenhu/protocol/openid-connect/certs}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-zhenhu-web}
     depends_on:
       mysql:
         condition: service_healthy
@@ -136,6 +181,10 @@ services:
       REDIS_URL: redis://redis:6379/0
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      AUTH_MODE: ${AUTH_MODE:-header}
+      AUTH_ISSUER: ${AUTH_ISSUER:-http://keycloak:8080/realms/zhenhu}
+      AUTH_JWKS_URL: ${AUTH_JWKS_URL:-http://keycloak:8080/realms/zhenhu/protocol/openid-connect/certs}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-zhenhu-web}
     depends_on:
       mysql:
         condition: service_healthy
@@ -155,6 +204,10 @@ services:
       KNOWLEDGE_URL: http://knowledge-orchestrator:8200
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      AUTH_MODE: ${AUTH_MODE:-header}
+      AUTH_ISSUER: ${AUTH_ISSUER:-http://keycloak:8080/realms/zhenhu}
+      AUTH_JWKS_URL: ${AUTH_JWKS_URL:-http://keycloak:8080/realms/zhenhu/protocol/openid-connect/certs}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-zhenhu-web}
     depends_on:
       mysql:
         condition: service_healthy
@@ -183,9 +236,18 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       DOCTOR_AUTO_APPROVE: ${DOCTOR_AUTO_APPROVE:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      AUTH_MODE: ${AUTH_MODE:-header}
+      AUTH_ISSUER: ${AUTH_ISSUER:-http://keycloak:8080/realms/zhenhu}
+      AUTH_JWKS_URL: ${AUTH_JWKS_URL:-http://keycloak:8080/realms/zhenhu/protocol/openid-connect/certs}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-zhenhu-web}
       OLLAMA_FALLBACK_ENABLED: ${OLLAMA_FALLBACK_ENABLED:-false}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       ALLOW_SQLITE_STATE_STORE: ${ALLOW_SQLITE_STATE_STORE:-true}
+      # Neo4j 证据图谱 (容器内 host=neo4j; 默认对齐演示容器 neo4j/password)
+      NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+      NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-password}
+      NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
     volumes:
       - state_data:/var/lib/zhenhu
     depends_on:
@@ -252,3 +314,5 @@ volumes:
   etcd_data:
   minio_data:
   milvus_data:
+  keycloak_data:
+  neo4j_data:
