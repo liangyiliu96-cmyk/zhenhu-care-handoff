@@ -115,7 +115,7 @@ services:
     environment:
       DATABASE_URL: mysql+asyncmy://${MYSQL_USER:-zhenhu}:${MYSQL_PASSWORD:-zhenhu123}@mysql:3306/zhenhu_workflow
       REDIS_URL: redis://redis:6379/0
-      APP_ENV: production
+      APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       mysql:
@@ -134,7 +134,7 @@ services:
     environment:
       DATABASE_URL: mysql+asyncmy://${MYSQL_USER:-zhenhu}:${MYSQL_PASSWORD:-zhenhu123}@mysql:3306/zhenhu_knowledge
       REDIS_URL: redis://redis:6379/0
-      APP_ENV: production
+      APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       mysql:
@@ -153,7 +153,7 @@ services:
     environment:
       DATABASE_URL: mysql+asyncmy://${MYSQL_USER:-zhenhu}:${MYSQL_PASSWORD:-zhenhu123}@mysql:3306/zhenhu_fhir
       KNOWLEDGE_URL: http://knowledge-orchestrator:8200
-      APP_ENV: production
+      APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       mysql:
@@ -179,7 +179,7 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-pro}
       STATE_DB_PATH: /var/lib/zhenhu/zhenhu_state.db
-      APP_ENV: production
+      APP_ENV: ${APP_ENV:-production}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       DOCTOR_AUTO_APPROVE: ${DOCTOR_AUTO_APPROVE:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}

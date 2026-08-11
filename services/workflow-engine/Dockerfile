@@ -6,7 +6,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # 系统依赖 (健康检查)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null; apt-get update && apt-get install -y --no-install-recommends \
     curl && rm -rf /var/lib/apt/lists/*
 
 # 共享契约包 + 服务源码 (editable 安装: 保持包内相对路径解析)
