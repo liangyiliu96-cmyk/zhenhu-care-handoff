@@ -64,3 +64,11 @@ services/fhir-adapter/data/*.db
 
 # Local browser QA captures. Keep durable visual evidence under docs/ instead.
 tmp-*.png
+
+# Vitest config temp files (generated on each run)
+vitest.config.ts.timestamp-*.mjs
+*.timestamp-*.mjs
+
+# Vite build output variants (CI/verify builds)
+dist-verify/
+dist-final/
