@@ -9,9 +9,10 @@
  *   5. 超时控制
  */
 
-import { API_BASE, API_TIMEOUT_READ, API_TIMEOUT_WRITE } from '@/config/api';
+import { API_BASE, API_TIMEOUT_READ, API_TIMEOUT_WRITE, AUTH_MODE } from '@/config/api';
 import type { UnifiedResponse } from '@/types/api';
 import { getAuthHeaders } from './auth-bridge';
+import { getOidcAccessToken } from './oidc';
 import { emitAuthExpired } from './runtime-events';
 
 class ApiClientError extends Error {
@@ -42,6 +43,20 @@ export function resolveApiUrl(path: string, apiBase = API_BASE): string {
   return `${normalizedBase}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+/**
+ * 构造认证 headers:
+ *  - oidc 模式优先从 UserManager 取最新 access token (静默轮换/续期后仍最新)
+ *  - header/jwt 模式沿用同步的 auth-bridge 逻辑
+ */
+async function resolveAuthHeaders(): Promise<Record<string, string>> {
+  if (AUTH_MODE === 'oidc') {
+    const token = await getOidcAccessToken();
+    if (token) return { Authorization: `Bearer ${token}` };
+    return {};
+  }
+  return getAuthHeaders();
+}
+
 async function request<T>(
   path: string,
   options: RequestInit & { timeout?: number } = {}
@@ -59,7 +74,7 @@ async function request<T>(
     const method = fetchOptions.method || 'GET';
     const hasBody = method !== 'GET' && method !== 'HEAD' && method !== 'DELETE';
     const headers: Record<string, string> = {
-      ...getAuthHeaders(),
+      ...(await resolveAuthHeaders()),
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
       ...((fetchOptions.headers as Record<string, string>) || {}),
     };

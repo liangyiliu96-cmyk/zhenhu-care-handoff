@@ -1,6 +1,7 @@
 export const ROUTES = {
   home: '/',
   login: '/login',
+  callback: '/callback',
   workbench: '/workbench',
   patientTemplate: '/patient/:id',
   dischargeTemplate: '/patient/:id/discharge',

@@ -16,9 +16,14 @@ export function getAuthMode(): string {
   return AUTH_MODE;
 }
 
+/** 从会话镜像读取 Bearer token (jwt/oidc 模式由登录流程写入)。 */
+export function getBearerToken(): string | null {
+  return sessionStorage.getItem('zhenhu_token');
+}
+
 export function getAuthHeaders(): Record<string, string> {
   if (AUTH_MODE === 'jwt' || AUTH_MODE === 'oidc') {
-    const token = sessionStorage.getItem('zhenhu_token');
+    const token = getBearerToken();
     if (token) {
       return { Authorization: `Bearer ${token}` };
     }

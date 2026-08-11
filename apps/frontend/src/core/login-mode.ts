@@ -9,6 +9,11 @@ export function supportsCredentialLogin(mode: LoginMode): boolean {
   return mode === 'header' || mode === 'jwt';
 }
 
+/** 是否为 SSO 模式 (跳转医院统一认证, 不支持本地凭证表单)。 */
+export function isSsoMode(mode: LoginMode): boolean {
+  return mode === 'oidc';
+}
+
 export function loginModeDescription(mode: LoginMode): string {
   switch (mode) {
     case 'jwt':

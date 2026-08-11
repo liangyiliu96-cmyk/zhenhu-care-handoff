@@ -1,0 +1,71 @@
+{
+  "realm": "zhenhu",
+  "enabled": true,
+  "displayName": "臻护",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "roles": {
+    "realm": [
+      { "name": "doctor", "description": "医生（经治/审核）" },
+      { "name": "nurse", "description": "护士（护理/执行）" },
+      { "name": "admin", "description": "管理员（平台运维）" }
+    ]
+  },
+  "users": [
+    {
+      "username": "doctor",
+      "enabled": true,
+      "email": "doctor@zhenhu.local",
+      "firstName": "演示医生",
+      "lastName": "医生",
+      "credentials": [
+        { "type": "password", "value": "doctor123", "temporary": false }
+      ],
+      "realmRoles": ["doctor"]
+    },
+    {
+      "username": "nurse",
+      "enabled": true,
+      "email": "nurse@zhenhu.local",
+      "firstName": "演示护士",
+      "lastName": "护士",
+      "credentials": [
+        { "type": "password", "value": "nurse123", "temporary": false }
+      ],
+      "realmRoles": ["nurse"]
+    },
+    {
+      "username": "admin",
+      "enabled": true,
+      "email": "admin@zhenhu.local",
+      "firstName": "演示管理员",
+      "lastName": "管理员",
+      "credentials": [
+        { "type": "password", "value": "admin123", "temporary": false }
+      ],
+      "realmRoles": ["admin"]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "zhenhu-web",
+      "name": "臻护 Web 前端",
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "webOrigins": ["http://localhost:5173"],
+      "redirectUris": ["http://localhost:5173/*"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ]
+}

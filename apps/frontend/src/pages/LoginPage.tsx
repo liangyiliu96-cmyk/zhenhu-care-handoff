@@ -6,9 +6,10 @@ import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
-import { AUTH_MODE, DEV_SHORTCUT_LOGIN_ENABLED, OIDC_LOGIN_URL } from '@/config/api';
+import { AUTH_MODE, DEV_SHORTCUT_LOGIN_ENABLED } from '@/config/api';
 import { defaultRouteFor, isManagementUser } from '@/core/default-route';
 import { loginModeDescription, normalizeLoginMode, supportsCredentialLogin } from '@/core/login-mode';
+import { loginWithOidc } from '@/core/oidc';
 import { ROUTES } from '@/core/routes';
 import { useAuthStore } from '@/stores/auth-store';
 import type { UserIdentity } from '@/types/auth';
@@ -46,7 +47,7 @@ const workspaceRoles = [
 ];
 
 function modeMeta(mode: ReturnType<typeof normalizeLoginMode>) {
-  if (mode === 'oidc') return { label: '医院统一认证', color: 'success' as const, action: '使用医院统一认证登录' };
+  if (mode === 'oidc') return { label: '医院统一认证', color: 'success' as const, action: '使用医院账号登录' };
   if (mode === 'jwt') return { label: '令牌认证', color: 'info' as const, action: '验证并进入系统' };
   return { label: '开发联调认证', color: 'warning' as const, action: '选择开发身份' };
 }
@@ -84,9 +85,13 @@ export default function LoginPage() {
       setSubmitError(error instanceof Error ? error.message : '快捷登录失败，请使用工号密码登录。');
     }
   };
-  const startOidc = () => {
-    if (!OIDC_LOGIN_URL) { setSubmitError('未配置医院统一认证入口。'); return; }
-    window.location.assign(OIDC_LOGIN_URL);
+  const startOidc = async () => {
+    setSubmitError('');
+    try {
+      await loginWithOidc();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : '无法跳转至医院统一认证。');
+    }
   };
 
   return <Box sx={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(420px, 0.88fr) minmax(560px, 1.12fr)' }, bgcolor: '#f4f8f7' }}>
@@ -110,7 +115,7 @@ export default function LoginPage() {
 
         <Card variant="outlined" sx={{ borderRadius: 1, borderColor: '#cddeda', boxShadow: '0 10px 28px rgba(22, 69, 75, 0.07)' }}>
           <Box sx={{ p: { xs: 2.5, sm: 3.5 } }}><Stack spacing={2.5}><Box><Stack direction="row" spacing={1} alignItems="center"><Stethoscope size={19} color="#216a7b" /><Typography variant="subtitle1" fontWeight={700}>安全进入系统</Typography></Stack><Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, lineHeight: 1.65 }}>验证成功后将按工号绑定的角色、职务和科室进入独立工作区。</Typography></Box>{submitError ? <Alert severity="error" onClose={() => setSubmitError('')}>{submitError}</Alert> : null}
-            {supportsCredentialLogin(mode) ? <Box component="form" noValidate onSubmit={handleSubmit(onSubmit)}><Stack spacing={2}><TextField label="工号" autoComplete="username" autoFocus error={Boolean(errors.jobNumber)} helperText={errors.jobNumber?.message} {...register('jobNumber')} fullWidth /><TextField label="密码" type="password" autoComplete="current-password" error={Boolean(errors.password)} helperText={errors.password?.message} {...register('password')} fullWidth /><Button type="submit" variant="contained" size="large" fullWidth disabled={isLoading} startIcon={<LogIn size={18} />} sx={{ minHeight: 46, borderRadius: 1, bgcolor: '#216a7b', boxShadow: 'none', '&:hover': { bgcolor: '#185766', boxShadow: 'none' } }}>{isLoading ? '正在验证身份...' : meta.action}</Button></Stack></Box> : <Button variant="contained" size="large" fullWidth onClick={startOidc} startIcon={<LockKeyhole size={18} />} sx={{ minHeight: 48, borderRadius: 1, bgcolor: '#216a7b', boxShadow: 'none', '&:hover': { bgcolor: '#185766', boxShadow: 'none' } }}>{meta.action}</Button>}</Stack></Box>
+            {supportsCredentialLogin(mode) ? <Box component="form" noValidate onSubmit={handleSubmit(onSubmit)}><Stack spacing={2}><TextField label="工号" autoComplete="username" autoFocus error={Boolean(errors.jobNumber)} helperText={errors.jobNumber?.message} {...register('jobNumber')} fullWidth /><TextField label="密码" type="password" autoComplete="current-password" error={Boolean(errors.password)} helperText={errors.password?.message} {...register('password')} fullWidth /><Button type="submit" variant="contained" size="large" fullWidth disabled={isLoading} startIcon={<LogIn size={18} />} sx={{ minHeight: 46, borderRadius: 1, bgcolor: '#216a7b', boxShadow: 'none', '&:hover': { bgcolor: '#185766', boxShadow: 'none' } }}>{isLoading ? '正在验证身份...' : meta.action}</Button></Stack></Box> : <Button variant="contained" size="large" fullWidth onClick={() => void startOidc()} startIcon={<LockKeyhole size={18} />} sx={{ minHeight: 48, borderRadius: 1, bgcolor: '#216a7b', boxShadow: 'none', '&:hover': { bgcolor: '#185766', boxShadow: 'none' } }}>{isLoading ? '正在跳转...' : meta.action}</Button>}</Stack></Box>
           {canUseDevShortcuts ? <><Divider /><Box sx={{ p: 1.25 }}><Button color="inherit" fullWidth disabled={isLoading} onClick={() => setShowDevIdentities((value) => !value)} endIcon={<ChevronDown size={15} style={{ transform: showDevIdentities ? 'rotate(180deg)' : undefined, transition: 'transform 160ms ease' }} />} startIcon={<Wrench size={15} />} sx={{ justifyContent: 'space-between', borderRadius: 0.75, textTransform: 'none', color: '#35555a' }}><Typography variant="body2" fontWeight={700}>本地快捷登录</Typography><Chip label={`${DEV_IDENTITIES.length} 位`} size="small" sx={{ height: 22, borderRadius: 1 }} /></Button><Collapse in={showDevIdentities}><Box sx={{ mt: 1, pt: 1, borderTop: '1px solid #e3ece9' }}><Typography variant="caption" color="text.secondary" sx={{ px: 1, display: 'block', mb: 1 }}>{mode === 'jwt' ? '快捷身份由本地后端签发 JWT，仅在显式开发开关开启时可用。' : '仅用于本地 Header 联调。其他科室请使用工号和密码完成身份验证。'}</Typography>{DEV_IDENTITIES.map((identity) => <Button key={identity.actor_id} color="inherit" fullWidth disabled={isLoading} onClick={() => void handleDevIdentity(identity)} sx={{ justifyContent: 'flex-start', textTransform: 'none', borderRadius: 0.75, px: 1.25, py: 1 }}><Box sx={{ width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 1, mr: 1.25, bgcolor: identity.role === 'doctor' ? '#e7f1f3' : '#ebf2e8', color: identity.role === 'doctor' ? '#216a7b' : '#557a4e', fontSize: 12, fontWeight: 700 }}>{identity.name[0]}</Box><Box sx={{ textAlign: 'left', flex: 1 }}><Typography variant="body2" fontWeight={700}>{identity.name}</Typography><Typography variant="caption" color="text.secondary">{identity.title} · {identity.department}</Typography></Box>{isManagementUser(identity) ? <Chip label="管理端" size="small" color="info" sx={{ borderRadius: 1, height: 20 }} /> : null}</Button>)}</Box></Collapse></Box></> : null}
         </Card>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2.5, lineHeight: 1.65 }}>继续操作即表示您确认已获得相应授权。请勿共享账号或在非受控设备上保存会话。</Typography>

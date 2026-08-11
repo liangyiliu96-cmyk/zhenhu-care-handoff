@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from zhenhu.contracts.middleware import RequestIdMiddleware, setup_error_handlers
 from zhenhu.knowledge.routes import documents_router, search_router, admin_router
+from zhenhu.knowledge.middleware.auth import role_middleware, validate_auth_configuration
 
 VERSION = "0.2.0"
 
@@ -99,6 +100,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+validate_auth_configuration()
+
 # CORS 配置 —— 阶段 0 允许本地前端开发跨域
 app.add_middleware(
     CORSMiddleware,
@@ -113,6 +116,9 @@ app.add_middleware(RequestIdMiddleware)
 
 # 统一错误处理
 setup_error_handlers(app)
+
+# 统一鉴权中间件（header 开发演示 / oidc 生产强制）
+app.middleware("http")(role_middleware)
 
 # 注册路由
 app.include_router(documents_router)

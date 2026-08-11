@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth-store';
 import { defaultRouteFor, isManagementUser } from '@/core/default-route';
 import { ROUTES } from '@/core/routes';
+import { isOidcMode, loginWithOidc, markOidcRedirectStarted, resetOidcRedirectGuardForTest } from '@/core/oidc';
 import type { ReactNode } from 'react';
 
 interface RequireAuthProps {
@@ -29,7 +31,17 @@ export default function RequireAuth({ children, role, adminOnly, departmentScope
   const user = storeUser ?? getFallbackUser();
   const authed = isAuthenticated || !!sessionStorage.getItem('zhenhu_role');
 
+  // oidc 模式: 未登录时自动重定向到医院统一认证
+  useEffect(() => {
+    if (isOidcMode() && !authed && markOidcRedirectStarted()) {
+      void loginWithOidc().catch(() => {
+        resetOidcRedirectGuardForTest();
+      });
+    }
+  }, [authed]);
+
   if (!authed || !user) {
+    if (isOidcMode()) return null; // 等待 signinRedirect 完成跳转
     return <Navigate to={ROUTES.login} replace />;
   }
 

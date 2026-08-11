@@ -3,6 +3,13 @@ import type { UserIdentity } from '@/types/auth';
 import { fetchWhoami, loginWithCredentials, loginWithDevShortcut } from '@/services/auth-service';
 import { setDevIdentity, clearIdentity } from '@/core/auth-bridge';
 import { AUTH_MODE } from '@/config/api';
+import {
+  getOidcAccessToken,
+  isOidcMode,
+  loginWithOidc as loginWithOidcFlow,
+  logoutOidc,
+  processOidcCallback,
+} from '@/core/oidc';
 import { defaultRouteFor } from '@/core/default-route';
 
 interface AuthState {
@@ -18,6 +25,12 @@ interface AuthState {
 
   /** 通过当前身份信息直接设置 (header 模式) */
   setIdentity: (identity: UserIdentity) => void;
+
+  /** OIDC 模式: 跳转医院统一认证 (Authorization Code + PKCE) */
+  loginWithOidc: () => Promise<void>;
+
+  /** OIDC 模式: 处理授权回调并建立会话, 返回默认路由 */
+  completeOidcLogin: () => Promise<string>;
 
   /** 验证当前身份 (OIDC 回调后 / dev 启动时) */
   verifySession: () => Promise<void>;
@@ -103,11 +116,58 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ user: identity, isAuthenticated: true, error: null });
   },
 
+  loginWithOidc: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      await loginWithOidcFlow();
+      set({ isLoading: false });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '无法跳转至医院统一认证';
+      set({ isLoading: false, error: msg });
+      throw err;
+    }
+  },
+
+  completeOidcLogin: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const { identity, token } = await processOidcCallback();
+      setDevIdentity({
+        role: identity.role,
+        title: identity.title,
+        department: identity.department,
+        name: identity.name,
+        actorId: identity.actor_id,
+        token,
+      });
+      set({ user: identity, token, isAuthenticated: true, isLoading: false, error: null });
+      return defaultRouteFor(identity);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '统一认证处理失败';
+      set({ isLoading: false, error: msg, isAuthenticated: false });
+      throw err;
+    }
+  },
+
   verifySession: async () => {
     if (AUTH_MODE === 'header') {
       try {
         const user = await fetchWhoami();
         set({ user, isAuthenticated: true, error: null });
+      } catch {
+        set({ user: null, isAuthenticated: false });
+      }
+      return;
+    }
+    if (AUTH_MODE === 'oidc') {
+      try {
+        const token = await getOidcAccessToken();
+        if (!token) {
+          set({ user: null, isAuthenticated: false });
+          return;
+        }
+        const user = await fetchWhoami();
+        set({ user, token, isAuthenticated: true, error: null });
       } catch {
         set({ user: null, isAuthenticated: false });
       }
@@ -130,5 +190,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     clearIdentity();
     set({ user: null, token: null, isAuthenticated: false, error: null });
+    if (isOidcMode()) {
+      void logoutOidc().catch(() => {
+        // IdP 登出失败时本地会话已清除, 不阻塞前端流程
+      });
+    }
   },
 }));

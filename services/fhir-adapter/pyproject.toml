@@ -12,6 +12,7 @@ dependencies = [
     "zhenhu-contracts",
     "asyncmy>=0.2.10",
     "cryptography>=43.0",
+    "PyJWT[crypto]>=2.10",
     "alembic>=1.13",
 ]
 

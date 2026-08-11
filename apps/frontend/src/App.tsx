@@ -5,6 +5,7 @@ import { ROUTES } from '@/core/routes';
 import RequireAuth from '@/core/require-auth';
 
 const LoginPage = lazy(() => import('@/pages/LoginPage'));
+const OidcCallbackPage = lazy(() => import('@/pages/OidcCallbackPage'));
 const HomePage = lazy(() => import('@/pages/HomePage'));
 const WorkbenchPage = lazy(() => import('@/pages/WorkbenchPage'));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
@@ -43,6 +44,7 @@ export default function App() {
       <Routes>
         <Route path={ROUTES.home} element={<HomePage />} />
         <Route path={ROUTES.login} element={<LoginPage />} />
+        <Route path={ROUTES.callback} element={<OidcCallbackPage />} />
         <Route path={ROUTES.workbench} element={<RequireAuth role="doctor"><WorkbenchPage /></RequireAuth>} />
         <Route path={ROUTES.patientTemplate} element={<RequireAuth role="doctor"><DashboardPage /></RequireAuth>} />
         <Route path={ROUTES.dischargeTemplate} element={<RequireAuth role="doctor"><DischargePage /></RequireAuth>} />

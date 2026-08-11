@@ -158,7 +158,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      AUTH_MODE: ${AUTH_MODE:-header}
+      AUTH_MODE: ${AUTH_MODE:-oidc}
       AUTH_ISSUER: ${AUTH_ISSUER:-http://keycloak:8080/realms/zhenhu}
       AUTH_JWKS_URL: ${AUTH_JWKS_URL:-http://keycloak:8080/realms/zhenhu/protocol/openid-connect/certs}
       AUTH_AUDIENCE: ${AUTH_AUDIENCE:-zhenhu-web}
@@ -181,7 +181,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      AUTH_MODE: ${AUTH_MODE:-header}
+      AUTH_MODE: ${AUTH_MODE:-oidc}
       AUTH_ISSUER: ${AUTH_ISSUER:-http://keycloak:8080/realms/zhenhu}
       AUTH_JWKS_URL: ${AUTH_JWKS_URL:-http://keycloak:8080/realms/zhenhu/protocol/openid-connect/certs}
       AUTH_AUDIENCE: ${AUTH_AUDIENCE:-zhenhu-web}
@@ -204,7 +204,7 @@ services:
       KNOWLEDGE_URL: http://knowledge-orchestrator:8200
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      AUTH_MODE: ${AUTH_MODE:-header}
+      AUTH_MODE: ${AUTH_MODE:-oidc}
       AUTH_ISSUER: ${AUTH_ISSUER:-http://keycloak:8080/realms/zhenhu}
       AUTH_JWKS_URL: ${AUTH_JWKS_URL:-http://keycloak:8080/realms/zhenhu/protocol/openid-connect/certs}
       AUTH_AUDIENCE: ${AUTH_AUDIENCE:-zhenhu-web}
@@ -237,7 +237,7 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       DOCTOR_AUTO_APPROVE: ${DOCTOR_AUTO_APPROVE:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      AUTH_MODE: ${AUTH_MODE:-header}
+      AUTH_MODE: ${AUTH_MODE:-oidc}
       AUTH_ISSUER: ${AUTH_ISSUER:-http://keycloak:8080/realms/zhenhu}
       AUTH_JWKS_URL: ${AUTH_JWKS_URL:-http://keycloak:8080/realms/zhenhu/protocol/openid-connect/certs}
       AUTH_AUDIENCE: ${AUTH_AUDIENCE:-zhenhu-web}
