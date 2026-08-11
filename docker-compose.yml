@@ -137,12 +137,8 @@ services:
     volumes:
       - keycloak_data:/opt/keycloak/data
       - ./deploy/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/realms/zhenhu"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+    # 注意: keycloak 26 镜像不含 curl/wget/bash, 无法配置 HTTP healthcheck;
+    # 服务就绪由依赖方(懒连接 AUTH_ISSUER + 登录重试)自行容忍, 故不设 healthcheck。
 
   # ═══════════════ 后端服务 ═══════════════
   workflow-engine:
