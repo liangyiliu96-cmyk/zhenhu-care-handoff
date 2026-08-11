@@ -16,7 +16,7 @@ dependencies = [
     "langgraph>=0.2.0",
     "langchain-core>=0.3.0",
     "redis>=5.0.0",
-    "neo4j>=5.22,<6",
+    "neo4j>=5.22,<7",
     "pymilvus>=2.4.3",
     "sentence-transformers>=2.7.0",
     "zhenhu-contracts",
