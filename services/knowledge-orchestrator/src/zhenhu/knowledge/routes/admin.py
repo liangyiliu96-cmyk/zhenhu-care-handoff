@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from zhenhu.knowledge.audit import record_audit_log
 from zhenhu.knowledge.models import (
     KnowledgeChunk,
     KnowledgeDocument,
@@ -220,11 +221,24 @@ async def reset_runtime(
     request_id = get_request_id(request)
 
     # 删除所有运行时数据（保留 lifecycle_events 审计记录）
-    from sqlalchemy import delete as _delete
+    from sqlalchemy import delete as _delete, func as _func, select as _select
+    before_doc_count = (
+        await session.execute(_select(_func.count(KnowledgeDocument.id)))
+    ).scalar_one()
     await session.execute(_delete(KnowledgeChunk))
     await session.execute(_delete(KnowledgeIngestionJob))
     await session.execute(_delete(KnowledgeDocument))
     await session.flush()
+
+    # 审计：文档删除（运行时重置，记录删除数量）
+    await record_audit_log(
+        session,
+        action_type="knowledge_deleted",
+        actor="knowledge_admin",
+        resource_type="knowledge",
+        detail={"operation": "runtime_reset", "deleted_document_count": before_doc_count},
+        request_id=request_id,
+    )
 
     # 插入预置样例
     count = await _insert_preset_samples(session)

@@ -35,6 +35,9 @@ apps/frontend/score-panel-qa.png
 **/backups/
 *.log
 
+# Alembic autogenerate scratch database (created by `alembic revision --autogenerate`)
+_alembic_tmp.db
+
 # Local environment and secrets
 .env
 .env.*

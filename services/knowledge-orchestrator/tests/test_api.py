@@ -347,3 +347,72 @@ class TestAdminEndpoints:
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["data"]["results"]) > 0
+
+
+class TestAuditLogs:
+    """知识操作审计日志补全测试（Phase 1a：检索 / 删除）。"""
+
+    @pytest.fixture
+    async def client(self):
+        from zhenhu.knowledge.main import app
+        from zhenhu.knowledge.models import async_engine, Base
+
+        async with async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
+
+        async with async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+
+    @pytest.mark.asyncio
+    async def test_search_produces_audit_log(self, client):
+        """检索操作应产生 knowledge_search 审计记录。"""
+        from sqlalchemy import select
+        from zhenhu.knowledge.models import KnowledgeAuditLog, async_session_factory
+
+        # 先 reset 出可检索的预置样例
+        await client.post("/knowledge/runtime/reset")
+
+        resp = await client.get("/knowledge/search", params={"q": "青霉素"})
+        assert resp.status_code == 200
+
+        async with async_session_factory() as session:
+            result = await session.execute(
+                select(KnowledgeAuditLog).where(
+                    KnowledgeAuditLog.action_type == "knowledge_search"
+                )
+            )
+            logs = list(result.scalars().all())
+
+        assert len(logs) >= 1
+        search_log = logs[-1]
+        assert search_log.actor == "system"
+        assert search_log.session_id is not None
+
+    @pytest.mark.asyncio
+    async def test_reset_produces_deletion_audit(self, client, sample_document_data):
+        """运行时重置删除应产生 knowledge_deleted 审计记录。"""
+        from sqlalchemy import select
+        from zhenhu.knowledge.models import KnowledgeAuditLog, async_session_factory
+
+        # 导入一份文档后 reset，删除数量应 >= 1
+        await client.post("/knowledge/documents/import", json=sample_document_data)
+        await client.post("/knowledge/runtime/reset")
+
+        async with async_session_factory() as session:
+            result = await session.execute(
+                select(KnowledgeAuditLog).where(
+                    KnowledgeAuditLog.action_type == "knowledge_deleted"
+                )
+            )
+            logs = list(result.scalars().all())
+
+        assert len(logs) >= 1
+        deleted_log = logs[-1]
+        assert deleted_log.actor == "knowledge_admin"
+        assert deleted_log.resource_type == "knowledge"
+        assert deleted_log.detail is not None

@@ -8,6 +8,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from zhenhu.knowledge.audit import record_audit_log
 from zhenhu.knowledge.models import get_session
 from zhenhu.knowledge.retrieval import fulltext_search
 from zhenhu.knowledge.schemas import SearchResponse, SearchResultItem, UnifiedResponse
@@ -47,6 +48,18 @@ async def search_knowledge(
         )
 
     results = await fulltext_search(session, q, top_k=top_k)
+
+    # 审计：检索操作（不可变证据链，记录 query / top_k / 命中数）
+    actor = request.headers.get("X-User-Role", "system")
+    await record_audit_log(
+        session,
+        action_type="knowledge_search",
+        actor=actor,
+        resource_type="knowledge",
+        detail={"query": q, "top_k": top_k, "result_count": len(results)},
+        request_id=request_id,
+    )
+    await session.commit()
 
     items = [
         SearchResultItem(

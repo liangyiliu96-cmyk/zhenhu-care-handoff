@@ -348,6 +348,59 @@ class KnowledgeLifecycleEvent(Base):
         return f"<KnowledgeLifecycleEvent(audit_id={self.audit_id!r}, event_type={self.event_type!r})>"
 
 
+class KnowledgeAuditLog(Base):
+    """知识操作审计日志 —— 非文档生命周期类操作的不可变审计记录。
+
+    覆盖检索操作、运行时重置删除等通用操作；文档导入/状态变更/版本流转由
+    KnowledgeLifecycleEvent 负责。参考 inpatient AuditLog 模式：
+    记录 action_type、actor、resource_type/resource_id、detail、session_id。
+    采用 INSERT-only 策略，不修改已写入的审计记录。
+    """
+
+    __tablename__ = "knowledge_audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    audit_id: Mapped[str] = mapped_column(
+        String(128), unique=True, nullable=False, index=True,
+        default=lambda: _new_id("KAUDIT-"),
+        comment="审计事件唯一标识"
+    )
+    action_type: Mapped[str] = mapped_column(
+        String(64), nullable=False,
+        comment="操作类型：knowledge_search/knowledge_deleted 等"
+    )
+    actor: Mapped[str] = mapped_column(
+        String(64), nullable=False,
+        comment="操作者角色标识"
+    )
+    resource_type: Mapped[str | None] = mapped_column(
+        String(32), nullable=True,
+        comment="资源类型：knowledge/search"
+    )
+    resource_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True,
+        comment="资源 ID"
+    )
+    detail: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="事件详情（JSON 编码）"
+    )
+    session_id: Mapped[str | None] = mapped_column(
+        String(100), nullable=True,
+        comment="请求 ID（session）"
+    )
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_utcnow,
+        comment="发生时间"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<KnowledgeAuditLog(audit_id={self.audit_id!r}, "
+            f"action_type={self.action_type!r})>"
+        )
+
+
 async def init_db() -> None:
     """初始化数据库表结构。"""
     async with async_engine.begin() as conn:

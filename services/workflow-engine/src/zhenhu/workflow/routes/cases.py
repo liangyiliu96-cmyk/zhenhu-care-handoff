@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from zhenhu.workflow.audit import record_case_audit
 from zhenhu.workflow.models import AuditEvent, Case, RiskItem, TaskDraft, get_session
 from zhenhu.workflow.schemas import (
     AnalyseResponse,
@@ -234,6 +235,20 @@ async def create_case(
     )
     session.add(case)
     await session.flush()
+
+    # 审计：病例创建（不可变证据链）
+    await record_case_audit(
+        session,
+        case_id=case.case_id,
+        actor="doctor",
+        event_type="case_created",
+        title="创建病例",
+        detail=f"病例 {case.case_id} 创建，输入快照 {body.input_snapshot_id}",
+        before_state=None,
+        after_state="draft",
+        request_id=request_id,
+    )
+
     await session.commit()
 
     resp = CaseResponse.model_validate(case)
@@ -413,6 +428,20 @@ async def review_risk(
         status=new_status,
         decision=body.action,
         note=body.note,
+    )
+
+    # 审计：风险项审核（确认/驳回，单个风险项粒度）
+    note_suffix = f"，备注：{body.note}" if body.note else ""
+    await record_case_audit(
+        session,
+        case_id=case_id,
+        actor="doctor",
+        event_type="risk_reviewed",
+        title="审核风险项",
+        detail=f"风险项 {risk_id} 决策为 {body.action}{note_suffix}",
+        before_state="pending",
+        after_state=new_status,
+        request_id=request_id,
     )
 
     # 检查是否所有风险项都已审核完毕

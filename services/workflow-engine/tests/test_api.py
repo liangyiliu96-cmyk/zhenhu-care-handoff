@@ -531,6 +531,61 @@ class TestEndToEnd:
 
 
 # ============================================================================
+# 测试：审计事件补全（Phase 1a）
+# ============================================================================
+
+
+class TestAuditEvents:
+    """病例审计事件补全测试（创建 / 审核风险项）。"""
+
+    @pytest.mark.asyncio
+    async def test_create_and_review_produce_audit_events(self, client):
+        """创建病例与审核风险项均产生审计事件，且 event_type 正确。"""
+        from sqlalchemy import select
+        from zhenhu.workflow.models import AuditEvent, async_session_factory
+
+        create_resp = await client.post(
+            "/cases", json={"input_snapshot_id": "snapshot-audit"}
+        )
+        assert create_resp.status_code == 201
+        case_id = create_resp.json()["data"]["case_id"]
+
+        analyse_resp = await client.post(f"/cases/{case_id}/analyse")
+        assert analyse_resp.status_code == 200
+        risks = analyse_resp.json()["data"]["risk_items"]
+        assert len(risks) >= 1
+
+        # 审核第一个风险项（confirm）
+        first_risk = risks[0]
+        review_resp = await client.post(
+            f"/cases/{case_id}/risks/{first_risk['risk_id']}/review",
+            json={"action": "confirm", "note": "审计验证"},
+        )
+        assert review_resp.status_code == 200
+
+        async with async_session_factory() as session:
+            result = await session.execute(
+                select(AuditEvent).where(AuditEvent.case_id == case_id)
+            )
+            events = list(result.scalars().all())
+
+        event_types = [e.event_type for e in events]
+
+        # 创建审计：case_created
+        assert "case_created" in event_types
+        created = next(e for e in events if e.event_type == "case_created")
+        assert created.actor == "doctor"
+        assert created.before_state is None
+        assert created.after_state == "draft"
+
+        # 风险项审核审计：risk_reviewed（单风险项粒度）
+        assert "risk_reviewed" in event_types
+        reviewed = next(e for e in events if e.event_type == "risk_reviewed")
+        assert reviewed.before_state == "pending"
+        assert reviewed.after_state == "confirmed"
+
+
+# ============================================================================
 # 测试：GET /cases/{case_id} 只读查询端点
 # ============================================================================
 
@@ -612,13 +667,13 @@ class TestGetCase:
         # risks 应有 3 条
         assert len(payload["risks"]) == 3
 
-        # audit_event_count >= 2（创建时的 draft 也有审计吗？不，create 不写审计。
-        # analyse 写了 2 条：analysis_started + analysis_completed）
-        assert payload["audit_event_count"] >= 2
+        # audit_event_count >= 2（创建时的 draft 审计 1 条 + analyse 2 条：
+        # analysis_started + analysis_completed）
+        assert payload["audit_event_count"] >= 3
 
     @pytest.mark.asyncio
     async def test_get_case_freshly_created(self, client):
-        """GET /cases/{case_id} 刚创建的病例，无风险无草稿无审计。"""
+        """GET /cases/{case_id} 刚创建的病例，无风险无草稿，仅创建审计。"""
         create_resp = await client.post(
             "/cases", json={"input_snapshot_id": "snapshot-fresh"}
         )
@@ -632,4 +687,5 @@ class TestGetCase:
         assert payload["state"] == "draft"
         assert payload["risks"] == []
         assert payload["task_draft"] is None
-        assert payload["audit_event_count"] == 0
+        # 阶段 1a 审计补全：创建病例写入 case_created 审计事件
+        assert payload["audit_event_count"] == 1
