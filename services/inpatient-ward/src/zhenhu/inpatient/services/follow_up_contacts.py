@@ -85,7 +85,9 @@ class FollowUpContactService:
         key = os.environ.get("CONTACT_ENCRYPTION_KEY", "").strip()
         if not key and os.environ.get("APP_ENV", "dev").lower() != "production":
             # Development-only stable key: production must inject an independently rotated secret.
-            source = os.environ.get("DEEPSEEK_API_KEY", "zhenhu-dev-contact-key")
+            # 注意: 密钥派生必须固定, 不得依赖 DEEPSEEK_API_KEY —— 否则配置 LLM key 后
+            # 旧密文(用旧派生 key 加密)将无法解密, 导致随访联系方式 500。
+            source = "zhenhu-dev-contact-key"
             key = base64.urlsafe_b64encode(hashlib.sha256(f"zhenhu-dev-contact:{source}".encode()).digest()).decode()
         if not key:
             raise FollowUpContactConfigurationError("CONTACT_ENCRYPTION_KEY is required in production")
