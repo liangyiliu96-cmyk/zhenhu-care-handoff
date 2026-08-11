@@ -139,11 +139,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await run_schema_migrations(async_engine)
 
-    # 启动种子: 病种模板/组织架构表为预留结构, 此处幂等同步 (管理端列表依赖)
+    # 启动种子: 病种模板/组织架构/科室护理清单表为预留结构, 此处幂等同步 (管理端与护理功能依赖)
     try:
-        from .routes.state_store import seed_disease_templates, seed_org_from_json
+        from .routes.state_store import seed_disease_templates, seed_org_from_json, seed_checklists_from_dict
         seed_disease_templates()
         seed_org_from_json()
+        seed_checklists_from_dict()
     except Exception:
         logger.exception("seed failed")
 
