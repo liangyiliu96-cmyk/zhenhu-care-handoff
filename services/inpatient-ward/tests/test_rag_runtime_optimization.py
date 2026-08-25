@@ -329,6 +329,35 @@ async def test_assistant_retrieval_reports_low_relevance_without_sources(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_assistant_retrieval_rejects_high_score_unrelated_hit(monkeypatch):
+    from zhenhu.inpatient.agent import assistant, rag_engine
+
+    async def fake_search(*_args, **_kwargs):
+        return [{
+            "layer": "L5",
+            "score": 0.91,
+            "topic": "地高辛与低钾风险",
+            "text": "低钾可增加地高辛中毒风险。",
+            "source": "drug_interaction",
+            "version": "2026-07-20",
+        }]
+
+    monkeypatch.setattr(rag_engine, "search", fake_search)
+    monkeypatch.setattr(assistant, "_expand_query", lambda _message: ["华法林与阿司匹林相互作用"])
+
+    sources, citations, intent = await assistant._retrieve_sources(
+        "华法林与阿司匹林相互作用",
+        assistant.ROLE_CONFIG["doctor"],
+        role="doctor",
+    )
+
+    assert sources == []
+    assert citations == []
+    assert intent["evidence_diagnostics"]["status"] == "low_relevance"
+    assert intent["evidence_diagnostics"]["rejected"]["lexical_mismatch"] == 1
+
+
+@pytest.mark.asyncio
 async def test_assistant_retrieval_prefers_published_knowledge_orchestrator(monkeypatch):
     from zhenhu.inpatient.agent import assistant, rag_engine
     from zhenhu.inpatient.services import knowledge_orchestrator

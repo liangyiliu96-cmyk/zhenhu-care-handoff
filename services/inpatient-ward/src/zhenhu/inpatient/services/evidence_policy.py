@@ -8,11 +8,21 @@ why evidence was accepted, filtered, or degraded.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
 
-POLICY_VERSION = "evidence-constrained-rag-2026-08-25.1"
+POLICY_VERSION = "evidence-constrained-rag-2026-08-25.2"
+
+# Vector scores from different Milvus/model combinations are not directly
+# comparable. A small lexical anchor check prevents a high but unrelated
+# semantic hit from becoming a citation (for example, a weather question
+# receiving a nursing guideline).
+_LEXICAL_STOPGRAMS = {
+    "需要", "如何", "怎么", "什么", "是否", "可以", "能够", "注意", "相关",
+    "患者", "病人", "目前", "情况", "建议", "方面", "问题", "风险", "哪些",
+}
 
 
 SearchFn = Callable[..., Awaitable[list[dict[str, Any]]]]
@@ -39,6 +49,40 @@ class EvidenceScope:
 class EvidenceRetrievalResult:
     hits: list[dict[str, Any]]
     diagnostics: dict[str, Any]
+
+
+def query_supports_hit(queries: list[str], hit: dict[str, Any]) -> bool:
+    """Return whether a hit shares a meaningful anchor with any query variant.
+
+    This is deliberately a conservative second gate after vector retrieval.
+    Query expansion supplies common clinical synonyms, while this check keeps
+    unrelated high-scoring records out of the answer's citation chain.
+    """
+    haystack = " ".join(
+        _text(hit.get(field))
+        for field in ("topic", "text", "category", "source")
+    ).casefold()
+    if not haystack:
+        return False
+
+    for query in queries:
+        normalized = _text(query).casefold()
+        if not normalized:
+            continue
+        chinese_terms = re.findall(r"[\u4e00-\u9fff]{2,}", normalized)
+        for term in chinese_terms:
+            if term in haystack:
+                return True
+            for size in (3, 2):
+                if any(
+                    gram not in _LEXICAL_STOPGRAMS and gram in haystack
+                    for gram in (term[index:index + size] for index in range(len(term) - size + 1))
+                ):
+                    return True
+        query_tokens = set(re.findall(r"[a-z0-9][a-z0-9._+-]{2,}", normalized))
+        if query_tokens and any(token in haystack for token in query_tokens):
+            return True
+    return False
 
 
 def build_evidence_scope(
@@ -148,7 +192,9 @@ async def retrieve_evidence(
     lifecycle_filtered, lifecycle_rejected = _filter_by_lifecycle(raw_hits)
     graph_filtered, graph_rejected = _filter_by_graph(lifecycle_filtered, scope)
     version_filtered, version_rejected = _filter_by_version(graph_filtered, scope.required_knowledge_version)
-    scored_hits = [hit for hit in version_filtered if float(hit.get("score") or 0) >= min_score]
+    lexical_hits = [hit for hit in version_filtered if query_supports_hit(queries, hit)]
+    lexical_rejected = len(version_filtered) - len(lexical_hits)
+    scored_hits = [hit for hit in lexical_hits if float(hit.get("score") or 0) >= min_score]
     ranked_hits = rerank_fn(" ".join(queries[:1]), scored_hits) if len(scored_hits) > final_k else scored_hits
     accepted = ranked_hits[:final_k]
 
@@ -195,7 +241,8 @@ async def retrieve_evidence(
         "retrieval_backends": sorted({_text(hit.get("retrieval_backend") or "local-milvus") for hit in raw_hits}),
         "degradation_reasons": degradation_reasons,
         "rejected": {
-            "low_score": max(0, len(version_filtered) - len(scored_hits)),
+            "low_score": max(0, len(lexical_hits) - len(scored_hits)),
+            "lexical_mismatch": lexical_rejected,
             "version_mismatch": version_rejected,
             "lifecycle_mismatch": lifecycle_rejected,
             "graph_mismatch": graph_rejected,
@@ -245,7 +292,7 @@ def skipped_diagnostics(*, role: str, intent: dict[str, Any], allowed_layers: li
         "retrieval_backends": [],
         "degradation_reasons": [],
         "graph_context": {},
-        "rejected": {"low_score": 0, "version_mismatch": 0, "lifecycle_mismatch": 0, "graph_mismatch": 0},
+        "rejected": {"low_score": 0, "lexical_mismatch": 0, "version_mismatch": 0, "lifecycle_mismatch": 0, "graph_mismatch": 0},
         "errors": [],
         "degraded": False,
     }
@@ -264,7 +311,7 @@ def error_diagnostics(*, role: str, intent: dict[str, Any], allowed_layers: list
         "retrieval_backends": [],
         "degradation_reasons": [],
         "graph_context": {},
-        "rejected": {"low_score": 0, "version_mismatch": 0, "lifecycle_mismatch": 0, "graph_mismatch": 0},
+        "rejected": {"low_score": 0, "lexical_mismatch": 0, "version_mismatch": 0, "lifecycle_mismatch": 0, "graph_mismatch": 0},
         "errors": [type(exc).__name__],
         "degraded": True,
     }
