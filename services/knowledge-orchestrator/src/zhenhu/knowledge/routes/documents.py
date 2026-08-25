@@ -31,6 +31,7 @@ from zhenhu.knowledge.schemas import (
 )
 from zhenhu.knowledge.state_machine import KnowledgeStateMachine, StateMachineError
 from zhenhu.knowledge.hooks import notify_knowledge_changed
+from zhenhu.knowledge.scope_policy import infer_knowledge_scope, infer_evidence_metadata
 from zhenhu.contracts import KNOWLEDGE_TERMINAL_STATES
 from zhenhu.contracts.agent import get_ai_provider, AgentAuditHook  # 阶段M Agent升级
 
@@ -136,6 +137,23 @@ async def import_document(
             },
         )
 
+    scope = infer_knowledge_scope(
+        title=body.title,
+        owner=body.owner,
+        content=body.content,
+        layer=body.layer,
+        disease_id=body.disease_id,
+        department=body.department,
+    )
+    evidence_metadata = infer_evidence_metadata(
+        title=body.title,
+        owner=body.owner,
+        content=body.content,
+        source_type=body.source_type,
+        evidence_level=body.evidence_level,
+        guideline_year=body.guideline_year,
+    )
+
     # 创建文档
     from datetime import datetime, timezone
     effective_from = datetime.fromisoformat(body.effective_from).replace(
@@ -149,6 +167,10 @@ async def import_document(
         title=body.title,
         version=body.version,
         owner=body.owner,
+        layer=scope["layer"],
+        disease_id=scope["disease_id"],
+        department=scope["department"],
+        **evidence_metadata,
         status="review_pending",
         effective_from=effective_from,
         effective_until=effective_until,
@@ -275,6 +297,14 @@ async def list_documents(
                 version=doc.version,
                 status=doc.status,
                 owner=doc.owner,
+                layer=doc.layer,
+                disease_id=doc.disease_id,
+                department=doc.department,
+                source_type=doc.source_type,
+                evidence_level=doc.evidence_level,
+                guideline_year=doc.guideline_year,
+                source_credibility=doc.source_credibility,
+                evidence_metadata_origin=doc.evidence_metadata_origin,
                 effective_from=doc.effective_from.isoformat()[:10] if doc.effective_from else None,
                 effective_until=doc.effective_until.isoformat()[:10] if doc.effective_until else None,
                 source_format=doc.source_format,

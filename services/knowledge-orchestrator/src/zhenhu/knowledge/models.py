@@ -14,6 +14,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Float,
     String,
     Text,
 )
@@ -73,6 +74,38 @@ class KnowledgeDocument(Base):
     owner: Mapped[str] = mapped_column(
         String(64), nullable=False,
         comment="文档归属部门/组织"
+    )
+    layer: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, index=True,
+        comment="知识层级：L1-L16 或业务扩展层"
+    )
+    disease_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, index=True,
+        comment="适用病种 ID"
+    )
+    department: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True,
+        comment="适用科室"
+    )
+    source_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="unknown", index=True,
+        comment="证据来源类型：guideline/systematic_review/drug_label/institutional_sop/primary_study/unknown"
+    )
+    evidence_level: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="unknown",
+        comment="证据等级：A/B/C/unknown，不对缺失元数据强行分级"
+    )
+    guideline_year: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, index=True,
+        comment="指南或来源年份"
+    )
+    source_credibility: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.5,
+        comment="来源可信度启发式分值，仅用于排序与提示，不替代临床评价"
+    )
+    evidence_metadata_origin: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="inferred",
+        comment="循证元数据来源：declared/inferred"
     )
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="review_pending", index=True,

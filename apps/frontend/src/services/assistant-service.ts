@@ -13,6 +13,15 @@ export interface AssistantCitation {
   [key: string]: unknown;
 }
 
+export interface AssistantEvidenceDiagnostics {
+  status?: 'ok' | 'skipped' | 'no_evidence' | 'low_relevance' | 'version_mismatch' | 'lifecycle_mismatch' | 'graph_mismatch' | 'index_error' | string;
+  policy_version?: string;
+  accepted_count?: number;
+  raw_count?: number;
+  degraded?: boolean;
+  [key: string]: unknown;
+}
+
 export interface AssistantQuickQuestions {
   role: string;
   assistant_mode?: AssistantMode;
@@ -104,6 +113,7 @@ export interface AssistantStreamPayload {
   backend?: string;
   cache_hit?: boolean;
   intent?: { name?: string; label?: string; confidence?: number; layers?: string[] };
+  evidence?: AssistantEvidenceDiagnostics;
 }
 
 export type AssistantStreamEvent =
@@ -116,6 +126,7 @@ export type AssistantStreamEvent =
     backend?: string;
     cacheHit?: boolean;
     intent?: { name?: string; label?: string; confidence?: number; layers?: string[] };
+    evidence?: AssistantEvidenceDiagnostics;
   };
 
 export function fetchAssistantQuickQuestions(
@@ -198,6 +209,7 @@ export async function streamAssistantChat(
         backend: payload.backend,
         cacheHit: payload.cache_hit,
         intent: payload.intent,
+        evidence: payload.evidence,
       });
     }
   };

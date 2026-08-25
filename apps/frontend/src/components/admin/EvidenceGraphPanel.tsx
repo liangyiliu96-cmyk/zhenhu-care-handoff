@@ -46,8 +46,8 @@ export default function EvidenceGraphPanel() {
   if (!graph) return null;
 
   return <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-    <Alert severity={graph.reachable ? 'success' : 'warning'} icon={<ShieldCheck size={18} />} action={<Button size="small" color="inherit" startIcon={<RefreshCw size={15} />} onClick={() => rebuild.mutate()} disabled={rebuild.isPending}>{rebuild.isPending ? '重建中' : '重建图谱'}</Button>}>
-      {graph.reachable ? 'Neo4j 图谱已连接。重建只同步版本化知识与病种模板，不包含患者数据。' : 'Neo4j 图谱当前不可用，临床工作流与现有 RAG 不受影响。'}
+    <Alert severity={!graph.reachable || graph.needs_rebuild ? 'warning' : 'success'} icon={<ShieldCheck size={18} />} action={<Button size="small" color="inherit" startIcon={<RefreshCw size={15} />} onClick={() => rebuild.mutate()} disabled={rebuild.isPending}>{rebuild.isPending ? '重建中' : '重建图谱'}</Button>}>
+      {!graph.reachable ? 'Neo4j 图谱当前不可用，临床工作流与现有 RAG 不受影响。' : graph.needs_rebuild ? `知识库在上次重建后发生了变更，建议重建图谱${graph.knowledge_sync?.latest_changed_document_id ? `（文档 ${graph.knowledge_sync.latest_changed_document_id}）` : ''}。` : 'Neo4j 图谱已连接，当前与受控知识版本一致。重建只同步版本化知识与病种模板，不包含患者数据。'}
     </Alert>
     {rebuild.error ? <Alert severity="error" action={<Button size="small" color="inherit" onClick={() => rebuild.mutate()}>重试</Button>}>图谱重建失败：{rebuild.error instanceof Error ? rebuild.error.message : '服务暂时不可用'}</Alert> : null}
 
@@ -57,6 +57,9 @@ export default function EvidenceGraphPanel() {
       <Metric icon={<Network size={17} />} label="关系数量" value={graph.relationships} />
       <Metric icon={<ShieldCheck size={17} />} label="运行状态" value={graph.reachable ? '已连接' : '待连接'} tone={graph.reachable ? 'success' : 'warning'} />
     </Box>
+    {graph.last_rebuild ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+      最近重建：{formatRebuildTime(graph.last_rebuild.rebuilt_at)} · 证据来源：{formatSourceCounts(graph.last_rebuild.evidence_sources)}
+    </Typography> : null}
 
     <Card variant="outlined" sx={{ overflow: 'hidden' }}>
       <Box sx={{ px: 1.75, py: 1.35, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
@@ -85,6 +88,17 @@ export default function EvidenceGraphPanel() {
     </Card>
     <RuleDetailDialog rule={selectedRule} evidence={disease.data?.evidence ?? []} onClose={() => setSelectedRule(null)} />
   </Box>;
+}
+
+function formatRebuildTime(value?: string) {
+  if (!value) return '尚无记录';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN');
+}
+
+function formatSourceCounts(sources: Record<string, number>) {
+  const entries = Object.entries(sources);
+  return entries.length ? entries.map(([source, count]) => `${source} ${count}`).join('、') : '暂无';
 }
 
 function filterGraph(data: DiseaseEvidenceGraphResponse | undefined, relation: RelationFilter, search: string) {

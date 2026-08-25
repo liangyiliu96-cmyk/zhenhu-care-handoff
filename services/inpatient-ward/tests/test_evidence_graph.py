@@ -57,3 +57,47 @@ def test_disease_graph_projection_returns_bounded_clickable_nodes_and_edges():
     assert ("e-1", "ABOUT_DISEASE", "disease:heart_failure") in edge_relations
     assert ("disease:heart_failure", "HAS_MONITORING_RULE", "r-1") in edge_relations
     assert ("disease:heart_failure", "OWNED_BY_DEPARTMENT", "department:心内科") in edge_relations
+
+
+def test_knowledge_orchestrator_graph_record_preserves_governed_scope():
+    from zhenhu.inpatient.services.evidence_graph import _knowledge_orchestrator_graph_record
+
+    record = _knowledge_orchestrator_graph_record({
+        "id": "ko:abc",
+        "layer": "L5",
+        "category": "心内科",
+        "topic": "心衰利尿剂图谱来源",
+        "text": "利尿剂治疗期间需要监测血钾和肾功能。",
+        "disease_id": "heart_failure",
+        "department": "心内科",
+        "version": "2026.08",
+        "document_id": "DOC-1",
+        "chunk_id": "CHUNK-1",
+    })
+
+    assert record == {
+        "id": "ko:abc",
+        "layer": "L5",
+        "source": "knowledge-orchestrator",
+        "category": "心内科",
+        "topic": "心衰利尿剂图谱来源",
+        "text": "利尿剂治疗期间需要监测血钾和肾功能。",
+        "disease_id": "heart_failure",
+        "department": "心内科",
+        "version": "2026.08",
+        "source_type": "",
+        "evidence_level": "",
+        "guideline_year": "",
+        "source_credibility": "",
+        "evidence_metadata_origin": "",
+    }
+
+
+def test_evidence_source_counts_make_rebuild_sources_visible():
+    from zhenhu.inpatient.services.evidence_graph import _evidence_source_counts
+
+    assert _evidence_source_counts([
+        {"source": "knowledge-orchestrator"},
+        {"source": "drug_interaction"},
+        {"source": "knowledge-orchestrator"},
+    ]) == {"drug_interaction": 1, "knowledge-orchestrator": 2}

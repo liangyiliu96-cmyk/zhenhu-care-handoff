@@ -35,6 +35,12 @@ class ImportDocumentRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=256, description="文档标题")
     version: str = Field(..., min_length=1, max_length=32, description="版本号")
     owner: str = Field(..., min_length=1, max_length=64, description="归属部门")
+    layer: str | None = Field(default=None, max_length=32, description="知识层级（如 L5、L9）")
+    disease_id: str | None = Field(default=None, max_length=128, description="适用病种 ID")
+    department: str | None = Field(default=None, max_length=64, description="适用科室")
+    source_type: str | None = Field(default=None, max_length=32, description="证据来源类型")
+    evidence_level: str | None = Field(default=None, pattern=r"^(A|B|C|unknown)?$", description="证据等级")
+    guideline_year: int | None = Field(default=None, ge=1900, le=2100, description="指南或来源年份")
     content: str = Field(..., min_length=1, description="文档正文")
     effective_from: str = Field(
         ..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="生效起始日期（YYYY-MM-DD）"
@@ -55,6 +61,14 @@ class DocumentResponse(BaseModel):
     version: str = Field(..., description="版本号")
     status: str = Field(..., description="当前状态")
     owner: str = Field(..., description="归属部门")
+    layer: str | None = Field(default=None, description="知识层级")
+    disease_id: str | None = Field(default=None, description="适用病种 ID")
+    department: str | None = Field(default=None, description="适用科室")
+    source_type: str = Field(default="unknown", description="证据来源类型")
+    evidence_level: str = Field(default="unknown", description="证据等级")
+    guideline_year: int | None = Field(default=None, description="指南或来源年份")
+    source_credibility: float = Field(default=0.5, ge=0, le=1, description="来源可信度启发式分值")
+    evidence_metadata_origin: str = Field(default="inferred", description="循证元数据来源")
     effective_from: str | None = Field(default=None, description="生效起始日期")
     effective_until: str | None = Field(default=None, description="生效截止日期")
     source_format: str | None = Field(default=None, description="源格式")
@@ -135,6 +149,7 @@ class SearchResponse(BaseModel):
     """检索响应体。"""
 
     results: list[SearchResultItem] = Field(default_factory=list, description="检索结果")
+    evidence_summary: dict[str, Any] = Field(default_factory=dict, description="本次检索的循证摘要")
 
 
 # ============================================================================
@@ -210,3 +225,52 @@ class ResetResponse(BaseModel):
 
     status: str = Field(default="reset", description="重置结果")
     sample_count: int = Field(..., description="预置样例数量")
+
+
+class BackfillScopeResponse(BaseModel):
+    """知识范围元数据回填响应体。"""
+
+    status: str = Field(default="scope_backfilled", description="回填结果")
+    scanned_count: int = Field(..., description="扫描文档数量")
+    updated_count: int = Field(..., description="更新文档数量")
+
+
+class EvidenceGraphSourceItem(BaseModel):
+    """已发布知识分块的证据图谱导出项。"""
+
+    id: str = Field(..., description="稳定证据节点 ID")
+    layer: str = Field(default="", description="知识层级")
+    source: str = Field(default="knowledge-orchestrator", description="证据来源系统")
+    category: str = Field(default="", description="证据分类")
+    topic: str = Field(..., description="文档标题或主题")
+    text: str = Field(..., description="分块正文")
+    disease_id: str = Field(default="", description="适用病种 ID")
+    department: str = Field(default="", description="适用科室")
+    source_type: str = Field(default="unknown", description="证据来源类型")
+    evidence_level: str = Field(default="unknown", description="证据等级")
+    guideline_year: int | None = Field(default=None, description="指南或来源年份")
+    source_credibility: float = Field(default=0.5, ge=0, le=1, description="来源可信度启发式分值")
+    evidence_metadata_origin: str = Field(default="inferred", description="循证元数据来源")
+    version: str = Field(default="", description="文档版本")
+    document_id: str = Field(..., description="知识文档 ID")
+    chunk_id: str = Field(..., description="知识分块 ID")
+    location: str = Field(default="", description="分块位置")
+
+
+class EvidenceGraphSourceResponse(BaseModel):
+    """证据图谱源导出响应体。"""
+
+    items: list[EvidenceGraphSourceItem] = Field(default_factory=list, description="证据图谱源分块")
+    total: int = Field(..., description="总数")
+    page: int = Field(default=1, description="页码")
+    size: int = Field(default=500, description="每页条数")
+
+
+class EvidenceGraphSyncStatusResponse(BaseModel):
+    """知识变更对证据图谱同步状态的摘要。"""
+
+    latest_change_at: datetime | None = Field(default=None, description="最近一次知识变更时间")
+    latest_change_event: str | None = Field(default=None, description="最近一次变更类型")
+    latest_changed_document_id: str | None = Field(default=None, description="最近变更文档 ID")
+    requires_rebuild: bool = Field(default=False, description="自上次图谱重建后是否存在变更")
+    reason: str | None = Field(default=None, description="待重建原因")

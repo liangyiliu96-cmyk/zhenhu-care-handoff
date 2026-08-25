@@ -23,6 +23,8 @@
 
 - **多 Agent 住院协同**:12 节点工作流(入院→查房→检验→出院→随访),规则与 LLM 混合推理
 - **16 层临床知识 RAG**:Milvus 向量检索,回答带来源引用,可追溯
+- **循证治理闭环**:知识发布/撤回/过期会暴露图谱待重建信号,Neo4j 记录最近重建时间、来源计数与版本化证据快照
+- **EBM 证据解释**:引用携带来源类型、证据等级、指南年份、可信度与冲突提示，缺失元数据时明确标记为规则推断
 - **5 大智能助手**:查房 / 护理 / 用药 / 患教 / 中西医协同(DeepSeek 驱动,规则引擎兜底)
 - **国际评估量表**:NRS / NRS2002 / Morse / Padua + CGA(MMSE / ADL / IADL)
 - **CDS Hooks 互操作**:标准接口对接第三方 EMR/HIS
@@ -188,6 +190,7 @@ DEEPSEEK_MODEL=deepseek-chat
 - [x] Phase 1a:Alembic 迁移、审计补全
 - [x] Phase 1b:Keycloak OIDC 统一鉴权
 - [ ] Phase 2:开源 HIS 对接(FHIR)、知识入口统一、可观测性
+- [x] Phase 2a:证据图谱与知识生命周期同步状态、来源快照和管理端诊断
 - [ ] Phase 3:K8s 部署、多租户、等保合规
 
 ## 局限性与展望
@@ -199,7 +202,7 @@ DEEPSEEK_MODEL=deepseek-chat
 - **LLM 边界**:DeepSeek 输出存在不确定性,规则引擎兜底但不保证完全正确;不配置 API Key 时助手仅提供规则与寒暄能力
 - **部署形态**:Docker Compose 单机部署,未做高可用、多租户与灾备
 - **数据孤岛**:knowledge / fhir / workflow 三库业务数据待接入(开源 HIS 对接方案见 roadmap)
-- **可观测性**:workflow / knowledge / fhir 的结构化日志与 metrics 待补齐
+- **可观测性**:workflow / knowledge / fhir 的结构化日志与 metrics 待补齐;当前已补齐 RAG/证据图谱的治理状态与降级诊断
 
 **我们真诚地欢迎建议与二次开发**:无论是临床逻辑完善、HIS 互操作、更多病种模板、前端体验优化,还是本地化部署与合规推进,都可以通过 Issue / Discussion / PR 与我们交流。一个人的项目有边界,但社区的智慧没有——期待你的参与让臻护走得更远。🤝
 

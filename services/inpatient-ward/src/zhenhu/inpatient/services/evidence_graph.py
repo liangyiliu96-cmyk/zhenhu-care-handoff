@@ -1,6 +1,6 @@
 """Neo4j-backed, read-only clinical evidence graph.
 
-The graph is derived only from versioned RAG sources and disease templates. It
+The graph is derived from governed knowledge sources and disease templates. It
 does not store patient identifiers, clinical state, or workflow decisions.
 """
 
@@ -9,13 +9,17 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 
 GRAPH_NAMESPACE = "clinical_evidence_v1"
+GRAPH_BUILD_ID = "build:clinical_evidence_v1"
+logger = logging.getLogger("zhenhu.evidence_graph")
 
 
 class EvidenceGraphUnavailable(RuntimeError):
@@ -105,8 +109,78 @@ def build_evidence_documents() -> list[dict[str, str]]:
                 "disease_id": _text(document.get("disease_id")),
                 "department": _text(document.get("department")),
                 "version": _text(document.get("version")),
+                "source_type": _text(document.get("source_type")) or "unknown",
+                "evidence_level": _text(document.get("evidence_level")) or "unknown",
+                "guideline_year": _text(document.get("guideline_year")),
+                "source_credibility": _text(document.get("source_credibility")) or "0.5",
+                "evidence_metadata_origin": _text(document.get("evidence_metadata_origin")) or "inferred",
             })
+    records.extend(_fetch_knowledge_orchestrator_evidence_documents())
     return records
+
+
+def _fetch_knowledge_orchestrator_evidence_documents() -> list[dict[str, str]]:
+    if os.environ.get("KNOWLEDGE_ORCHESTRATOR_GRAPH_SOURCE_ENABLED", "").strip().lower() not in {"1", "true", "yes"}:
+        return []
+    try:
+        from ..hooks.zhenhu_bridge import KNOWLEDGE_URL, SKIP_BRIDGE
+    except Exception as exc:
+        logger.info("Evidence graph knowledge source unavailable: %s", type(exc).__name__)
+        return []
+    if SKIP_BRIDGE:
+        return []
+
+    import httpx
+
+    timeout = float(os.environ.get("KNOWLEDGE_ORCHESTRATOR_GRAPH_TIMEOUT_SECONDS", "5.0"))
+    size = max(1, min(int(os.environ.get("KNOWLEDGE_ORCHESTRATOR_GRAPH_PAGE_SIZE", "500")), 1000))
+    records: list[dict[str, str]] = []
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            page = 1
+            while True:
+                response = client.get(
+                    f"{KNOWLEDGE_URL.rstrip('/')}/knowledge/runtime/evidence-graph-source",
+                    params={"page": page, "size": size},
+                    headers={"X-User-Role": "system"},
+                )
+                response.raise_for_status()
+                payload = response.json()
+                data = payload.get("data") if isinstance(payload, dict) else {}
+                items = data.get("items", []) if isinstance(data, dict) else []
+                for item in items:
+                    if isinstance(item, dict):
+                        records.append(_knowledge_orchestrator_graph_record(item))
+                total = int(data.get("total") or 0) if isinstance(data, dict) else 0
+                if not items or len(records) >= total:
+                    break
+                page += 1
+    except Exception as exc:
+        logger.warning("Evidence graph knowledge-orchestrator source skipped: %s", type(exc).__name__)
+        return []
+    return records
+
+
+def _knowledge_orchestrator_graph_record(item: dict[str, Any]) -> dict[str, str]:
+    document_id = _text(item.get("document_id"))
+    chunk_id = _text(item.get("chunk_id"))
+    stable_id = _text(item.get("id")) or _stable_id("knowledge-orchestrator", document_id, chunk_id)
+    return {
+        "id": stable_id,
+        "layer": _text(item.get("layer")),
+        "source": "knowledge-orchestrator",
+        "category": _text(item.get("category")),
+        "topic": _text(item.get("topic")),
+        "text": _text(item.get("text")),
+        "disease_id": _text(item.get("disease_id")),
+        "department": _text(item.get("department")),
+        "version": _text(item.get("version")),
+        "source_type": _text(item.get("source_type")),
+        "evidence_level": _text(item.get("evidence_level")),
+        "guideline_year": _text(item.get("guideline_year")),
+        "source_credibility": _text(item.get("source_credibility")),
+        "evidence_metadata_origin": _text(item.get("evidence_metadata_origin")),
+    }
 
 
 def build_rule_documents() -> list[dict[str, str]]:
@@ -180,7 +254,7 @@ _CONSTRAINTS = (
 )
 
 
-def rebuild_evidence_graph() -> dict[str, int]:
+def rebuild_evidence_graph() -> dict[str, Any]:
     """Rebuild the dedicated knowledge namespace from source-controlled inputs."""
     config = graph_config()
     if not config.configured:
@@ -188,28 +262,66 @@ def rebuild_evidence_graph() -> dict[str, int]:
 
     evidence_records = build_evidence_documents()
     rule_records = build_rule_documents()
+    rebuilt_at = datetime.now(timezone.utc).isoformat()
+    metadata = {
+        "rebuilt_at": rebuilt_at,
+        "evidence_count": len(evidence_records),
+        "rule_count": len(rule_records),
+        "evidence_sources": json.dumps(_evidence_source_counts(evidence_records), ensure_ascii=False),
+        "knowledge_source_enabled": os.environ.get("KNOWLEDGE_ORCHESTRATOR_GRAPH_SOURCE_ENABLED", "").strip().lower() in {"1", "true", "yes"},
+    }
     with _driver().session(database=config.database) as session:
         for statement in _CONSTRAINTS:
             session.run(statement).consume()
-        session.execute_write(_replace_namespace, evidence_records, rule_records)
+        session.execute_write(_replace_namespace, evidence_records, rule_records, metadata)
     return {
         "evidence": len(evidence_records),
+        "evidence_sources": _evidence_source_counts(evidence_records),
         "rules": len(rule_records),
         "diseases": len({item["disease_id"] for item in rule_records}),
+        "rebuilt_at": rebuilt_at,
+        "knowledge_source_enabled": metadata["knowledge_source_enabled"],
     }
+
+
+def _evidence_source_counts(records: list[dict[str, str]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for record in records:
+        source = _text(record.get("source")) or "unknown"
+        counts[source] = counts.get(source, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def _clear_namespace(tx: Any) -> None:
     tx.run("MATCH (node:ZhenhuKnowledge {namespace: $namespace}) DETACH DELETE node", namespace=GRAPH_NAMESPACE).consume()
 
 
-def _replace_namespace(tx: Any, evidence_records: list[dict[str, str]], rule_records: list[dict[str, str]]) -> None:
+def _replace_namespace(
+    tx: Any,
+    evidence_records: list[dict[str, str]],
+    rule_records: list[dict[str, str]],
+    metadata: dict[str, Any],
+) -> None:
     """Keep the destructive reset and all replacements in one graph transaction."""
     _clear_namespace(tx)
     for record in evidence_records:
         _merge_evidence(tx, record)
     for record in rule_records:
         _merge_rule(tx, record)
+    tx.run(
+        """
+        MERGE (build:EvidenceGraphBuild:ZhenhuKnowledge {id: $build_id})
+        SET build.namespace = $namespace,
+            build.rebuilt_at = $rebuilt_at,
+            build.evidence_count = $evidence_count,
+            build.rule_count = $rule_count,
+            build.evidence_sources = $evidence_sources,
+            build.knowledge_source_enabled = $knowledge_source_enabled
+        """,
+        **metadata,
+        build_id=GRAPH_BUILD_ID,
+        namespace=GRAPH_NAMESPACE,
+    ).consume()
 
 
 def _merge_evidence(tx: Any, record: dict[str, str]) -> None:
@@ -217,7 +329,10 @@ def _merge_evidence(tx: Any, record: dict[str, str]) -> None:
         """
         MERGE (e:Evidence:ZhenhuKnowledge {id: $id})
         SET e.namespace = $namespace, e.layer = $layer, e.source = $source,
-            e.category = $category, e.topic = $topic, e.text = $text, e.version = $version
+            e.category = $category, e.topic = $topic, e.text = $text, e.version = $version,
+            e.source_type = $source_type, e.evidence_level = $evidence_level,
+            e.guideline_year = $guideline_year, e.source_credibility = $source_credibility,
+            e.evidence_metadata_origin = $evidence_metadata_origin
         MERGE (layer:KnowledgeLayer:ZhenhuKnowledge {id: $layer_id})
         SET layer.namespace = $namespace, layer.name = $layer
         MERGE (source:EvidenceSource:ZhenhuKnowledge {id: $source_id})
@@ -270,7 +385,15 @@ def _merge_rule(tx: Any, record: dict[str, str]) -> None:
 def evidence_graph_status() -> dict[str, Any]:
     """Return safe status without exposing credentials or source text."""
     config = graph_config()
-    status: dict[str, Any] = {"configured": config.configured, "database": config.database, "reachable": False, "nodes": {}, "relationships": 0}
+    status: dict[str, Any] = {
+        "configured": config.configured,
+        "database": config.database,
+        "reachable": False,
+        "nodes": {},
+        "relationships": 0,
+        "last_rebuild": None,
+        "needs_rebuild": False,
+    }
     if not config.configured:
         return status
     try:
@@ -285,9 +408,66 @@ def evidence_graph_status() -> dict[str, Any]:
                 "MATCH (:ZhenhuKnowledge {namespace: $namespace})-[relationship]->(:ZhenhuKnowledge {namespace: $namespace}) RETURN count(relationship) AS count",
                 namespace=GRAPH_NAMESPACE,
             ).single()["count"]
+            build = session.run(
+                """
+                MATCH (build:EvidenceGraphBuild:ZhenhuKnowledge {id: $build_id, namespace: $namespace})
+                RETURN build.rebuilt_at AS rebuilt_at, build.evidence_count AS evidence_count,
+                       build.rule_count AS rule_count, build.evidence_sources AS evidence_sources,
+                       build.knowledge_source_enabled AS knowledge_source_enabled
+                """,
+                build_id=GRAPH_BUILD_ID,
+                namespace=GRAPH_NAMESPACE,
+            ).single()
+            if build:
+                try:
+                    sources = json.loads(build["evidence_sources"] or "{}")
+                except (TypeError, ValueError):
+                    sources = {}
+                status["last_rebuild"] = {
+                    "rebuilt_at": build["rebuilt_at"],
+                    "evidence": build["evidence_count"] or 0,
+                    "rules": build["rule_count"] or 0,
+                    "evidence_sources": sources,
+                    "knowledge_source_enabled": bool(build["knowledge_source_enabled"]),
+                }
+            _merge_knowledge_sync_status(status)
     except Exception as exc:
         status["error"] = type(exc).__name__
     return status
+
+
+def _merge_knowledge_sync_status(status: dict[str, Any]) -> None:
+    """Add governed knowledge freshness without making graph health depend on it."""
+    if os.environ.get("KNOWLEDGE_ORCHESTRATOR_GRAPH_SOURCE_ENABLED", "").strip().lower() not in {"1", "true", "yes"}:
+        status["knowledge_sync"] = {"enabled": False}
+        return
+    last_rebuild = status.get("last_rebuild") or {}
+    since = last_rebuild.get("rebuilt_at")
+    try:
+        from ..hooks.zhenhu_bridge import KNOWLEDGE_URL, SKIP_BRIDGE
+    except Exception:
+        status["knowledge_sync"] = {"enabled": False, "reason": "bridge_unavailable"}
+        return
+    if SKIP_BRIDGE:
+        status["knowledge_sync"] = {"enabled": False, "reason": "bridge_disabled"}
+        return
+    try:
+        import httpx
+
+        timeout = float(os.environ.get("KNOWLEDGE_ORCHESTRATOR_GRAPH_TIMEOUT_SECONDS", "5.0"))
+        with httpx.Client(timeout=timeout) as client:
+            response = client.get(
+                f"{KNOWLEDGE_URL.rstrip('/')}/knowledge/runtime/evidence-graph-status",
+                params={"since": since} if since else {},
+                headers={"X-User-Role": "system"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+            sync = payload.get("data") if isinstance(payload, dict) else {}
+            status["knowledge_sync"] = {"enabled": True, **(sync if isinstance(sync, dict) else {})}
+            status["needs_rebuild"] = bool(status["knowledge_sync"].get("requires_rebuild"))
+    except Exception as exc:
+        status["knowledge_sync"] = {"enabled": True, "status": "unknown", "reason": type(exc).__name__}
 
 
 def _project_disease_subgraph(
@@ -342,6 +522,11 @@ def _project_disease_subgraph(
             category=_text(evidence.get("category")),
             text=_text(evidence.get("text")),
             version=_text(evidence.get("version")),
+            source_type=_text(evidence.get("source_type")),
+            evidence_level=_text(evidence.get("evidence_level")),
+            guideline_year=_text(evidence.get("guideline_year")),
+            source_credibility=_text(evidence.get("source_credibility")),
+            evidence_metadata_origin=_text(evidence.get("evidence_metadata_origin")),
         )
         add_edge(evidence_id, "ABOUT_DISEASE", root_id)
         if source:
@@ -420,7 +605,10 @@ def disease_evidence(disease_id: str, focus: str = "", limit: int = 12) -> dict[
             MATCH (d:Disease:ZhenhuKnowledge {id: $disease_id})<-[:ABOUT_DISEASE]-(e:Evidence:ZhenhuKnowledge)
             WHERE $focus = '' OR toLower(e.topic + ' ' + e.text) CONTAINS $focus
             RETURN e.id AS id, e.layer AS layer, e.source AS source, e.category AS category,
-                   e.topic AS topic, e.text AS text, e.version AS version
+             e.topic AS topic, e.text AS text, e.version AS version,
+                    e.source_type AS source_type, e.evidence_level AS evidence_level,
+                    e.guideline_year AS guideline_year, e.source_credibility AS source_credibility,
+                    e.evidence_metadata_origin AS evidence_metadata_origin
             ORDER BY e.layer, e.topic LIMIT $limit
             """,
             disease_id=normalized_disease,

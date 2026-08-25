@@ -132,6 +132,52 @@ describe('PatientAssistantPanel', () => {
     expect(await screen.findByText('已生成 1 条待医生审核的操作草稿。')).toBeTruthy();
   });
 
+  it('hides stale citations when the backend marks retrieval as low relevance', async () => {
+    service.fetchAssistantQuickQuestions.mockResolvedValue({ role: 'doctor', questions: [] });
+    service.streamAssistantChat.mockImplementation(async (_request: unknown, onEvent: (event: { type: string; sessionId?: string; token?: string; sources?: string[]; citations?: unknown[]; evidence?: unknown }) => void) => {
+      onEvent({ type: 'token', token: '这个问题不需要医学证据引用。' });
+      onEvent({
+        type: 'complete',
+        sessionId: 'low-evidence-session',
+        sources: ['医学指南'],
+        citations: [{ title: '错误引用', excerpt: '不相关片段' }],
+        evidence: { status: 'low_relevance' },
+      });
+    });
+    renderPanel();
+    fireEvent.click(screen.getByLabelText('展开查房助手'));
+
+    await ask('帮我写一首诗');
+
+    expect(await screen.findByText('这个问题不需要医学证据引用。')).toBeTruthy();
+    expect(screen.queryByText('本次问答引用')).toBeNull();
+    expect(screen.queryByText('错误引用')).toBeNull();
+    expect(screen.getByText('本轮检索相关性不足，未展示引用。')).toBeTruthy();
+  });
+
+  it('keeps accepted citations visible while explaining evidence degradation', async () => {
+    service.fetchAssistantQuickQuestions.mockResolvedValue({ role: 'doctor', questions: [] });
+    service.streamAssistantChat.mockImplementation(async (_request: unknown, onEvent: (event: { type: string; sessionId?: string; token?: string; sources?: string[]; citations?: unknown[]; evidence?: unknown }) => void) => {
+      onEvent({ type: 'token', token: '建议监测血钾和肾功能。' });
+      onEvent({
+        type: 'complete',
+        sessionId: 'degraded-evidence-session',
+        sources: ['利尿剂用药治理文档'],
+        citations: [{ title: '利尿剂用药治理文档', excerpt: '利尿剂治疗期间需要监测血钾和肾功能。' }],
+        evidence: { status: 'ok', degraded: true },
+      });
+    });
+    renderPanel();
+    fireEvent.click(screen.getByLabelText('展开查房助手'));
+
+    await ask('利尿剂用药注意什么');
+
+    expect(await screen.findByText('建议监测血钾和肾功能。')).toBeTruthy();
+    expect(screen.getByText('本次问答引用')).toBeTruthy();
+    expect(screen.getAllByText('利尿剂用药治理文档').length).toBeGreaterThan(0);
+    expect(screen.getByText('本轮证据链存在降级，引用仍来自通过校验的知识索引。')).toBeTruthy();
+  });
+
   it('explains that a timed-out draft conversion did not execute any clinical action', async () => {
     service.fetchAssistantQuickQuestions.mockResolvedValue({ role: 'doctor', questions: [] });
     service.streamAssistantChat.mockImplementation(async (_request: unknown, onEvent: (event: { type: string; sessionId?: string; token?: string; sources?: string[]; citations?: unknown[] }) => void) => {

@@ -35,6 +35,7 @@ import {
   updateAssistantActionDraft,
   type AssistantActionDraft,
   type AssistantCitation,
+  type AssistantEvidenceDiagnostics,
   type AssistantStreamEvent,
 } from '@/services/assistant-service';
 import { ASSISTANT_META, type AssistantMode } from '@/core/assistant-modes';
@@ -55,6 +56,7 @@ interface AssistantMessage {
   content: string;
   sources?: string[];
   citations?: AssistantCitation[];
+  evidence?: AssistantEvidenceDiagnostics;
   completed?: boolean;
   sessionId?: string;
 }
@@ -232,7 +234,15 @@ export default function PatientAssistantPanel({
       setMessages((current) => current.map((item) => {
         if (item.id !== assistantMessageId) return item;
         if (event.type === 'token') return { ...item, content: `${item.content}${event.token}` };
-        return { ...item, sources: event.sources, citations: event.citations, completed: true, sessionId: event.sessionId ?? sessionId };
+        const canShowEvidence = !event.evidence || event.evidence.status === 'ok';
+        return {
+          ...item,
+          sources: canShowEvidence ? event.sources : [],
+          citations: canShowEvidence ? event.citations : [],
+          evidence: event.evidence,
+          completed: true,
+          sessionId: event.sessionId ?? sessionId,
+        };
       }));
       if (event.type === 'complete' && event.sessionId) setSessionId(event.sessionId);
     };
@@ -366,18 +376,24 @@ export default function PatientAssistantPanel({
 
 function ChatMessage({ message, streaming, onCreateDraft, drafting }: { message: AssistantMessage; streaming: boolean; onCreateDraft?: () => void; drafting: boolean }) {
   const isUser = message.role === 'user';
+  const hasCitations = Boolean((message.sources?.length || message.citations?.length) && (!message.evidence || message.evidence.status === 'ok'));
+  const evidenceNotice = evidenceNoticeText(message.evidence);
   return <Box sx={{ alignSelf: isUser ? 'flex-end' : 'stretch', maxWidth: isUser ? '86%' : '100%' }}>
     <Box sx={{ px: 1.25, py: 1, bgcolor: isUser ? 'primary.main' : 'action.hover', color: isUser ? 'primary.contrastText' : 'text.primary', borderRadius: 1, whiteSpace: 'pre-wrap' }}>
       <Typography variant="body2" sx={{ lineHeight: 1.65 }}>{message.content || (streaming ? <CircularProgress size={14} color="inherit" /> : '未返回文本内容')}</Typography>
     </Box>
-    {!isUser && (message.sources?.length || message.citations?.length) ? <Box sx={{ mt: 0.75, px: 0.25 }}>
+    {!isUser && hasCitations ? <Box sx={{ mt: 0.75, px: 0.25 }}>
       <Typography variant="caption" color="text.secondary">本次问答引用</Typography>
       {message.sources?.length ? <Typography variant="caption" color="text.secondary" display="block">{message.sources.join(' · ')}</Typography> : null}
       {message.citations?.map((citation, index) => <Box key={`${citation.title ?? citation.source ?? 'citation'}-${index}`} sx={{ mt: 0.5, borderLeft: '2px solid', borderColor: 'divider', pl: 0.75 }}>
         <Typography variant="caption" fontWeight={600}>{String(citation.title ?? citation.source ?? `引用 ${index + 1}`)}</Typography>
+        {citationEvidenceText(citation) ? <Typography variant="caption" color="text.secondary" display="block">{citationEvidenceText(citation)}</Typography> : null}
         <Typography variant="caption" color="text.secondary" display="block">{citationText(citation)}</Typography>
+        {citation.conflict_detected ? <Typography variant="caption" color="warning.main" display="block">{String(citation.conflict_note ?? '存在来源方向差异，请人工核验。')}</Typography> : null}
       </Box>)}
+      {evidenceNotice ? <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.65 }}>{evidenceNotice}</Typography> : null}
     </Box> : null}
+    {!isUser && message.completed && !hasCitations && evidenceNotice ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.65, px: 0.25 }}>{evidenceNotice}</Typography> : null}
     {!isUser && message.completed && onCreateDraft ? <Button size="small" variant="text" startIcon={drafting ? <CircularProgress size={13} /> : <ClipboardPlus size={14} />} onClick={onCreateDraft} disabled={drafting || !message.content} sx={{ mt: 0.5, textTransform: 'none' }}>转为操作草稿</Button> : null}
   </Box>;
 }
@@ -519,4 +535,25 @@ function normalizeDateTime(value: string): string {
 
 function citationText(citation: AssistantCitation): string {
   return String(citation.excerpt ?? citation.content ?? citation.citation ?? '未提供引用片段');
+}
+
+function citationEvidenceText(citation: AssistantCitation): string {
+  const parts: string[] = [];
+  if (citation.source_type && citation.source_type !== 'unknown') parts.push(String(citation.source_type));
+  if (citation.evidence_level && citation.evidence_level !== 'unknown') parts.push(`证据等级 ${String(citation.evidence_level)}`);
+  if (citation.guideline_year) parts.push(`${String(citation.guideline_year)} 年`);
+  if (citation.source_credibility != null) parts.push(`来源可信度 ${String(citation.source_credibility)}`);
+  return parts.join(' · ');
+}
+
+function evidenceNoticeText(evidence?: AssistantEvidenceDiagnostics): string {
+  if (!evidence || evidence.status === 'skipped') return '';
+  if (evidence.status === 'ok') return evidence.degraded ? '本轮证据链存在降级，引用仍来自通过校验的知识索引。' : '';
+  if (evidence.status === 'low_relevance') return '本轮检索相关性不足，未展示引用。';
+  if (evidence.status === 'no_evidence') return '本轮未检索到可核验依据，未展示引用。';
+  if (evidence.status === 'version_mismatch') return '本轮知识版本不匹配，未展示引用。';
+  if (evidence.status === 'lifecycle_mismatch') return '本轮知识生命周期状态不匹配，未展示引用。';
+  if (evidence.status === 'graph_mismatch') return '本轮证据图谱未确认该引用适用于当前病种，未展示引用。';
+  if (evidence.status === 'index_error') return '知识索引暂时异常，未展示引用。';
+  return '本轮证据状态未通过校验，未展示引用。';
 }

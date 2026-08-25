@@ -4,6 +4,23 @@ export interface EvidenceGraphStatusResponse {
   database: string;
   nodes: Record<string, number>;
   relationships: number;
+  needs_rebuild?: boolean;
+  last_rebuild?: {
+    rebuilt_at?: string;
+    evidence: number;
+    rules: number;
+    evidence_sources: Record<string, number>;
+    knowledge_source_enabled: boolean;
+  } | null;
+  knowledge_sync?: {
+    enabled: boolean;
+    requires_rebuild?: boolean;
+    latest_change_at?: string | null;
+    latest_change_event?: string | null;
+    latest_changed_document_id?: string | null;
+    reason?: string | null;
+    status?: string;
+  };
   error?: string;
 }
 
@@ -24,6 +41,11 @@ export interface EvidenceGraphEvidence {
   topic: string;
   text: string;
   version?: string;
+  source_type?: string;
+  evidence_level?: string;
+  guideline_year?: number | string;
+  source_credibility?: number | string;
+  evidence_metadata_origin?: string;
 }
 
 export interface PatientEvidenceGraphResponse {

@@ -98,6 +98,15 @@ SMALLTALK_MESSAGES = {
 }
 SMALLTALK_SUFFIX_PARTICLES = "呀啊哦呢啦"
 
+CLINICAL_DOMAIN_KEYWORDS = {
+    "患者", "病人", "住院", "出院", "复诊", "随访", "医嘱", "病历", "病情", "诊断", "治疗", "检查", "检验",
+    "护理", "交班", "用药", "服药", "药物", "剂量", "饮食", "康复", "宣教", "医生", "护士", "科室",
+    "发热", "发烧", "疼痛", "胸闷", "胸痛", "咳嗽", "气喘", "呼吸", "头晕", "恶心", "呕吐", "腹痛",
+    "便秘", "腹泻", "失眠", "感冒", "血压", "血糖", "血脂", "心率", "体温", "血氧", "血钾", "肌酐",
+    "心衰", "房颤", "心梗", "糖尿病", "高血压", "冠心病", "卒中", "中风", "感染", "伤口", "导管",
+    "中医", "体质", "调养", "中药", "节气", "养生",
+}
+
 # ── 预设快捷问题 ──
 QUICK_QUESTIONS = {
     "doctor": [
@@ -348,14 +357,23 @@ def _owner_index_key(actor_id: str) -> str:
 
 # ── 核心引擎 ──
 
-def _build_prompt(sources, session_id, config, message):
+def _build_prompt(sources, session_id, config, message, intent: dict[str, Any] | None = None):
     """构建自适应 prompt — 有知识则专业，无知识则友好闲聊。"""
     history = get_history(session_id)
     htext = "\n".join(f"{'用户' if h['role']=='user' else '助手'}: {h['content'][:200]}" for h in history[-MAX_HISTORY:]) if history else ""
 
     if sources:
-        rtext = "【循证依据】\n" + "\n".join(f"[{s['layer']}] {s['topic']}: {s['text']}" for s in sources)
+        rtext = "【循证依据】\n" + "\n".join(
+            f"[{s['layer']} | {s.get('source', 'unknown')} | v{s.get('document_version', 'unversioned')} | score={s.get('retrieval_score', '')}] "
+            f"{s['topic']}: {s['text']}"
+            for s in sources
+        )
         return f"{config['system']}\n\n{rtext}\n\n【对话历史】\n{htext}\n\n【当前问题】\n{message}\n\n请基于循证依据给出专业回答，标注信息来源。如依据不足请说明。最终仅返回 JSON 对象，必须包含 answer 字段，answer 的值为完整中文回答。"
+
+    if intent and not _is_open_conversation(intent):
+        diagnostics = intent.get("evidence_diagnostics") or {}
+        status = diagnostics.get("status", "no_evidence")
+        return f"{config['system']}\n\n【证据检索状态】{status}，本轮没有可核验证据片段。\n\n【对话历史】\n{htext}\n\n【当前问题】\n{message}\n\n请不要编造指南、来源、检验值或患者事实。若这是临床问题，请说明当前缺少可引用依据，建议补充资料或由医护人员复核。最终仅返回 JSON 对象，必须包含 answer 字段，answer 的值为完整中文回答。"
 
     # 无知识命中 → 开放对话模式
     return f"{config['system']}\n\n【对话历史】\n{htext}\n\n【当前问题】\n{message}\n\n请友善自然地回答。如果是健康问题就坦诚说需要更多信息并建议咨询医生，如果是日常闲聊就轻松回应。最终仅返回 JSON 对象，必须包含 answer 字段，answer 的值为完整中文回答。"
@@ -380,6 +398,15 @@ def classify_intent(message: str, allowed_layers: list[str]) -> dict[str, Any]:
         if matched:
             matches.append((matched, name, label, layers))
     if not matches:
+        matched_domain_keywords = [keyword for keyword in CLINICAL_DOMAIN_KEYWORDS if keyword.lower() in normalized]
+        if not matched_domain_keywords:
+            return {
+                "name": "general_chat",
+                "label": "开放对话",
+                "confidence": 0.6,
+                "layers": [],
+                "matched_keywords": [],
+            }
         return {"name": "general", "label": "通用咨询", "confidence": 0.35, "layers": list(allowed_layers), "matched_keywords": []}
     matches.sort(key=lambda item: item[0], reverse=True)
     score, name, label, proposed_layers = matches[0]
@@ -426,6 +453,10 @@ def _is_smalltalk(intent: dict[str, Any]) -> bool:
     return intent.get("name") == "smalltalk"
 
 
+def _is_open_conversation(intent: dict[str, Any]) -> bool:
+    return intent.get("name") in {"smalltalk", "general_chat"}
+
+
 def _smalltalk_fallback(config: dict[str, Any]) -> str:
     """LLM 不可用时对寒暄意图的预设友好回复, 避免直接报"服务暂不可用"。"""
     name = str(config.get("name") or "智能助手")
@@ -442,58 +473,85 @@ def _is_general_cache_safe(message: str) -> bool:
     return len(message) <= 400 and not any(term in normalized for term in blocked_terms) and re.search(r"\d{6,}", normalized) is None
 
 
-async def _retrieve_sources(message: str, config: dict) -> tuple[list[dict], list[dict], dict[str, Any]]:
+async def _retrieve_sources(
+    message: str,
+    config: dict,
+    *,
+    role: str = DEFAULT_ROLE,
+    patient_id: str = "",
+) -> tuple[list[dict], list[dict], dict[str, Any]]:
     intent = classify_intent(message, config["layers"])
     if intent["name"] == "smalltalk" or not intent["layers"]:
+        from ..services.evidence_policy import skipped_diagnostics
+
+        intent["evidence_diagnostics"] = skipped_diagnostics(role=role, intent=intent, allowed_layers=config["layers"])
         return [], [], intent
     try:
         from .rag_engine import search as rag_search
+        from ..services.evidence_policy import (
+            build_evidence_scope,
+            evidence_sources_from_hits,
+            retrieve_evidence,
+        )
+        from ..services.knowledge_orchestrator import (
+            KnowledgeOrchestratorUnavailable,
+            is_knowledge_orchestrator_rag_enabled,
+            search_published_knowledge,
+        )
 
         # ── 第1步: 问题改写/扩写 ──
         queries = _expand_query(message)
 
-        # ── 第2步: 多查询向量检索 (去重合并) ──
-        all_hits: list[dict] = []
-        seen_texts: set[str] = set()
-        for q in queries[:3]:  # 最多3个改写查询
-            hits = await rag_search(q, layer=intent["layers"], top_k=RAG_TOP_K)
-            for hit in hits:
-                text_key = str(hit.get("topic","")) + str(hit.get("text",""))[:80]
-                if text_key not in seen_texts:
-                    seen_texts.add(text_key)
-                    all_hits.append(hit)
+        scope = build_evidence_scope(
+            role=role,
+            allowed_layers=intent["layers"],
+            intent=intent,
+            patient_id=patient_id,
+            patient_context_enabled=bool(config.get("db_enabled")),
+        )
 
-        if not all_hits:
-            return [], [], intent
+        async def governed_search(query: str, *, layer=None, top_k=RAG_TOP_K, disease_id=None, department=None):
+            if is_knowledge_orchestrator_rag_enabled():
+                try:
+                    orchestrator_hits = await search_published_knowledge(
+                        query,
+                        top_k=top_k,
+                        allowed_layers=layer or intent["layers"],
+                        role=role,
+                        intent_name=str(intent.get("name") or ""),
+                        disease_id=disease_id,
+                        department=department,
+                    )
+                except KnowledgeOrchestratorUnavailable as exc:
+                    fallback_hits = await rag_search(query, layer=layer, top_k=top_k, disease_id=disease_id, department=department)
+                    for hit in fallback_hits:
+                        hit.setdefault("retrieval_backend", "local-milvus-fallback")
+                        hit.setdefault("fallback_reason", f"knowledge_orchestrator_unavailable:{exc}")
+                    return fallback_hits
+                if orchestrator_hits:
+                    return orchestrator_hits
+                return []
+            return await rag_search(query, layer=layer, top_k=top_k, disease_id=disease_id, department=department)
 
-        # ── 第3步: 按层过滤 ──
-        allowed = set(intent["layers"])
-        layer_hits = [h for h in all_hits if h.get("layer") in allowed]
-        if not layer_hits:
-            # fallback: 层过滤无结果则取全部命中
-            layer_hits = all_hits
-
-        # ── 第4步: 分数阈值过滤 (去除噪声) ──
-        scored_hits = [h for h in layer_hits if h.get("score", 0) >= RAG_MIN_SCORE]
-
-        # ── 第5步: 重排序 ──
-        if len(scored_hits) > RAG_RERANK_TOP:
-            scored_hits = _rerank_hits(message, scored_hits)[:RAG_RERANK_TOP]
-
-        # ── 第6步: 构建引用 ──
-        sources = [
-            {
-                "layer": hit.get("layer"),
-                "topic": hit.get("topic"),
-                "text": str(hit.get("text") or "")[:150],
-            }
-            for hit in scored_hits[:RAG_RERANK_TOP]
-        ]
+        retrieval = await retrieve_evidence(
+            queries=queries,
+            scope=scope,
+            search_fn=governed_search,
+            top_k=RAG_TOP_K,
+            min_score=RAG_MIN_SCORE,
+            final_k=RAG_RERANK_TOP,
+            rerank_fn=_rerank_hits,
+        )
+        intent["evidence_diagnostics"] = retrieval.diagnostics
+        sources = evidence_sources_from_hits(retrieval.hits, retrieval.diagnostics)
         from ..services.clinical_evidence import build_rag_citations
 
-        return sources, build_rag_citations(scored_hits[:RAG_RERANK_TOP]), intent
+        return sources, build_rag_citations(retrieval.hits, retrieval_diagnostics=retrieval.diagnostics), intent
     except Exception as exc:
+        from ..services.evidence_policy import error_diagnostics
+
         logger.info("Assistant RAG unavailable: %s", exc)
+        intent["evidence_diagnostics"] = error_diagnostics(role=role, intent=intent, allowed_layers=config["layers"], exc=exc)
         return [], [], intent
 
 
@@ -739,7 +797,7 @@ async def chat(message: str, role=DEFAULT_ROLE, session_id=None, patient_id="", 
     # 患者上下文注入 (医生/护士助手专属，传 patient_id 自动拉数据)
     patient_context = _patient_context(patient_id, include_readiness=True) if config.get("db_enabled") else ""
 
-    sources, citations, intent = await _retrieve_sources(message, config)
+    sources, citations, intent = await _retrieve_sources(message, config, role=role, patient_id=patient_id)
     # 缓存：通用问题（无患者）用简单 key，有患者时加入 patient_id+版本号防止过时
     state_version_slug = ""
     if patient_id:
@@ -748,7 +806,7 @@ async def chat(message: str, role=DEFAULT_ROLE, session_id=None, patient_id="", 
             state_version_slug = str((get_state(patient_id) or {}).get("state_version", ""))
         except Exception:
             pass
-    cache_key = _patient_answer_cache_key(role, message, intent, patient_id, state_version_slug) if not _is_smalltalk(intent) else ""
+    cache_key = _patient_answer_cache_key(role, message, intent, patient_id, state_version_slug) if not _is_open_conversation(intent) else ""
     if cache_key:
         from ..services.runtime_cache import get_runtime_cache
 
@@ -762,17 +820,30 @@ async def chat(message: str, role=DEFAULT_ROLE, session_id=None, patient_id="", 
                 "answer": answer, "sources": sources, "citations": citations,
                 "confidence": cached.get("confidence", 0.65), "session_id": session_id,
                 "role": role, "assistant_name": config["name"], "intent": intent,
-                "health": {"rag": "ok" if sources else "degraded", "llm": "cached", "session": session_stats().get("backend", "memory"), "backend": "redis-cache", "cache_hit": True},
+                "health": {
+                    "rag": "ok" if sources else "degraded",
+                    "llm": "cached",
+                    "session": session_stats().get("backend", "memory"),
+                    "backend": "redis-cache",
+                    "cache_hit": True,
+                    "evidence": cached.get("evidence_diagnostics") or intent.get("evidence_diagnostics"),
+                },
             }
 
-    prompt = _build_prompt(sources, session_id, config, message)
+    prompt = _build_prompt(sources, session_id, config, message, intent)
     if patient_context:
         prompt = f"{patient_context}\n\n{prompt}"
     provider, backend = await _get_provider()
 
     # LLM
     answer = ""
-    health = {"rag": "ok" if sources else "degraded", "llm": "ok", "session": session_stats().get("backend", "memory"), "backend": backend}
+    health = {
+        "rag": "ok" if sources else "degraded",
+        "llm": "ok",
+        "session": session_stats().get("backend", "memory"),
+        "backend": backend,
+        "evidence": intent.get("evidence_diagnostics"),
+    }
     try:
         import asyncio
         from .llm_utils import safe_llm_invoke
@@ -799,7 +870,13 @@ async def chat(message: str, role=DEFAULT_ROLE, session_id=None, patient_id="", 
     if cache_key and health["llm"] == "ok":
         from ..services.runtime_cache import get_runtime_cache
 
-        get_runtime_cache().set_json(cache_key, {"answer": answer, "sources": sources, "citations": citations, "confidence": confidence}, 3600)
+        get_runtime_cache().set_json(cache_key, {
+            "answer": answer,
+            "sources": sources,
+            "citations": citations,
+            "confidence": confidence,
+            "evidence_diagnostics": intent.get("evidence_diagnostics"),
+        }, 3600)
     return {"answer": answer, "sources": sources, "citations": citations, "confidence": confidence,
             "session_id": session_id, "role": role, "assistant_name": config["name"], "intent": intent, "health": health}
 
@@ -816,7 +893,7 @@ async def chat_stream(message: str, role=DEFAULT_ROLE, session_id=None, patient_
     # 患者上下文注入
     patient_context = _patient_context(patient_id, include_readiness=False) if config.get("db_enabled") else ""
 
-    sources, citations, intent = await _retrieve_sources(message, config)
+    sources, citations, intent = await _retrieve_sources(message, config, role=role, patient_id=patient_id)
     state_version_slug = ""
     if patient_id:
         try:
@@ -824,7 +901,7 @@ async def chat_stream(message: str, role=DEFAULT_ROLE, session_id=None, patient_
             state_version_slug = str((get_state(patient_id) or {}).get("state_version", ""))
         except Exception:
             pass
-    cache_key = _patient_answer_cache_key(role, message, intent, patient_id, state_version_slug) if not _is_smalltalk(intent) else ""
+    cache_key = _patient_answer_cache_key(role, message, intent, patient_id, state_version_slug) if not _is_open_conversation(intent) else ""
     if cache_key:
         from ..services.runtime_cache import get_runtime_cache
 
@@ -837,10 +914,10 @@ async def chat_stream(message: str, role=DEFAULT_ROLE, session_id=None, patient_
             for index in range(0, len(answer), 5):
                 yield f"data: {json.dumps({'token': answer[index:index + 5], 'done': False}, ensure_ascii=False)}\n\n"
                 await asyncio.sleep(0.005)
-            yield f"data: {json.dumps({'token': '', 'done': True, 'session_id': session_id, 'sources': [s['topic'] for s in sources], 'citations': citations, 'backend': 'redis-cache', 'cache_hit': True, 'intent': intent}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'token': '', 'done': True, 'session_id': session_id, 'sources': [s['topic'] for s in sources], 'citations': citations, 'backend': 'redis-cache', 'cache_hit': True, 'intent': intent, 'evidence': cached.get('evidence_diagnostics') or intent.get('evidence_diagnostics')}, ensure_ascii=False)}\n\n"
             return
 
-    prompt = _build_prompt(sources, session_id, config, message)
+    prompt = _build_prompt(sources, session_id, config, message, intent)
     if patient_context:
         prompt = f"{patient_context}\n\n{prompt}"
 
@@ -858,13 +935,19 @@ async def chat_stream(message: str, role=DEFAULT_ROLE, session_id=None, patient_
             if cache_key:
                 from ..services.runtime_cache import get_runtime_cache
 
-                get_runtime_cache().set_json(cache_key, {"answer": answer, "sources": sources, "citations": citations, "confidence": round(min(0.95, 0.5 + len(sources) * 0.15), 2)}, 3600)
+                get_runtime_cache().set_json(cache_key, {
+                    "answer": answer,
+                    "sources": sources,
+                    "citations": citations,
+                    "confidence": round(min(0.95, 0.5 + len(sources) * 0.15), 2),
+                    "evidence_diagnostics": intent.get("evidence_diagnostics"),
+                }, 3600)
             for index in range(0, len(answer), 5):
                 token = answer[index:index + 5]
                 yield f"data: {json.dumps({'token': token, 'done': False}, ensure_ascii=False)}\n\n"
                 await asyncio.sleep(0.01)
             backend = getattr(provider, "model", provider.__class__.__name__)
-            yield f"data: {json.dumps({'token': '', 'done': True, 'session_id': session_id, 'sources': [s['topic'] for s in sources], 'citations': citations, 'backend': backend, 'cache_hit': False, 'intent': intent}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'token': '', 'done': True, 'session_id': session_id, 'sources': [s['topic'] for s in sources], 'citations': citations, 'backend': backend, 'cache_hit': False, 'intent': intent, 'evidence': intent.get('evidence_diagnostics')}, ensure_ascii=False)}\n\n"
             return
     except Exception as exc:
         logger.warning("Assistant stream failed for %s: %s", role, exc)
@@ -872,4 +955,4 @@ async def chat_stream(message: str, role=DEFAULT_ROLE, session_id=None, patient_
     # 兜底: 寒暄意图给预设友好回复, 其余保持提示语
     fallback = _smalltalk_fallback(config) if _is_smalltalk(intent) else "⚠️ 服务暂不可用，请稍后重试。"
     add_message(session_id, "assistant", fallback)
-    yield f"data: {json.dumps({'token': fallback, 'done': True, 'session_id': session_id, 'sources': [s['topic'] for s in sources], 'citations': citations, 'backend': 'fallback', 'cache_hit': False, 'intent': intent}, ensure_ascii=False)}\n\n"
+    yield f"data: {json.dumps({'token': fallback, 'done': True, 'session_id': session_id, 'sources': [s['topic'] for s in sources], 'citations': citations, 'backend': 'fallback', 'cache_hit': False, 'intent': intent, 'evidence': intent.get('evidence_diagnostics')}, ensure_ascii=False)}\n\n"

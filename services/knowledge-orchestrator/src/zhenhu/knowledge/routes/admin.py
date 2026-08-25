@@ -7,7 +7,10 @@ GET  /knowledge/audit         — 审计事件列表
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, Query
+import hashlib
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, Request, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from zhenhu.knowledge.audit import record_audit_log
@@ -20,12 +23,17 @@ from zhenhu.knowledge.models import (
 )
 from zhenhu.knowledge.schemas import (
     AuditListResponse,
+    BackfillScopeResponse,
+    EvidenceGraphSourceItem,
+    EvidenceGraphSourceResponse,
+    EvidenceGraphSyncStatusResponse,
     IngestionJobListResponse,
     IngestionJobResponse,
     LifecycleEventResponse,
     ResetResponse,
     UnifiedResponse,
 )
+from zhenhu.knowledge.scope_policy import apply_inferred_scope
 from zhenhu.knowledge.state_machine import KnowledgeStateMachine
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -46,6 +54,9 @@ _SAMPLES = [
         "title": "阿莫西林/克拉维酸钾药品说明书（模拟）",
         "version": "2025.01",
         "owner": "药学部（模拟）",
+        "layer": "L5",
+        "disease_id": "",
+        "department": "药学部",
         "status": "published",
         "effective_from": "2025-01-01",
         "effective_until": "2027-01-01",
@@ -59,6 +70,9 @@ _SAMPLES = [
         "title": "呋塞米药品说明书（模拟）",
         "version": "2025.01",
         "owner": "药学部（模拟）",
+        "layer": "L5",
+        "disease_id": "",
+        "department": "药学部",
         "status": "published",
         "effective_from": "2025-01-01",
         "effective_until": "2027-01-01",
@@ -73,6 +87,9 @@ _SAMPLES = [
         "title": "院内交接 SOP 样例（模拟）",
         "version": "0.1",
         "owner": "医务处（模拟）",
+        "layer": "L3",
+        "disease_id": "",
+        "department": "医务处",
         "status": "published",
         "effective_from": "2026-01-01",
         "effective_until": "2027-01-01",
@@ -110,6 +127,9 @@ async def _insert_preset_samples(session: AsyncSession) -> int:
             title=sample["title"],
             version=sample["version"],
             owner=sample["owner"],
+            layer=sample["layer"],
+            disease_id=sample["disease_id"],
+            department=sample["department"],
             status=sample["status"],
             effective_from=datetime.fromisoformat(sample["effective_from"]).replace(
                 tzinfo=timezone.utc
@@ -249,6 +269,143 @@ async def reset_runtime(
     return UnifiedResponse(request_id=request_id, data=data, error=None)
 
 
+@router.post("/runtime/backfill-scope")
+async def backfill_scope(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[BackfillScopeResponse]:
+    """Backfill missing layer/disease/department metadata for existing documents."""
+    request_id = get_request_id(request)
+
+    from sqlalchemy import select as _select
+
+    result = await session.execute(_select(KnowledgeDocument).order_by(KnowledgeDocument.created_at.asc()))
+    documents = list(result.scalars().all())
+    updated_count = 0
+    for document in documents:
+        chunk_result = await session.execute(
+            _select(KnowledgeChunk.text).where(KnowledgeChunk.document_id == document.document_id).limit(20)
+        )
+        content = "\n".join(str(item or "") for item in chunk_result.scalars().all())
+        if apply_inferred_scope(document, content=content):
+            updated_count += 1
+
+    await record_audit_log(
+        session,
+        action_type="knowledge_scope_backfilled",
+        actor="knowledge_admin",
+        resource_type="knowledge",
+        detail={"scanned_count": len(documents), "updated_count": updated_count},
+        request_id=request_id,
+    )
+    await session.commit()
+
+    data = BackfillScopeResponse(scanned_count=len(documents), updated_count=updated_count)
+    return UnifiedResponse(request_id=request_id, data=data, error=None)
+
+
+@router.get("/runtime/evidence-graph-source")
+async def evidence_graph_source(
+    request: Request,
+    page: int = Query(default=1, ge=1, description="页码"),
+    size: int = Query(default=500, ge=1, le=1000, description="每页条数"),
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[EvidenceGraphSourceResponse]:
+    """Export published, currently effective knowledge chunks for Neo4j rebuild."""
+    request_id = get_request_id(request)
+
+    from sqlalchemy import func as _func, select as _select
+
+    effective_at = datetime.now(timezone.utc)
+    base_filters = (
+        KnowledgeDocument.status == "published",
+        (KnowledgeDocument.effective_from.is_(None)) | (KnowledgeDocument.effective_from <= effective_at),
+        (KnowledgeDocument.effective_until.is_(None)) | (KnowledgeDocument.effective_until >= effective_at),
+    )
+    total = (
+        await session.execute(
+            _select(_func.count(KnowledgeChunk.id))
+            .join(KnowledgeDocument, KnowledgeChunk.document_id == KnowledgeDocument.document_id)
+            .where(*base_filters)
+        )
+    ).scalar_one()
+    stmt = (
+        _select(KnowledgeChunk, KnowledgeDocument)
+        .join(KnowledgeDocument, KnowledgeChunk.document_id == KnowledgeDocument.document_id)
+        .where(*base_filters)
+        .order_by(KnowledgeDocument.document_id.asc(), KnowledgeChunk.chunk_id.asc())
+        .offset((page - 1) * size)
+        .limit(size)
+    )
+    result = await session.execute(stmt)
+    items = [
+        EvidenceGraphSourceItem(
+            id=_stable_graph_evidence_id(document.document_id, chunk.chunk_id),
+            layer=_text(document.layer),
+            source="knowledge-orchestrator",
+            category=_text(document.owner),
+            topic=document.title,
+            text=chunk.text,
+            disease_id=_text(document.disease_id),
+            department=_text(document.department),
+            source_type=_text(document.source_type),
+            evidence_level=_text(document.evidence_level),
+            guideline_year=document.guideline_year,
+            source_credibility=document.source_credibility,
+            evidence_metadata_origin=_text(document.evidence_metadata_origin),
+            version=_text(document.version),
+            document_id=document.document_id,
+            chunk_id=chunk.chunk_id,
+            location=_text(chunk.location),
+        )
+        for chunk, document in result.all()
+        if _text(chunk.text)
+    ]
+
+    data = EvidenceGraphSourceResponse(items=items, total=total, page=page, size=size)
+    return UnifiedResponse(request_id=request_id, data=data, error=None)
+
+
+@router.get("/runtime/evidence-graph-status")
+async def evidence_graph_sync_status(
+    request: Request,
+    since: str | None = Query(default=None, description="上次图谱重建时间（ISO 8601）"),
+    session: AsyncSession = Depends(get_session),
+) -> UnifiedResponse[EvidenceGraphSyncStatusResponse]:
+    """Return whether governed knowledge changed after the last graph rebuild."""
+    request_id = get_request_id(request)
+    from sqlalchemy import select as _select
+
+    since_at = None
+    if since:
+        try:
+            since_at = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            if since_at.tzinfo is None:
+                since_at = since_at.replace(tzinfo=timezone.utc)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail={"message": "since must be an ISO 8601 timestamp"}) from exc
+
+    stmt = _select(KnowledgeLifecycleEvent).where(
+        KnowledgeLifecycleEvent.event_type.in_({"knowledge_status_changed", "knowledge_imported"})
+    ).order_by(KnowledgeLifecycleEvent.occurred_at.desc()).limit(1)
+    if since_at:
+        stmt = stmt.where(KnowledgeLifecycleEvent.occurred_at > since_at)
+    event = (await session.execute(stmt)).scalar_one_or_none()
+    latest_stmt = _select(KnowledgeLifecycleEvent).where(
+        KnowledgeLifecycleEvent.event_type.in_({"knowledge_status_changed", "knowledge_imported"})
+    ).order_by(KnowledgeLifecycleEvent.occurred_at.desc()).limit(1)
+    latest = (await session.execute(latest_stmt)).scalar_one_or_none()
+    changed = event is not None
+    data = EvidenceGraphSyncStatusResponse(
+        latest_change_at=latest.occurred_at if latest else None,
+        latest_change_event=latest.event_type if latest else None,
+        latest_changed_document_id=latest.document_id if latest else None,
+        requires_rebuild=changed,
+        reason="知识生命周期或导入记录在上次图谱重建后发生变化" if changed else None,
+    )
+    return UnifiedResponse(request_id=request_id, data=data, error=None)
+
+
 @router.get("/audit")
 async def list_audit_events(
     request: Request,
@@ -301,3 +458,12 @@ async def list_audit_events(
 
     data = AuditListResponse(items=items, total=total, page=page, size=size)
     return UnifiedResponse(request_id=request_id, data=data, error=None)
+
+
+def _stable_graph_evidence_id(document_id: str, chunk_id: str) -> str:
+    digest = hashlib.sha256(f"{document_id}\x1f{chunk_id}".encode("utf-8")).hexdigest()
+    return f"ko:{digest}"
+
+
+def _text(value) -> str:
+    return str(value or "").strip()

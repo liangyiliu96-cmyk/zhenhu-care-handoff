@@ -8,11 +8,11 @@ describe('parseAssistantSseFrames', () => {
     expect(first.events).toEqual([{ token: '建议', done: false }]);
     expect(first.remainder).toBe('data: {"token":"继续"');
 
-    const second = parseAssistantSseFrames(`${first.remainder},"done":false}\n\ndata: {"token":"","done":true,"session_id":"session-1","sources":["指南"],"citations":[{"title":"指南","excerpt":"片段"}]}\n\n`);
+    const second = parseAssistantSseFrames(`${first.remainder},"done":false}\n\ndata: {"token":"","done":true,"session_id":"session-1","sources":["指南"],"citations":[{"title":"指南","excerpt":"片段"}],"evidence":{"status":"ok","policy_version":"test"}}\n\n`);
     expect(second.remainder).toBe('');
     expect(second.events).toEqual([
       { token: '继续', done: false },
-      { token: '', done: true, session_id: 'session-1', sources: ['指南'], citations: [{ title: '指南', excerpt: '片段' }] },
+      { token: '', done: true, session_id: 'session-1', sources: ['指南'], citations: [{ title: '指南', excerpt: '片段' }], evidence: { status: 'ok', policy_version: 'test' } },
     ]);
   });
 
