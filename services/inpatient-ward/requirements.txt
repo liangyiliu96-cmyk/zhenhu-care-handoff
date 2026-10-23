@@ -12,6 +12,6 @@ langchain-core>=1.4.9
 starlette>=0.38.6
 python-multipart>=0.0.9
 redis>=5.0.0
-neo4j>=5.22,<6
+neo4j>=5.22,<7
 pymilvus>=2.4.3
 sentence-transformers>=2.7.0
