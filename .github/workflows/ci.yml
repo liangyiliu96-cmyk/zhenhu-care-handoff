@@ -39,7 +39,7 @@ jobs:
           --health-interval=10s --health-timeout=5s --health-retries=10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Python 3.12 (with pip cache)
         uses: actions/setup-python@v5
@@ -93,7 +93,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node 22 (with npm cache)
         uses: actions/setup-node@v4
@@ -121,7 +121,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Python 3.12
         uses: actions/setup-python@v5
